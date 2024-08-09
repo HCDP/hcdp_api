@@ -7,5 +7,5 @@ docker build -t hcdp_email_api .
 
 docker run --restart on-failure --name=email -d -p 443:443 \
 -v /mnt/netapp/ikewai/annotated/HCDP:/data \
--v /home/ikewai/hcdp_email_api/logs:/logs \
+-v /home/hcdp/hcdp-api/logs:/logs \
 hcdp_email_api
