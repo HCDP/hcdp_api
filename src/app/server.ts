@@ -1,5 +1,6 @@
 import express from "express";
 import compression from "compression";
+import cors from "cors";
 import * as nodemailer from "nodemailer";
 import * as https from "https";
 import * as fs from "fs";
@@ -88,6 +89,8 @@ for(let location in tapisV3Config.streams.projects) {
 
 const app = express();
 
+app.options('*', cors())
+
 let options = {
     key: hskey,
     cert: hscert
@@ -109,8 +112,6 @@ app.use((req, res, next) => {
   //pass to next layer
   next();
 });
-
-
 
 ////////////////////////////////
 ////////////////////////////////
