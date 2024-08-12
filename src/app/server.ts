@@ -217,6 +217,7 @@ function validateToken(req, permission) {
 }
 
 async function sendEmail(transporterOptions, mailOptions) {
+  console.log("sendEmail");
   let combinedMailOptions = Object.assign({}, mailOptionsBase, mailOptions);
 
   let transporter = nodemailer.createTransport(transporterOptions);
@@ -224,6 +225,7 @@ async function sendEmail(transporterOptions, mailOptions) {
   //have to be on uh netork
   return transporter.sendMail(combinedMailOptions)
   .then((info) => {
+    console.log(info);
     //should parse response for success (should start with 250) 
     return {
       success: true,
