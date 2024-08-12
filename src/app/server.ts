@@ -12,7 +12,7 @@ import CsvReadableStream from "csv-reader";
 import * as detectDecodeStream from "autodetect-decoder-stream";
 import * as crypto from "crypto";
 import * as safeCompare from "safe-compare";
-import sslRootCAs from "ssl-root-cas/latest.js";
+import sslRootCAs from "ssl-root-cas";
 
 import { MesonetDataPackager } from "./modules/mesonetDataPackager.js";
 import { DBManager, TapisManager, TapisV3Manager, ProjectHandler } from "./modules/tapisHandlers.js";
