@@ -796,7 +796,9 @@ app.post("/genzip/email", async (req, res) => {
             };
             
             mailOptions = Object.assign({}, mailOptionsBase, mailOptions);
+            console.log("pre send");
             mailRes = await sendEmail(transporterOptions, mailOptions);
+            console.log("sent!", mailRes);
             //if an error occured fall back to link and try one more time
             if(!mailRes.success) {
               attachFile = false;
