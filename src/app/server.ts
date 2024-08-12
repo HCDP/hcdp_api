@@ -218,7 +218,7 @@ function validateToken(req, permission) {
 
 async function sendEmail(transporterOptions, mailOptions) {
   console.log("sendEmail");
-  let combinedMailOptions = Object.assign({debug: true, logger: true, tls: {ciphers: "ECDHE-RSA-AES256-GCM-SHA384"}}, mailOptionsBase, mailOptions);
+  let combinedMailOptions = Object.assign({debug: true, logger: true, tls: {rejectUnauthorized: false, ciphers: "ECDHE-RSA-AES256-GCM-SHA384"}}, mailOptionsBase, mailOptions);
   console.log("creating transport");
   let transporter = nodemailer.createTransport(transporterOptions);
   console.log("transport created");
