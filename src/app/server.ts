@@ -234,6 +234,7 @@ async function sendEmail(transporterOptions, mailOptions) {
     };
   })
   .catch((error) => {
+    console.log(error);
     return {
       success: false,
       result: null,
