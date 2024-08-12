@@ -17,7 +17,7 @@ for (let i = 0; i < cpuCount; i++) {
   cluster.fork();
 }
 cluster.on("exit", (worker, code, signal) => {
-  console.log(`Worker ${worker.process.pid} has been killed`);
+  console.log(`Worker ${worker.process.pid} has been killed: Code: ${code}, Signal: ${signal}`);
   console.log("Starting another worker");
   cluster.fork();
 });
