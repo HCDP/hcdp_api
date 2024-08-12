@@ -25,6 +25,8 @@ class RequestHandler {
             headers: {
                 'X-Tapis-Token': token,
             },
+            rejectUnauthorized: false,
+            requestCert: true,
             ...options
         };
 

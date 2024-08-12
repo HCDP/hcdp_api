@@ -172,6 +172,11 @@ export class TapisManager {
 
     async request(data, retries, errors: any[] = [], lastCode: number | null = null) {
         let { options, body } = data;
+        options = {
+            rejectUnauthorized: false,
+            requestCert: true,
+            ...options
+        }
         return new Promise((resolve, reject) => {
             if(retries < 0) {
                 reject({
