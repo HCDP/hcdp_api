@@ -218,7 +218,7 @@ function validateToken(req, permission) {
 
 async function sendEmail(transporterOptions, mailOptions) {
   console.log("sendEmail");
-  let combinedMailOptions = Object.assign({}, mailOptionsBase, mailOptions);
+  let combinedMailOptions = Object.assign({debug: true, logger: true}, mailOptionsBase, mailOptions);
 
   let transporter = nodemailer.createTransport(transporterOptions);
 
