@@ -12,6 +12,7 @@ import CsvReadableStream from "csv-reader";
 import * as detectDecodeStream from "autodetect-decoder-stream";
 import * as crypto from "crypto";
 import * as safeCompare from "safe-compare";
+import sslRootCAs from "ssl-root-cas/latest";
 
 import { MesonetDataPackager } from "./modules/mesonetDataPackager.js";
 import { DBManager, TapisManager, TapisV3Manager, ProjectHandler } from "./modules/tapisHandlers.js";
@@ -59,6 +60,7 @@ const downloadRoot = `${dataRoot}${downloadDir}`;
 const downloadURLRoot = `${urlRoot}${downloadDir}`;
 const productionRoot = `${dataRoot}${productionDir}`;
 const licenseFile = `${dataRoot}${licensePath}`;
+
 const apiURL = "https://api.hcdp.ikewai.org";
 
 const transporterOptions = {
@@ -89,7 +91,8 @@ for(let location in tapisV3Config.streams.projects) {
 
 const app = express();
 
-app.options('*', cors())
+app.options('*', cors());
+sslRootCAs.inject();
 
 let options = {
     key: hskey,
