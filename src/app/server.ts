@@ -217,15 +217,11 @@ function validateToken(req, permission) {
 }
 
 async function sendEmail(transporterOptions, mailOptions) {
-  console.log("sendEmail");
-  let combinedMailOptions = Object.assign({debug: true, logger: true, tls: {rejectUnauthorized: false, ciphers: "ECDHE-RSA-AES256-GCM-SHA384"}}, mailOptionsBase, mailOptions);
-  console.log("creating transport");
+  let combinedMailOptions = Object.assign({}, mailOptionsBase, mailOptions);
   let transporter = nodemailer.createTransport(transporterOptions);
-  console.log("transport created");
   //have to be on uh netork
   return transporter.sendMail(combinedMailOptions)
   .then((info) => {
-    console.log(info);
     //should parse response for success (should start with 250) 
     return {
       success: true,
@@ -234,7 +230,6 @@ async function sendEmail(transporterOptions, mailOptions) {
     };
   })
   .catch((error) => {
-    console.log(error);
     return {
       success: false,
       result: null,
