@@ -28,4 +28,4 @@ RUN npm run build
 RUN g++ ./tiffextract/driver.cpp -o dist/assets/tiffextract.out -fopenmp
 
 WORKDIR /api/dist/app
-CMD [ "node", "server.js" ]
+CMD [ "node", "cluster.js" ]
