@@ -583,18 +583,13 @@ app.get("/raster", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     //destructure query
-    let {date, returnEmptyNotFound, ...properties} = req.query;
-    let fileType = "data_map";
-    if(properties.type == "percent") {
-      fileType = "data_map_change";
-      properties.units = "percent";
-    }
-    else if(properties.type == "absolute") {
-      fileType = "data_map_change";
+    let {date, returnEmptyNotFound, type, ...properties} = req.query;
+    if(type === undefined) {
+      type = "data_map";
     }
 
     let data = [{
-      files: [fileType],
+      files: [type],
       range: {
         start: date,
         end: date
