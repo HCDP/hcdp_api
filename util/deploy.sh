@@ -1,11 +1,11 @@
 #!/bin/bash
 
-docker stop -t 60 email
-docker wait email
-docker rm email
-docker build -t hcdp_email_api .
+docker stop -t 60 api
+docker wait api
+docker rm api
+docker build -t hcdp_api .
 
-docker run --restart on-failure --name=email -d -p 443:443 \
--v /mnt/netapp/ikewai/annotated/HCDP:/data \
--v /home/ikewai/hcdp_email_api/logs:/logs \
-hcdp_email_api
+docker run --restart on-failure --name=api -d -p 443:443 \
+-v /mnt/lustre/annotated/HCDP:/data \
+-v /home/hcdp/hcdp-api/logs:/logs \
+hcdp_api

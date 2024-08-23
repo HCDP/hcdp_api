@@ -1,8 +1,8 @@
 import { Writable } from "stream";
 
-const { v4: uuidv4 } = require('uuid');
-const fs = require('fs');
-const path = require('path');
+import { v4 as uuidv4 } from "uuid";
+import * as fs from "fs";
+import * as path from "path";
 
 export class MesonetDataPackager {
     packageDir: string;

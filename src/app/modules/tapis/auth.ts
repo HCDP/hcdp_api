@@ -1,4 +1,4 @@
-const https = require("https");
+import * as https from "https";
 
 export class TapisV3Auth {
     private authRefresh: NodeJS.Timeout | undefined;
@@ -27,6 +27,8 @@ export class TapisV3Auth {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
+            rejectUnauthorized: false,
+            requestCert: true
         };
 
         // set auth promise to authentication funct

@@ -1,6 +1,6 @@
-const moment = require("moment");
-const fs = require("fs");
-const path = require("path");
+import moment from "moment";
+import * as fs from "fs";
+import * as path from "path";
 
 //property hierarchy (followed by file and date parts)
 const hierarchy = ["datatype", "production", "aggregation", "period", "extent", "fill"];
@@ -48,8 +48,8 @@ export async function getPaths(root, data, collapse?) {
 
                 for(let ftype of ftypes) {
                     let fdirType = path.join(fdir, ftype);
-                    let start = new moment(range.start);
-                    let end = new moment(range.end);
+                    let start = moment(range.start);
+                    let end = moment(range.end);
                     let pathData = await getPathsBetweenDates(fdirType, start, end, collapse);
                     totalFiles += pathData.numFiles;
                     paths = paths.concat(pathData.paths);
@@ -191,7 +191,7 @@ function handleFile(fname, start, end) {
         //construct ISO date string from parts with defaults for missing values
         const isoDateStr = `${year}-${month || "01"}-${day || "01"}T${hour || "00"}:${minute || "00"}:${second || "00"}`;
         //create date object from ISO string
-        let fileDate = new moment(isoDateStr);
+        let fileDate = moment(isoDateStr);
         //check if date is between the start and end date (inclusive at both ends)
         //if it is return the file, otherwise empty
         if(fileDate.isSameOrAfter(fileStart) && fileDate.isSameOrBefore(fileEnd)) {
@@ -231,7 +231,7 @@ function datePartToNumber(part, period) {
 }
 
 //note root must start at date paths
-async function getPathsBetweenDates(root, start, end, collapse = true, date = new moment("0000"), depth = 0): Promise<any> {
+async function getPathsBetweenDates(root, start, end, collapse = true, date = moment("0000"), depth = 0): Promise<any> {
     const dirStart = dateToDepth(start, depth);
     const dirEnd = dateToDepth(end, depth);
 

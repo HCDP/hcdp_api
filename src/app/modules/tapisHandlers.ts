@@ -1,9 +1,10 @@
-const { MongoClient } = require("mongodb");
-const querystring = require('querystring');
-const https = require("https");
+import pkg from "mongodb";
+const { MongoClient } = pkg;
+import * as querystring from "querystring";
+import * as https from "https";
 
-import { TapisV3Auth } from "./tapis/auth";
-import { TapisV3Streams, ProjectHandler } from "./tapis/streams";
+import { TapisV3Auth } from "./tapis/auth.js";
+import { TapisV3Streams, ProjectHandler } from "./tapis/streams.js";
 
 export { ProjectHandler };
 
@@ -169,8 +170,13 @@ export class TapisManager {
         this.dbManager = dbManager;
     }
 
-    async request(data, retries, errors: any[] = [], lastCode = null) {
+    async request(data, retries, errors: any[] = [], lastCode: number | null = null) {
         let { options, body } = data;
+        options = {
+            rejectUnauthorized: false,
+            requestCert: true,
+            ...options
+        }
         return new Promise((resolve, reject) => {
             if(retries < 0) {
                 reject({
@@ -185,7 +191,7 @@ export class TapisManager {
                         responseData += chunk;
                     });
                     res.on("end", () => {
-                        let codeGroup = Math.floor(res.statusCode / 100);
+                        let codeGroup = Math.floor(res.statusCode! / 100);
                         if(codeGroup != 2) {
                             let e = `Request responded with code ${res.statusCode}; message: ${responseData}`;
                             errors.push(e);
