@@ -596,7 +596,6 @@ app.get("/raster", async (req, res) => {
       ...properties
     }];
     let files = await getPaths(productionRoot, data, false);
-    console.log(files);
     reqData.sizeF = files.numFiles;
     let file = "";
     //should only be exactly one file
