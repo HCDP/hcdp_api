@@ -132,36 +132,51 @@ async function validate(file) {
 
 
 async function getClimatologyFiles(root: string, properties: {[tag: string]: string}) {
-    let files: string[] = [];
-    let {datatype, variable, extent, mean_type, period, date} = properties;
-    if(period === undefined) {
-        switch(mean_type) {
-            case "mean_30yr_annual": {
-                let year = moment(date).year();
-                //get 30 year period
-                //offset by -10 to align with 30 year multiple from 0, then add back to realign with climatology period
-                let decadeEnd = Math.ceil((year - 10) / 30) * 30 + 10;
-                let decadeStart = decadeEnd - 29;
-                period = `${decadeStart}-${decadeEnd}`;
+    let result: string[] = [];
+    let {datatype, variable, aggregation, extent, mean_type, period, date, files} = properties;
+    for(let file of files) {
+        let fpath = "";
+        if(file == "metadata") {
+            fpath = `${datatype}/${variable}/${datatype}_${variable}_metadata.pdf`;
+        }
+        else if(file == "data_map") {
+            if(period === undefined) {
+                switch(mean_type) {
+                    case "mean_30yr_annual": {
+                        let year = moment(date).year();
+                        //get 30 year period
+                        //offset by -10 to align with 30 year multiple from 0, then add back to realign with climatology period
+                        let decadeEnd = Math.ceil((year - 10) / 30) * 30 + 10;
+                        let decadeStart = decadeEnd - 29;
+                        period = `${decadeStart}-${decadeEnd}`;
+                    }
+                    case "mean_annual_decadal": {
+                        let year = moment(date).year();
+                        //get decade
+                        let decadeEnd = Math.ceil(year / 10) * 10;
+                        let decadeStart = decadeEnd - 9;
+                        period = `${decadeStart}-${decadeEnd}`;
+                    }
+                    case "mean_monthly": {
+                        period = moment(date).format("MMMM").toLowerCase();
+                    }
+                }
             }
-            case "mean_annual_decadal": {
-                let year = moment(date).year();
-                //get decade
-                let decadeEnd = Math.ceil(year / 10) * 10;
-                let decadeStart = decadeEnd - 9;
-                period = `${decadeStart}-${decadeEnd}`;
+            if(variable == "air_temperature") {
+                fpath = `${datatype}/${variable}/${aggregation}/${mean_type}/${extent}/${datatype}_${aggregation}_${variable}_${mean_type}_${extent}_${period}.tif`;
             }
-            case "mean_monthly": {
-                period = moment(date).format("MMMM").toLowerCase();
+            else {
+                fpath = `${datatype}/${variable}/${mean_type}/${extent}/${datatype}_${variable}_${mean_type}_${extent}_${period}.tif`;
             }
         }
+        fpath = path.join(root, fpath); 
+
+        if(await validate(fpath)) {
+            result.push(fpath);
+        }
     }
-    let fpath = `${datatype}/${variable}/${mean_type}/${extent}/${datatype}_${variable}_${mean_type}_${extent}_${period}.tif`;
-    fpath = path.join(root, fpath);
-    if(await validate(fpath)) {
-        files.push(fpath);
-    }
-    return files;
+    
+    return result;
 }
 
 
