@@ -1178,7 +1178,6 @@ app.get("/raw/list", async (req, res) => {
       let parsedDate = moment(startDate);
       let parsedEndDate = moment(endDate);
       while(parsedDate.isSameOrBefore(parsedEndDate)) {
-        parsedDate.add(1, "day");
         let year = parsedDate.format("YYYY");
         let month = parsedDate.format("MM");
         let day = parsedDate.format("DD");
@@ -1205,6 +1204,7 @@ app.get("/raw/list", async (req, res) => {
           return fileLink;
         });
         allFiles = allFiles.concat(files);
+        parsedDate.add(1, "day");
       }
       
       reqData.sizeF = allFiles.length;
