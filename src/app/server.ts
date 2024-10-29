@@ -17,6 +17,7 @@ import sslRootCAs from "ssl-root-cas";
 import { MesonetDataPackager } from "./modules/mesonetDataPackager.js";
 import { DBManager, TapisManager, TapisV3Manager, ProjectHandler } from "./modules/tapisHandlers.js";
 import { getPaths, fnamePattern, getEmpty } from "./modules/fileIndexer.js";
+import { HCDPDBManager } from "./modules/hcdpDBManager.js";
 
 //add timestamps to output
 import consoleStamp from 'console-stamp';
@@ -45,9 +46,9 @@ const urlRoot = config.urlRoot;
 const rawDataDir = config.rawDataDir;
 const downloadDir = config.downloadDir;
 const userLog = config.userLog;
-const whitelist = config.whitelist;
 const administrators = config.administrators;
-const dbConfig = config.dbConfig;
+const tapisDBConfig = config.tapisDBConfig;
+const hcdpDBConfig = config.hcdpDBConfig;
 const productionDir = config.productionDir;
 const licensePath = config.licenseFile;
 const tapisConfig = config.tapisConfig;
@@ -75,9 +76,12 @@ const ATTACHMENT_MAX_MB = 25;
 //process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
 process.env["NODE_ENV"] = "production";
 
-const dbManager = new DBManager(dbConfig.server, dbConfig.port, dbConfig.username, dbConfig.password, dbConfig.db, dbConfig.collection, dbConfig.connectionRetryLimit, dbConfig.queryRetryLimit);
-const tapisManager = new TapisManager(tapisConfig.tenantURL, tapisConfig.token, dbConfig.queryRetryLimit, dbManager);
-const tapisV3Manager = new TapisV3Manager(tapisV3Config.username, tapisV3Config.password, tapisV3Config.tenantURL, dbConfig.queryRetryLimit, tapisManager);
+const hcdpDBManagerMesonet = new HCDPDBManager(hcdpDBConfig.host, hcdpDBConfig.port, "mesonet", hcdpDBConfig.userCredentials, hcdpDBConfig.adminCredentials);
+const hcdpDBManagerHCDP = new HCDPDBManager(hcdpDBConfig.host, hcdpDBConfig.port, "hcdp", hcdpDBConfig.userCredentials, hcdpDBConfig.adminCredentials);
+
+const tapisDBManager = new DBManager(tapisDBConfig.server, tapisDBConfig.port, tapisDBConfig.username, tapisDBConfig.password, tapisDBConfig.db, tapisDBConfig.collection, tapisDBConfig.connectionRetryLimit, tapisDBConfig.queryRetryLimit);
+const tapisManager = new TapisManager(tapisConfig.tenantURL, tapisConfig.token, tapisDBConfig.queryRetryLimit, tapisDBManager);
+const tapisV3Manager = new TapisV3Manager(tapisV3Config.username, tapisV3Config.password, tapisV3Config.tenantURL, tapisDBConfig.queryRetryLimit, tapisManager);
 
 const projectHandlers: {[location: string]: ProjectHandler} = {};
 for(let location in tapisV3Config.streams.projects) {
@@ -176,41 +180,52 @@ async function readdir(dir): Promise<{err, files}> {
   });
 }
 
-function validateTokenAccess(token, permission) {
+async function validateTokenAccess(token, permission) {
   let valid = false;
   let allowed = false;
   let user = "";
-  let tokenInfo = whitelist[token];
-  if(tokenInfo) {
+
+  let query = `
+    SELECT user_label, permissions
+    FROM auth_token_store
+    WHERE token = %1;
+  `;
+  
+  let queryHandler = await hcdpDBManagerHCDP.query(query, [token], true);
+  let queryRes = await queryHandler.read(1);
+  queryHandler.close();
+  if(queryRes.length > 0) {
+    let { user_label, permissions } = queryRes[0];
     valid = true;
-    user = tokenInfo.user || "";
-    //actions permissions user is authorzized for
-    const authorized = tokenInfo.permissions;
-    //check if authorized permissions for this token contains required permission for this request
-    allowed = authorized.includes(permission);
+    user = user_label;
+    const authorized = permissions.split(",");
+    if(authorized.includes(permission)) {
+      allowed = true;
+    }
   }
   return {
     valid,
     allowed,
     token,
     user
-  }
+  };
 }
 
-function validateToken(req, permission) {
+async function validateToken(req, permission) {
   let tokenData = {
     valid: false,
     allowed: false,
     token: "",
     user: ""
   };
+
   let auth = req.get("authorization");
   if(auth) {
     let authPattern = /^Bearer (.+)$/;
     let match = auth.match(authPattern);
     if(match) {
-      //get tokens access rules
-      tokenData = validateTokenAccess(match[1], permission);
+      //validate token is registered and has required permission
+      tokenData = await validateTokenAccess(match[1], permission);
     }
   }
   return tokenData;
@@ -321,7 +336,7 @@ async function handleReq(req, res, permission, handler) {
     tokenUser: ""
   };
   try {
-    const tokenData = validateToken(req, permission);
+    const tokenData = await validateToken(req, permission);
     const { valid, allowed, token, user } = tokenData;
     reqData.token = token;
     reqData.tokenUser = user;
@@ -518,7 +533,7 @@ app.post("/db/replace", async (req, res) => {
       //sanitize value object to ensure no $ fields since this can be an arbitrary object
       value = sanitize(value);
       //note this only replaces value, should not be wrapped with name
-      let replaced = await dbManager.replaceRecord(uuid, value);
+      let replaced = await tapisDBManager.replaceRecord(uuid, value);
       reqData.code = 200;
       res.status(200)
       .send(replaced.toString());
@@ -544,7 +559,7 @@ app.post("/db/delete", async (req, res) => {
       );
     }
     else {
-      let deleted = await dbManager.deleteRecord(uuid);
+      let deleted = await tapisDBManager.deleteRecord(uuid);
       reqData.code = 200;
       res.status(200)
       .send(deleted.toString());
@@ -570,7 +585,7 @@ app.post("/db/bulkDelete", async (req, res) => {
       );
     }
     else {
-      let deleted = await dbManager.bulkDelete(uuids);
+      let deleted = await tapisDBManager.bulkDelete(uuids);
       reqData.code = 200;
       res.status(200)
       .send(deleted.toString());
@@ -1863,72 +1878,134 @@ app.post("/notify", async (req, res) => {
 });
 
 
-
-
-
-
-
-
-
-//create instrument for flag, add default value to metadata
-function createFlag(flag, defaultValue) {
-  if(defaultValue === undefined) {
-    defaultValue = 0;
-  }
-  let metadata = {
-    default: defaultValue
-  };
-
-  let a = [{
-    inst_id: "tapis_demo_instrument",
-    inst_name: "tapis_demo_instrument",
-    inst_description: "demo instrument",
-    metadata
-  }];
-}
-
-app.post("/mesonet/setFlag", async (req, res) => {
-  const permission = "meso_admin";
+app.post("/registerTokenRequest", async (req, res) => {
+  const permission = "admin";
   await handleReq(req, res, permission, async (reqData) => {
-    reqData.success = false;
-    reqData.code = 501;
+    const { requestID, name, email, organization, position, reason } = req.body;
+    const timestamp = new Date().toISOString();
+    let query = "INSERT INTO token_requests ($1, $2, $3, $4, $5, $6, $7, $8, $9);";
+    hcdpDBManagerHCDP.queryNoRes(query, [requestID, timestamp, null, null, name, email, organization, position, reason], true);
 
-    return res.status(501)
-    .send(
-      `Not implemented`
-    );
-
-
-    const { station_id, flag, data } = req.body;
-
-    let instID = "";
-    let measurements = {};
-    for(let item of data) {
-      const { var_id, timestamp, value } = item;
-      let timestampMeasurements = measurements[timestamp]
-      if(timestampMeasurements === undefined) {
-        timestampMeasurements = {
-          datetime: timestamp
-        };
-        measurements[timestamp] = timestampMeasurements;
-      }
-      timestampMeasurements[var_id] = value;
-    }
-    measurements = Object.values(measurements);
+    reqData.code = 201;
+    return res.status(201)
+    .send("The request was registered successfully.");
   });
 });
 
-app.post("/mesonet/setFlag/default", async (req, res) => {
-  const permission = "meso_admin";
+
+app.get("/respondTokenRequest", async (req, res) => {
+  await handleReqNoAuth(req, res, async (reqData) => {
+    const { requestID, accept }: any = req.query;
+    let query = `
+      SELECT approved, name, email, organization
+      FROM token_requests
+      WHERE requestID = $1;
+    `;
+    let queryHandler = await hcdpDBManagerHCDP.query(query, [requestID], true);
+    let requestData = await queryHandler.read(1);
+    queryHandler.close();
+    const timestamp = new Date().toISOString();
+
+    let updateRequest = () => {
+      query = `
+        UPDATE token_requests
+        SET approved = $1, responded = $2
+        WHERE requestID = $3;
+      `;
+
+      hcdpDBManagerHCDP.queryNoRes(query, [accept, timestamp, requestID], true);
+    };
+
+    if(requestData.length > 0) {
+      const { approved, name, email, organization } = requestData[0];
+
+      if(approved === null && accept) {
+        updateRequest();
+        
+        const apiToken = crypto.randomBytes(16).toString("hex");
+  
+        let userLabel = name.toLowerCase().replace(/\s/g, "_");
+        if(organization) {
+          userLabel += "_" + organization.toLowerCase().replace(/\s/g, "_");
+        }
+        
+        query = `
+          INSERT INTO auth_token_store (${apiToken}, ${timestamp}, basic, $1, $2);
+        `;
+        hcdpDBManagerHCDP.query(query, [userLabel, requestID], true);
+        const emailContent = `Dear ${name},
+  
+          Thank you for your interest in using the HCDP API! Here is your HCDP API token:
+          ${apiToken}
+  
+          If you have any questions please reach out to our team at hcdp@hawaii.edu and we will be happy to assist you.
+  
+          Thank you,
+          The HCDP Team`;
+  
+        let mailOptions = {
+          to: email,
+          subject: "HCDP API access request",
+          text: emailContent,
+          html: "<p>" + emailContent + "</p>"
+        };
+        await sendEmail(transporterOptions, mailOptions);
+  
+        reqData.code = 201;
+        return res.status(201)
+        .send("Success! A token has been generated and sent to the email address provided by the requestor.");
+      }
+      else if(approved === null) {
+        updateRequest();
+  
+        const emailContent = `Dear ${name},
+  
+          Thank you for your interest in using the HCDP API! Unfortunately we were not able to approve your request at this time.
+          
+          If you have any questions, please reach out to our team at hcdp@hawaii.edu and we will be happy to assist you.
+  
+          Thank you,
+          The HCDP Team`;
+  
+        let mailOptions = {
+          to: email,
+          subject: "HCDP API access request",
+          text: emailContent,
+          html: "<p>" + emailContent + "</p>"
+        };
+        await sendEmail(transporterOptions, mailOptions);
+  
+        reqData.code = 200;
+        return res.status(200)
+        .send("The requestor has been notified that their request was rejected.");
+      }
+      else {
+        reqData.code = 409;
+        return res.status(409)
+        .send(`The provided token request ID has already been responded to. The request was ${approved ? "accepted" : "rejected"}. Requests may only be responded to once. If you would like to ammend the request decision, please contact the database administrator.`);
+      }
+    }
+    else {
+      reqData.code = 404;
+      return res.status(404)
+      .send("Invalid token request ID. No request with the provided request ID has been registered. No token will be generated");
+    }
+  });
+});
+
+
+app.put("/updateTokenPermissions", async (req, res) => {
+  const permission = "admin";
   await handleReq(req, res, permission, async (reqData) => {
-    reqData.success = false;
-    reqData.code = 501;
-
-    return res.status(501)
-    .send(
-      `Not implemented`
-    );
-
-    const { station_id, var_id, flag, value } = req.body;
+    const { token, permissions } = req.body;
+    let permString = permissions.join(",");
+    let query = `
+      UPDATE auth_token_store
+      SET permissions = $1 
+      WHERE token = $2;
+    `;
+    hcdpDBManagerHCDP.queryNoRes(query, [permString, token], true);
+    reqData.code = 204;
+    return res.status(204).end();
   });
 });
