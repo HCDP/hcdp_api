@@ -1882,9 +1882,11 @@ app.post("/registerTokenRequest", async (req, res) => {
   const permission = "admin";
   await handleReq(req, res, permission, async (reqData) => {
     const { requestID, name, email, organization, position, reason } = req.body;
+    console.log(req.body);
+    console.log(requestID, name, email, organization, position, reason);
     const timestamp = new Date().toISOString();
     let query = "INSERT INTO token_requests ($1, $2, $3, $4, $5, $6, $7, $8, $9);";
-    hcdpDBManagerHCDP.queryNoRes(query, [requestID, timestamp, null, null, name, email, organization, position, reason], true);
+    await hcdpDBManagerHCDP.queryNoRes(query, [requestID, timestamp, null, null, name, email, organization, position, reason], true)
 
     reqData.code = 201;
     return res.status(201)
