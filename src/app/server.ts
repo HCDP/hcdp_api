@@ -188,7 +188,7 @@ async function validateTokenAccess(token, permission) {
   let query = `
     SELECT user_label, permissions
     FROM auth_token_store
-    WHERE token = %1;
+    WHERE token = $1;
   `;
   
   let queryHandler = await hcdpDBManagerHCDP.query(query, [token], true);
