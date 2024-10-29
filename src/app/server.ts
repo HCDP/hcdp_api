@@ -1885,7 +1885,7 @@ app.post("/registerTokenRequest", async (req, res) => {
     console.log(req.body);
     console.log(requestID, name, email, organization, position, reason);
     const timestamp = new Date().toISOString();
-    let query = "INSERT INTO token_requests ($1, $2, $3, $4, $5, $6, $7, $8, $9);";
+    let query = "INSERT INTO token_requests VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);";
     await hcdpDBManagerHCDP.queryNoRes(query, [requestID, timestamp, null, null, name, email, organization, position, reason], true)
 
     reqData.code = 201;
@@ -1932,7 +1932,7 @@ app.get("/respondTokenRequest", async (req, res) => {
         }
         
         query = `
-          INSERT INTO auth_token_store (${apiToken}, ${timestamp}, basic, $1, $2);
+          INSERT INTO auth_token_store VALUES (${apiToken}, ${timestamp}, basic, $1, $2);
         `;
         hcdpDBManagerHCDP.query(query, [userLabel, requestID], true);
         const emailContent = `Dear ${name},
