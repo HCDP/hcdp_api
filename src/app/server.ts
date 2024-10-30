@@ -1939,7 +1939,7 @@ app.get("/respondTokenRequest", async (req, res) => {
         query = `
           INSERT INTO auth_token_store VALUES (${apiToken}, ${timestamp}, basic, $1, $2);
         `;
-        await hcdpDBManagerHCDP.query(query, [userLabel, requestID], true);
+        await hcdpDBManagerHCDP.queryNoRes(query, [userLabel, requestID], true);
         const emailContent = `Dear ${name},
   
           Thank you for your interest in using the HCDP API! Here is your HCDP API token:
