@@ -1920,9 +1920,10 @@ app.get("/respondTokenRequest", async (req, res) => {
 
     if(requestData.length > 0) {
       let { approved, name, email, organization } = requestData[0];
-      approved = null;
-      accept = false;
-      if(approved === null && accept) {
+
+      console.log(approved, accept, approved === null && accept);
+      console.log();
+      if(approved === null && accept == "true") {
         console.log("Accepted!", approved, accept, approved === null && accept);
         updateRequest();
         
