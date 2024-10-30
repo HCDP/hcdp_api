@@ -1934,7 +1934,7 @@ app.get("/respondTokenRequest", async (req, res) => {
         query = `
           INSERT INTO auth_token_store VALUES (${apiToken}, ${timestamp}, basic, $1, $2);
         `;
-        hcdpDBManagerHCDP.query(query, [userLabel, requestID], true);
+        await hcdpDBManagerHCDP.query(query, [userLabel, requestID], true);
         const emailContent = `Dear ${name},
   
           Thank you for your interest in using the HCDP API! Here is your HCDP API token:
@@ -1949,7 +1949,7 @@ app.get("/respondTokenRequest", async (req, res) => {
           to: email,
           subject: "HCDP API access request",
           text: emailContent,
-          html: "<p>" + emailContent + "</p>"
+          html: "<p>" + emailContent.replace("\n", "<br>") + "</p>"
         };
         await sendEmail(transporterOptions, mailOptions);
   
@@ -1973,7 +1973,7 @@ app.get("/respondTokenRequest", async (req, res) => {
           to: email,
           subject: "HCDP API access request",
           text: emailContent,
-          html: "<p>" + emailContent + "</p>"
+          html: "<p>" + emailContent.replace("\n", "<br>") + "</p>"
         };
         await sendEmail(transporterOptions, mailOptions);
   
