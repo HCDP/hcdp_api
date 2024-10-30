@@ -1922,7 +1922,7 @@ app.get("/respondTokenRequest", async (req, res) => {
       const { approved, name, email, organization } = requestData[0];
 
       if(approved === null && accept) {
-        console.log("Accepted!", accept);
+        console.log("Accepted!", approved, accept, approved === null && accept);
         updateRequest();
         
         const apiToken = crypto.randomBytes(16).toString("hex");
