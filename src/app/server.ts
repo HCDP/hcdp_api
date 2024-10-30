@@ -1922,6 +1922,7 @@ app.get("/respondTokenRequest", async (req, res) => {
       const { approved, name, email, organization } = requestData[0];
 
       if(approved === null && accept) {
+        console.log("Accepted!", accept);
         updateRequest();
         
         const apiToken = crypto.randomBytes(16).toString("hex");
@@ -1958,6 +1959,7 @@ app.get("/respondTokenRequest", async (req, res) => {
         .send("Success! A token has been generated and sent to the email address provided by the requestor.");
       }
       else if(approved === null) {
+        console.log("Rejected!", accept);
         updateRequest();
   
         const emailContent = `Dear ${name},
