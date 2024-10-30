@@ -1881,9 +1881,28 @@ app.post("/notify", async (req, res) => {
 app.post("/registerTokenRequest", async (req, res) => {
   const permission = "admin";
   await handleReq(req, res, permission, async (reqData) => {
-    const { requestID, name, email, organization, position, reason } = req.body;
-    console.log(req.body);
-    console.log(requestID, name, email, organization, position, reason);
+    let { requestID, name, email, organization, position, reason } = req.body;
+    
+    if(!requestID || !name  || !email || !reason) {
+      //set failure and code in status
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Request body should be JSON with the fields:
+        requestID: The ID of the request to register.
+        name: The name of the requestor.
+        email: The email of the requestor.
+        organization (optional): The organization the requestor belongs to.
+        position (optional): The requestors title or position.
+        reason: The reason for the request or expected API usage.`
+      );
+    }
+
+    organization = organization || null;
+    position = position || null;
+    
     const timestamp = new Date().toISOString();
     let query = "INSERT INTO token_requests VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);";
     await hcdpDBManagerHCDP.queryNoRes(query, [requestID, timestamp, null, null, name, email, organization, position, reason], true)
@@ -1898,10 +1917,21 @@ app.post("/registerTokenRequest", async (req, res) => {
 app.get("/respondTokenRequest", async (req, res) => {
   await handleReqNoAuth(req, res, async (reqData) => {
     let { requestID, accept }: any = req.query;
-    accept = accept == "true" ? true : false
 
-    //check request id provided (validate params)
-    //do for all endpoints
+    if(!requestID) {
+      //set failure and code in status
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Request must include the following parameters:
+        requestID: The ID of the request to be responded to.
+        accept (optional): Whether to accept the request (true or false). Will be interpretted as 'false' if a value other than 'true' is provided.`
+      );
+    }
+
+    accept = accept == "true" ? true : false
 
     let query = `
       SELECT approved, name, email, organization
@@ -1913,14 +1943,14 @@ app.get("/respondTokenRequest", async (req, res) => {
     queryHandler.close();
     const timestamp = new Date().toISOString();
 
-    let updateRequest = () => {
+    let updateRequest = async () => {
       query = `
         UPDATE token_requests
         SET approved = $1, responded = $2
         WHERE requestID = $3;
       `;
 
-      hcdpDBManagerHCDP.queryNoRes(query, [accept, timestamp, requestID], true);
+      await hcdpDBManagerHCDP.queryNoRes(query, [accept, timestamp, requestID], true);
     };
 
     if(requestData.length > 0) {
@@ -2005,13 +2035,27 @@ app.put("/updateTokenPermissions", async (req, res) => {
   const permission = "admin";
   await handleReq(req, res, permission, async (reqData) => {
     const { token, permissions } = req.body;
+
+    if(!token || !permissions) {
+      //set failure and code in status
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Request body should be JSON with the fields:
+        token: The token to update the permissions for.
+        permissions: The permissions to apply to the given token`
+      );
+    }
+
     let permString = permissions.join(",");
     let query = `
       UPDATE auth_token_store
       SET permissions = $1 
       WHERE token = $2;
     `;
-    hcdpDBManagerHCDP.queryNoRes(query, [permString, token], true);
+    await hcdpDBManagerHCDP.queryNoRes(query, [permString, token], true);
     reqData.code = 204;
     return res.status(204).end();
   });
