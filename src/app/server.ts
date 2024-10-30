@@ -1897,7 +1897,7 @@ app.post("/registerTokenRequest", async (req, res) => {
 
 app.get("/respondTokenRequest", async (req, res) => {
   await handleReqNoAuth(req, res, async (reqData) => {
-    const { requestID, accept }: any = req.query;
+    let { requestID, accept }: any = req.query;
     let query = `
       SELECT approved, name, email, organization
       FROM token_requests
@@ -1919,8 +1919,9 @@ app.get("/respondTokenRequest", async (req, res) => {
     };
 
     if(requestData.length > 0) {
-      const { approved, name, email, organization } = requestData[0];
-
+      let { approved, name, email, organization } = requestData[0];
+      approved = null;
+      accept = false;
       if(approved === null && accept) {
         console.log("Accepted!", approved, accept, approved === null && accept);
         updateRequest();
