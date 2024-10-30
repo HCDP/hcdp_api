@@ -1898,6 +1898,11 @@ app.post("/registerTokenRequest", async (req, res) => {
 app.get("/respondTokenRequest", async (req, res) => {
   await handleReqNoAuth(req, res, async (reqData) => {
     let { requestID, accept }: any = req.query;
+    accept = accept == "true" ? true : false
+
+    //check request id provided (validate params)
+    //do for all endpoints
+
     let query = `
       SELECT approved, name, email, organization
       FROM token_requests
@@ -1919,12 +1924,9 @@ app.get("/respondTokenRequest", async (req, res) => {
     };
 
     if(requestData.length > 0) {
-      let { approved, name, email, organization } = requestData[0];
+      const { approved, name, email, organization } = requestData[0];
 
-      console.log(approved, accept, approved === null && accept);
-      console.log();
-      if(approved === null && accept == "true") {
-        console.log("Accepted!", approved, accept, approved === null && accept);
+      if(approved === null && accept) {
         updateRequest();
         
         const apiToken = crypto.randomBytes(16).toString("hex");
@@ -1952,7 +1954,7 @@ app.get("/respondTokenRequest", async (req, res) => {
           to: email,
           subject: "HCDP API access request",
           text: emailContent,
-          html: "<p>" + emailContent.replace("\n", "<br>") + "</p>"
+          html: "<p>" + emailContent.replaceAll("\n", "<br>") + "</p>"
         };
         await sendEmail(transporterOptions, mailOptions);
   
@@ -1961,7 +1963,6 @@ app.get("/respondTokenRequest", async (req, res) => {
         .send("Success! A token has been generated and sent to the email address provided by the requestor.");
       }
       else if(approved === null) {
-        console.log("Rejected!", accept);
         updateRequest();
   
         const emailContent = `Dear ${name},
@@ -1977,7 +1978,7 @@ app.get("/respondTokenRequest", async (req, res) => {
           to: email,
           subject: "HCDP API access request",
           text: emailContent,
-          html: "<p>" + emailContent.replace("\n", "<br>") + "</p>"
+          html: "<p>" + emailContent.replaceAll("\n", "<br>") + "</p>"
         };
         await sendEmail(transporterOptions, mailOptions);
   
