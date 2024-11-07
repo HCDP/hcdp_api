@@ -191,7 +191,7 @@ async function validateTokenAccess(token, permission) {
     WHERE token = $1;
   `;
   
-  let queryHandler = await hcdpDBManagerHCDP.query(query, [token], true);
+  let queryHandler = await hcdpDBManagerHCDP.query(query, [token], {privileged: true});
   let queryRes = await queryHandler.read(1);
   queryHandler.close();
   if(queryRes.length > 0) {
@@ -1394,12 +1394,342 @@ function processMeasurementsError(res, reqData, e) {
   }
 }
 
+
+
+
+
+
+
+
+
+
+
+function parseListParams(paramList: string, allParams: string[], whereClauses: string[], column: string) {
+  let paramListArr = paramList.split(",");
+  let paramSet: string[] = [];
+  for(let i = 0; i < paramListArr.length; i++) {
+    allParams.push(paramListArr[i]);
+    paramSet.push(`$${allParams.length}`);
+  }
+  whereClauses.push(`${column} IN (${paramSet.join(",")})`);
+}
+
+
+app.get("/mesonet/db/measurements", async (req, res) => {
+  const permission = "basic";
+  await handleReq(req, res, permission, async (reqData) => {
+    let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, rowMode }: any = req.query;
+
+    const MAX_QUERY = 1000000;
+
+    //validate location, can use direct in query
+    //default to hawaii
+    if(location !== "american_samoa") {
+      location = "hawaii";
+    }
+
+    if(rowMode !== "array") {
+      rowMode = undefined;
+    }
+
+    let measurementsTable = `${location}_measurements`;
+
+    let params: string[] = [];
+
+    ///////////////////////////////////////////////////
+    //////////// translations where clause ////////////
+    ///////////////////////////////////////////////////
+
+    let translationsWhereClauses = [];
+
+    if(var_ids) {
+      parseListParams(var_ids, params, translationsWhereClauses, "alias");
+    }
+
+    if(intervals) {
+      parseListParams(intervals, params, translationsWhereClauses, "interval_seconds");
+    }
+
+    let translationsWhereClause = "";
+    if(translationsWhereClauses.length > 0) {
+      translationsWhereClause = `WHERE ${translationsWhereClauses.join(" AND ")}`;
+    } 
+
+    ///////////////////////////////////////////////////
+    //////////////// main where clause ////////////////
+    ///////////////////////////////////////////////////
+
+    let mainWhereClauses: string[] = [];
+    
+    if(station_ids) {
+      parseListParams(station_ids, params, mainWhereClauses, `${measurementsTable}.station_id`);
+    }
+
+    if(start_date) {
+      params.push(start_date);
+      mainWhereClauses.push(`timestamp >= $${params.length}`);
+    }
+
+    if(end_date) {
+      params.push(end_date);
+      mainWhereClauses.push(`timestamp <= $${params.length}`);
+    }
+
+    if(flags) {
+      parseListParams(flags, params, mainWhereClauses, "flag");
+    }
+
+    let mainWhereClause = "";
+    if(mainWhereClauses.length > 0) {
+      mainWhereClause = `WHERE ${mainWhereClauses.join(" AND ")}`;
+    } 
+
+    ///////////////////////////////////////////////////
+    /////////////// limit offset clause ///////////////
+    ///////////////////////////////////////////////////
+
+    let limitOffsetClause = "";
+    //limit must be less than max, translate 0 or negative numbers as max
+    if(limit < 1 || limit > MAX_QUERY) {
+      limit = MAX_QUERY;
+    }
+    params.push(limit);
+    limitOffsetClause += `LIMIT $${params.length}`;
+    if(offset) {
+      params.push(offset);
+      limitOffsetClause += ` OFFSET $${params.length}`;
+    }
+
+    let query = `
+      SELECT ${measurementsTable}.station_id, timestamp, variable_data.standard_name as variable, value, flag ${join_metadata ? ", units, units_short, display_name AS variable_display_name, interval_seconds, name AS station_name, lat, lng, elevation" : ""}
+      FROM ${measurementsTable}
+      JOIN (
+        SELECT alias, standard_name, interval_seconds, program
+        FROM version_translations
+        ${translationsWhereClause}
+      ) as variable_data ON variable_data.program = ${measurementsTable}.version AND variable_data.alias = ${measurementsTable}.variable
+      ${join_metadata ? "JOIN station_metadata ON station_metadata.station_id = " + measurementsTable + ".station_id JOIN variable_metadata ON variable_metadata.standard_name = variable_data.standard_name" : ""}
+      ${mainWhereClause}
+      ORDER BY timestamp ${reverse ? "" : "DESC"}, variable_data.standard_name
+      ${limitOffsetClause};
+    `;
+
+    let queryHandler = await hcdpDBManagerMesonet.query(query, params, {rowMode});
+
+    const chunkSize = 10000;
+    let data: any = [];
+    let maxLength = 0;
+    do {
+      let chunk = await queryHandler.read(chunkSize);
+      data = data.concat(chunk);
+      maxLength += chunkSize
+    }
+    while(data.length == maxLength)
+    queryHandler.close();
+
+    if(rowMode === "array") {
+      let index = ["station_id", "timestamp", "variable", "value", "flag"];
+      if(join_metadata) {
+        index = index.concat(["units", "units_short", "variable_display_name", "interval_seconds", "station_name", "lat", "lng", "elevation"]);
+      }   
+
+      data = {
+        index,
+        data
+      };
+    }
+
+    reqData.code = 200;
+    return res.status(200)
+    .json(data);
+
+  });
+});
+
+app.get("/mesonet/db/stations", async (req, res) => {
+  const permission = "basic";
+  await handleReq(req, res, permission, async (reqData) => {
+    let { station_ids, location, limit, offset, rowMode }: any = req.query;
+
+    //validate location, can use direct in query
+    //default to hawaii
+    if(location !== "american_samoa") {
+      location = "hawaii";
+    }
+    if(rowMode !== "array") {
+      rowMode = undefined;
+    }
+
+    let params: string[] = [];
+
+    ////////////////////////////////////////////////////
+    /////////////////// where clause ///////////////////
+    ////////////////////////////////////////////////////
+
+    let whereClauses: string[] = [];
+
+    params.push(location);
+    whereClauses.push(`location = $${params.length}`);
+    
+    if(station_ids) {
+      parseListParams(station_ids, params, whereClauses, "station_id");
+    }
+
+    let whereClause = "";
+    if(whereClauses.length > 0) {
+      whereClause = `WHERE ${whereClauses.join(" AND ")}`;
+    } 
+
+    ///////////////////////////////////////////////////
+    /////////////// limit offset clause ///////////////
+    ///////////////////////////////////////////////////
+
+    let limitOffsetClause = "";
+    if(limit) {
+      params.push(limit);
+      limitOffsetClause += `LIMIT $${params.length}`;
+    }
+    if(offset) {
+      params.push(offset);
+      limitOffsetClause += ` OFFSET $${params.length}`;
+    }
+
+    let query = `
+      SELECT station_id, name, lat, lng, elevation
+      FROM station_metadata
+      ${whereClause}
+      ${limitOffsetClause};
+    `;
+
+    let queryHandler = await hcdpDBManagerMesonet.query(query, params, {rowMode});
+
+    const chunkSize = 10000;
+    let data: any = [];
+    let maxLength = 0;
+    do {
+      let chunk = await queryHandler.read(chunkSize);
+      data = data.concat(chunk);
+      maxLength += chunkSize
+    }
+    while(data.length == maxLength)
+    queryHandler.close();
+
+    if(rowMode === "array") {
+      let index = ["station_id", "name", "lat", "lng", "elevation"];
+
+      data = {
+        index,
+        data
+      };
+    }
+
+    reqData.code = 200;
+    return res.status(200)
+    .json(data);
+
+  });
+});
+
+
+app.get("/mesonet/db/variables", async (req, res) => {
+  const permission = "basic";
+  await handleReq(req, res, permission, async (reqData) => {
+    let { var_ids, limit, offset, rowMode }: any = req.query;
+
+    if(rowMode !== "array") {
+      rowMode = undefined;
+    }
+
+    let params: string[] = [];
+
+    ////////////////////////////////////////////////////
+    /////////////////// where clause ///////////////////
+    ////////////////////////////////////////////////////
+
+    let whereClauses: string[] = [];
+    
+    if(var_ids) {
+      parseListParams(var_ids, params, whereClauses, "standard_name");
+    }
+
+    let whereClause = "";
+    if(whereClauses.length > 0) {
+      whereClause = `WHERE ${whereClauses.join(" AND ")}`;
+    } 
+
+    ///////////////////////////////////////////////////
+    /////////////// limit offset clause ///////////////
+    ///////////////////////////////////////////////////
+
+    let limitOffsetClause = "";
+    if(limit) {
+      params.push(limit);
+      limitOffsetClause += `LIMIT $${params.length}`;
+    }
+    if(offset) {
+      params.push(offset);
+      limitOffsetClause += ` OFFSET $${params.length}`;
+    }
+
+    let query = `
+      SELECT standard_name, units, units_short, display_name
+      FROM variable_metadata
+      ${whereClause}
+      ${limitOffsetClause};
+    `;
+
+    let queryHandler = await hcdpDBManagerMesonet.query(query, params, {rowMode});
+
+    const chunkSize = 10000;
+    let data: any = [];
+    let maxLength = 0;
+    do {
+      let chunk = await queryHandler.read(chunkSize);
+      data = data.concat(chunk);
+      maxLength += chunkSize
+    }
+    while(data.length == maxLength)
+    queryHandler.close();
+
+    if(rowMode === "array") {
+      let index = ["standard_name", "units", "units_short", "display_name"];
+
+      data = {
+        index,
+        data
+      };
+    }
+
+    reqData.code = 200;
+    return res.status(200)
+    .json(data);
+
+  });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 app.get("/mesonet/getStations", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     let { location }: any = req.query;
     if(location === undefined) {
-      location = "hawaii"
+      location = "hawaii";
     }
     let projectHandler = projectHandlers[location];
     if(projectHandler == undefined) {
@@ -1905,7 +2235,7 @@ app.post("/registerTokenRequest", async (req, res) => {
     
     const timestamp = new Date().toISOString();
     let query = "INSERT INTO token_requests VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);";
-    await hcdpDBManagerHCDP.queryNoRes(query, [requestID, timestamp, null, null, name, email, organization, position, reason], true)
+    await hcdpDBManagerHCDP.queryNoRes(query, [requestID, timestamp, null, null, name, email, organization, position, reason], {privileged: true})
 
     reqData.code = 201;
     return res.status(201)
@@ -1938,7 +2268,7 @@ app.get("/respondTokenRequest", async (req, res) => {
       FROM token_requests
       WHERE requestID = $1;
     `;
-    let queryHandler = await hcdpDBManagerHCDP.query(query, [requestID], true);
+    let queryHandler = await hcdpDBManagerHCDP.query(query, [requestID], {privileged: true});
     let requestData = await queryHandler.read(1);
     queryHandler.close();
     const timestamp = new Date().toISOString();
@@ -1950,7 +2280,7 @@ app.get("/respondTokenRequest", async (req, res) => {
         WHERE requestID = $3;
       `;
 
-      await hcdpDBManagerHCDP.queryNoRes(query, [accept, timestamp, requestID], true);
+      await hcdpDBManagerHCDP.queryNoRes(query, [accept, timestamp, requestID], {privileged: true});
     };
 
     if(requestData.length > 0) {
@@ -1969,7 +2299,7 @@ app.get("/respondTokenRequest", async (req, res) => {
         query = `
           INSERT INTO auth_token_store VALUES ($1, $2, $3, $4, $5);
         `;
-        await hcdpDBManagerHCDP.queryNoRes(query, [apiToken, timestamp, "basic", userLabel, requestID], true);
+        await hcdpDBManagerHCDP.queryNoRes(query, [apiToken, timestamp, "basic", userLabel, requestID], {privileged: true});
         const emailContent = `Dear ${name},
   
           Thank you for your interest in using the HCDP API! Here is your HCDP API token:
@@ -2055,7 +2385,7 @@ app.put("/updateTokenPermissions", async (req, res) => {
       SET permissions = $1 
       WHERE token = $2;
     `;
-    await hcdpDBManagerHCDP.queryNoRes(query, [permString, token], true);
+    await hcdpDBManagerHCDP.queryNoRes(query, [permString, token], {privileged: true});
     reqData.code = 204;
     return res.status(204).end();
   });
