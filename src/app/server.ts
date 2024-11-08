@@ -5,7 +5,7 @@ import * as nodemailer from "nodemailer";
 import * as https from "https";
 import * as fs from "fs";
 import * as child_process from "child_process";
-import moment from "moment";
+import moment from "moment-timezone";
 import * as path from "path";
 import * as sanitize from "mongo-sanitize";
 import CsvReadableStream from "csv-reader";
@@ -1527,7 +1527,7 @@ app.get("/mesonet/db/measurements", async (req, res) => {
     let query = `
       SELECT 
         ${measurementsTable}.station_id,
-        timestamp ${local_tz ? "AT TIME ZONE 'UTC' AT TIME ZONE (SELECT timezone FROM timezone_map WHERE location = '" + location + "')" : ""},
+        timestamp,
         variable_data.standard_name as variable,
         value,
         flag
@@ -1567,6 +1567,25 @@ app.get("/mesonet/db/measurements", async (req, res) => {
         index,
         data
       };
+    }
+
+    if(local_tz) {
+      query = `SELECT timezone FROM timezone_map WHERE location = $1`;
+      let queryHandler = await hcdpDBManagerHCDP.query(query, [location], {privileged: true});
+      let { timezone } = await queryHandler.read(1)[0];
+      queryHandler.close();
+      if(rowMode === "array") {
+        for(let row of data.data) {
+          let converted = moment(row[1]).tz(timezone);
+          row[1] = converted.format();
+        }
+      }
+      else {
+        for(let row of data) {
+          let converted = moment(row.timestamp).tz(timezone);
+          row.timestamp = converted.format();
+        }
+      }
     }
 
     reqData.code = 200;
