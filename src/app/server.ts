@@ -1418,7 +1418,7 @@ function parseListParams(paramList: string, allParams: string[], whereClauses: s
 app.get("/mesonet/db/measurements", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
-    let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, rowMode }: any = req.query;
+    let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, rowMode }: any = req.query;
 
     const MAX_QUERY = 1000000;
 
@@ -1466,11 +1466,35 @@ app.get("/mesonet/db/measurements", async (req, res) => {
     }
 
     if(start_date) {
+      try {
+        let date = new Date(start_date);
+        start_date = date.toISOString();
+      }
+      catch(e) {
+        reqData.success = false;
+        reqData.code = 400;
+
+        return res.status(400)
+        .send("Invalid start date format. Dates must be ISO 8601 compliant.");
+      }
+
       params.push(start_date);
       mainWhereClauses.push(`timestamp >= $${params.length}`);
     }
 
     if(end_date) {
+      try {
+        let date = new Date(end_date);
+        end_date = date.toISOString();
+      }
+      catch(e) {
+        reqData.success = false;
+        reqData.code = 400;
+
+        return res.status(400)
+        .send("Invalid end date format. Dates must be ISO 8601 compliant.");
+      }
+
       params.push(end_date);
       mainWhereClauses.push(`timestamp <= $${params.length}`);
     }
@@ -1501,7 +1525,13 @@ app.get("/mesonet/db/measurements", async (req, res) => {
     }
 
     let query = `
-      SELECT ${measurementsTable}.station_id, timestamp, variable_data.standard_name as variable, value, flag ${join_metadata ? ", units, units_short, display_name AS variable_display_name, interval_seconds, name AS station_name, lat, lng, elevation" : ""}
+      SELECT 
+        ${measurementsTable}.station_id,
+        timestamp ${local_tz ? "AT TIME ZONE 'UTC' AT TIME ZONE (SELECT timezone FROM timezone_map WHERE location = '" + location + "')" : ""},
+        variable_data.standard_name as variable,
+        value,
+        flag
+        ${join_metadata ? ", units, units_short, display_name AS variable_display_name, interval_seconds, name AS station_name, lat, lng, elevation" : ""}
       FROM ${measurementsTable}
       JOIN (
         SELECT alias, standard_name, interval_seconds, program
