@@ -1571,7 +1571,7 @@ app.get("/mesonet/db/measurements", async (req, res) => {
 
     if(local_tz) {
       query = `SELECT timezone FROM timezone_map WHERE location = $1`;
-      let queryHandler = await hcdpDBManagerHCDP.query(query, [location], {privileged: true});
+      let queryHandler = await hcdpDBManagerMesonet.query(query, [location], {privileged: true});
       let { timezone } = (await queryHandler.read(1))[0];
       queryHandler.close();
       if(rowMode === "array") {
