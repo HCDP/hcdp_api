@@ -6,6 +6,11 @@ export interface Credentials {
     password: string
 }
 
+export interface QueryOptions {
+    privileged?: boolean,
+    rowMode?: "array" | undefined
+}
+
 class QueryHandler {
     conn: any;
     cursor: any;
@@ -51,14 +56,16 @@ export class HCDPDBManager {
         });
     }
 
-    async query(query: string, params: string[], privileged: boolean = false) {
-        const conn = await (privileged ? this.adminDBHandler : this.userDBHandler).connect();
+    async query(query: string, params: string[], options: QueryOptions = { privileged: false }) {
+        const conn = await (options.privileged ? this.adminDBHandler : this.userDBHandler).connect();
 
-        const cursor = conn.client.query(new Cursor(query, params));
+        const cursor = conn.client.query(new Cursor(query, params, {
+            rowMode: options.rowMode
+        }));
         return new QueryHandler(conn, cursor);
     }
 
-    async queryNoRes(query: string, params: string[], privileged: boolean = false) {
-        return (privileged ? this.adminDBHandler : this.userDBHandler).query(query, params);
+    async queryNoRes(query: string, params: string[], options: QueryOptions = { privileged: false }) {
+        return (options.privileged ? this.adminDBHandler : this.userDBHandler).query(query, params);
     }
 }
