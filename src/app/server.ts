@@ -1443,7 +1443,7 @@ app.get("/mesonet/db/measurements", async (req, res) => {
     let translationsWhereClauses = [];
 
     if(var_ids) {
-      parseListParams(var_ids, params, translationsWhereClauses, "alias");
+      parseListParams(var_ids, params, translationsWhereClauses, "standard_name");
     }
 
     if(intervals) {
