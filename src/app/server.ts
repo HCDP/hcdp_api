@@ -1535,7 +1535,7 @@ function wrapCrosstabMeasurementsQuery(vars: string[], baseQueryData: QueryData,
   query = `
     SELECT ${selectString} FROM crosstab(
       $$
-        ${query.slice(0, -1)}
+        ${query.slice(0, -2)}
       $$,
       $$
         VALUES ${crosstabValuesString}
@@ -1546,7 +1546,7 @@ function wrapCrosstabMeasurementsQuery(vars: string[], baseQueryData: QueryData,
     query = `
       SELECT widetable.station_id, station_metadata.name AS station_name, station_metadata.lat, station_metadata.lng, station_metadata.elevation, widetable.timestamp, ${varListString}
       FROM (
-        ${query.slice(0, -1)}
+        ${query.slice(0, -2)}
       ) as widetable
       JOIN station_metadata ON station_metadata.station_id = widetable.station_id;
     `;
