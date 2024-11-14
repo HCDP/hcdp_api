@@ -1693,7 +1693,6 @@ app.get("/mesonet/db/measurements", async (req, res) => {
 
     let data: any[] | { index: string[], data: any[] } = [];
     let { query, params, index } = await constructMeasurementsQuery(crosstabQuery, station_ids, start_date, end_date, var_ids, intervals, flags, location, limit, offset, reverse, join_metadata);
-    console.log(query);
     if(query) {
       let queryHandler = await hcdpDBManagerMesonet.query(query, params, {rowMode});
     
@@ -1716,10 +1715,8 @@ app.get("/mesonet/db/measurements", async (req, res) => {
       if(rowMode === "array") {
         let tsIndex = index.indexOf("timestamp");
         for(let row of data) {
-          console.log("1: ", row[tsIndex]);
           let converted = moment(row[tsIndex]).tz(timezone);
           row[tsIndex] = converted.format();
-          console.log("2: ", row[tsIndex]);
         }
       }
       else {
@@ -1823,7 +1820,6 @@ app.get("/mesonet/db/stations", async (req, res) => {
     reqData.code = 200;
     return res.status(200)
     .json(data);
-
   });
 });
 
