@@ -1530,7 +1530,7 @@ function wrapCrosstabMeasurementsQuery(vars: string[], baseQueryData: QueryData,
   let varListString = vars.join(",");
   let selectString = `timestamp, station_id, ${varListString}`;
   let colDefs = `station_id varchar, timestamp timestamp, ${vars.join(" varchar, ")} varchar`;
-  let index = ["station_id", "timestamp", ...varListString];
+  let index = ["station_id", "timestamp", ...vars];
 
   query = `
     SELECT ${selectString} FROM crosstab(
@@ -1550,7 +1550,7 @@ function wrapCrosstabMeasurementsQuery(vars: string[], baseQueryData: QueryData,
       ) as widetable
       JOIN station_metadata ON station_metadata.station_id = widetable.station_id
     `;
-    index = ["station_id", "station_name", "lat", "lng", "elevation", "timestamp", ...varListString];
+    index = ["station_id", "station_name", "lat", "lng", "elevation", "timestamp", ...vars];
   }
 
   return {
@@ -1689,6 +1689,7 @@ app.get("/mesonet/db/measurements", async (req, res) => {
         .send("Invalid end date format. Dates must be ISO 8601 compliant.");
       }
     }
+
 
 
     let data: any[] | { index: string[], data: any[] } = [];
