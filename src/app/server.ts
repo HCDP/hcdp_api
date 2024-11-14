@@ -1710,14 +1710,16 @@ app.get("/mesonet/db/measurements", async (req, res) => {
 
     if(data.length > 0 && local_tz) {
       let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
-      let queryHandler = await hcdpDBManagerMesonet.query(query, [location], {privileged: true});
+      let queryHandler = await hcdpDBManagerMesonet.query(query, [location]);
       let { timezone } = (await queryHandler.read(1))[0];
       queryHandler.close();
       if(rowMode === "array") {
         for(let row of data) {
           let tsIndex = row.indexOf("timestamp");
+          console.log("1: ", row[tsIndex]);
           let converted = moment(row[tsIndex]).tz(timezone);
           row[tsIndex] = converted.format();
+          console.log("2: ", row[tsIndex]);
         }
       }
       else {
