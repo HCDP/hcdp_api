@@ -1691,9 +1691,9 @@ app.get("/mesonet/db/measurements", async (req, res) => {
     }
 
 
-
     let data: any[] | { index: string[], data: any[] } = [];
     let { query, params, index } = await constructMeasurementsQuery(crosstabQuery, station_ids, start_date, end_date, var_ids, intervals, flags, location, limit, offset, reverse, join_metadata);
+    console.log(query);
     if(query) {
       let queryHandler = await hcdpDBManagerMesonet.query(query, params, {rowMode});
     
