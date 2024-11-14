@@ -1489,9 +1489,9 @@ function constructBaseMeasurementsQuery(stationIDs: string, startDate: string, e
   }
 
   let query = `
-    SELECT 
-      ${measurementsTable}.station_id,
+    SELECT
       timestamp,
+      ${measurementsTable}.station_id,
       variable_data.standard_name as variable,
       value
       ${selectFlag ? ", flag" : ""}
@@ -1529,7 +1529,7 @@ function wrapCrosstabMeasurementsQuery(vars: string[], baseQueryData: QueryData,
   let crosstabValuesString = `('${vars.join("'),('")}')`;
   let varListString = vars.join(",");
   let selectString = `timestamp, station_id, ${varListString}`;
-  let colDefs = `station_id varchar, timestamp timestamp, ${vars.join(" varchar, ")} varchar`;
+  let colDefs = `timestamp timestamp, station_id varchar, ${vars.join(" varchar, ")} varchar`;
   let index = ["station_id", "timestamp", ...vars];
 
   query = `
