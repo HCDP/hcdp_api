@@ -33,11 +33,12 @@ class QueryHandler {
 export class HCDPDBManager {
     userDBHandler: any;
     adminDBHandler: any;
+    pgp: any;
 
     constructor(host: string, port: number, database: string, userCredentials: Credentials, adminCredentials: Credentials) {
-        const pgp = pgPromise();
+        this.pgp = pgPromise();
 
-        this.userDBHandler = pgp({
+        this.userDBHandler = this.pgp({
             host: host,
             port: port,
             database: database,
@@ -46,7 +47,7 @@ export class HCDPDBManager {
             max: 40
         });
 
-        this.adminDBHandler = pgp({
+        this.adminDBHandler = this.pgp({
             host: host,
             port: port,
             database: database,
@@ -67,5 +68,9 @@ export class HCDPDBManager {
 
     async queryNoRes(query: string, params: string[], options: QueryOptions = { privileged: false }) {
         return (options.privileged ? this.adminDBHandler : this.userDBHandler).query(query, params);
+    }
+
+    mogrify(query, params): string {
+        return this.pgp.as.format(query, params);
     }
 }

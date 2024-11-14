@@ -1402,16 +1402,212 @@ function processMeasurementsError(res, reqData, e) {
 
 
 
-
+interface QueryData {
+  query: string | null,
+  params: any[],
+  index: string[]
+}
 
 function parseListParams(paramList: string, allParams: string[], whereClauses: string[], column: string) {
   let paramListArr = paramList.split(",");
+  parseArrParams(paramListArr, allParams, whereClauses, column);
+}
+function parseArrParams(paramListArr: string[], allParams: string[], whereClauses: string[], column: string) {
   let paramSet: string[] = [];
   for(let i = 0; i < paramListArr.length; i++) {
     allParams.push(paramListArr[i]);
     paramSet.push(`$${allParams.length}`);
   }
   whereClauses.push(`${column} IN (${paramSet.join(",")})`);
+}
+
+function constructBaseMeasurementsQuery(stationIDs: string, startDate: string, endDate: string, varIDs: string, intervals: string, flags: string, location: string, limit: number, offset: number, reverse: boolean, joinMetadata: boolean, selectFlag: boolean = true): QueryData {
+  let measurementsTable = `${location}_measurements`;
+
+  let params: string[] = [];
+
+  ///////////////////////////////////////////////////
+  //////////// translations where clause ////////////
+  ///////////////////////////////////////////////////
+
+  let translationsWhereClauses = [];
+
+  if(varIDs) {
+    parseListParams(varIDs, params, translationsWhereClauses, "standard_name");
+  }
+
+  if(intervals) {
+    parseListParams(intervals, params, translationsWhereClauses, "interval_seconds");
+  }
+
+  let translationsWhereClause = "";
+  if(translationsWhereClauses.length > 0) {
+    translationsWhereClause = `WHERE ${translationsWhereClauses.join(" AND ")}`;
+  } 
+
+  ///////////////////////////////////////////////////
+  //////////////// main where clause ////////////////
+  ///////////////////////////////////////////////////
+
+  let mainWhereClauses: string[] = [];
+  
+  if(stationIDs) {
+    parseListParams(stationIDs, params, mainWhereClauses, `${measurementsTable}.station_id`);
+  }
+
+  if(startDate) {
+    params.push(startDate);
+    mainWhereClauses.push(`timestamp >= $${params.length}`);
+  }
+
+  if(endDate) {
+    params.push(endDate);
+    mainWhereClauses.push(`timestamp <= $${params.length}`);
+  }
+
+  if(flags) {
+    parseListParams(flags, params, mainWhereClauses, "flag");
+  }
+
+  let mainWhereClause = "";
+  if(mainWhereClauses.length > 0) {
+    mainWhereClause = `WHERE ${mainWhereClauses.join(" AND ")}`;
+  }
+
+
+  ///////////////////////////////////////////////////
+  /////////////// limit offset clause ///////////////
+  ///////////////////////////////////////////////////
+
+  let limitOffsetClause = "";
+  
+  params.push(limit.toString());
+  limitOffsetClause += `LIMIT $${params.length}`;
+  if(offset) {
+    params.push(offset.toString());
+    limitOffsetClause += ` OFFSET $${params.length}`;
+  }
+
+  let query = `
+    SELECT 
+      ${measurementsTable}.station_id,
+      timestamp,
+      variable_data.standard_name as variable,
+      value
+      ${selectFlag ? ", flag" : ""}
+      ${joinMetadata ? ", units, units_short, display_name AS variable_display_name, interval_seconds, name AS station_name, lat, lng, elevation" : ""}
+    FROM ${measurementsTable}
+    JOIN (
+      SELECT alias, standard_name, interval_seconds, program
+      FROM version_translations
+      ${translationsWhereClause}
+    ) as variable_data ON variable_data.program = ${measurementsTable}.version AND variable_data.alias = ${measurementsTable}.variable
+    ${joinMetadata ? "JOIN station_metadata ON station_metadata.station_id = " + measurementsTable + ".station_id JOIN variable_metadata ON variable_metadata.standard_name = variable_data.standard_name" : ""}
+    ${mainWhereClause}
+    ORDER BY timestamp ${reverse ? "" : "DESC"}, variable_data.standard_name
+    ${limitOffsetClause};
+  `;
+
+  let index = ["station_id", "timestamp", "variable", "value"];
+  if(selectFlag) {
+    index.push("flag");
+  }
+  if(joinMetadata) {
+    index = index.concat(["units", "units_short", "variable_display_name", "interval_seconds", "station_name", "lat", "lng", "elevation"]);
+  }
+
+  return {
+    query,
+    params,
+    index
+  };
+}
+
+function wrapCrosstabMeasurementsQuery(vars: string[], baseQueryData: QueryData, joinMetadata: boolean): QueryData {
+  let { query, params } = baseQueryData;
+  query = hcdpDBManagerMesonet.mogrify(query, params);
+  let crosstabValuesString = `('${vars.join("'),('")}')`;
+  let varListString = vars.join(",");
+  let selectString = `timestamp, station_id, ${varListString}`;
+  let colDefs = `station_id varchar, timestamp timestamp, ${vars.join(" varchar, ")} varchar`;
+  let index = ["station_id", "timestamp", ...varListString];
+
+  query = `
+    SELECT ${selectString} FROM crosstab(
+      $$
+        ${query}
+      $$,
+      $$
+        VALUES ${crosstabValuesString}
+      $$
+    ) AS wide(${colDefs});
+  `;
+  if(joinMetadata) {
+    query = `
+      SELECT widetable.station_id, station_metadata.name AS station_name, station_metadata.lat, station_metadata.lng, station_metadata.elevation, widetable.timestamp, ${varListString}
+      (
+        ${query}
+      ) as widetable
+      JOIN station_metadata ON station_metadata.station_id = widetable.station_id
+    `;
+    index = ["station_id", "station_name", "lat", "lng", "elevation", "timestamp", ...varListString];
+  }
+
+  return {
+    query,
+    params: [],
+    index
+  };
+}
+
+async function constructMeasurementsQuery(crosstabQuery: boolean, stationIDs: string, startDate: string, endDate: string, varIDs: string, intervals: string, flags: string, location: string, limit: number, offset: number, reverse: boolean, joinMetadata: boolean): Promise<QueryData> {
+  let queryData: QueryData;
+  
+  if(crosstabQuery) {
+    //don't join metadata for now, can only join station metadata, join after crosstab
+    //flag cannot be included
+    queryData = constructBaseMeasurementsQuery(stationIDs, startDate, endDate, varIDs, intervals, flags, location, limit, offset, reverse, false, false);
+    let vars = await sanitizeExpandVarIDs(varIDs);
+    if(vars.length > 0) {
+      queryData = wrapCrosstabMeasurementsQuery(vars, queryData, joinMetadata);
+    }
+    else {
+      let index = joinMetadata ? ["station_id", "station_name", "lat", "lng", "elevation", "timestamp"] : ["station_id", "timestamp"];
+      //no valid variables, don't do anything
+      queryData = {
+        query: null,
+        params: [],
+        index
+      };
+    }
+  }
+  else {
+    queryData = constructBaseMeasurementsQuery(stationIDs, startDate, endDate, varIDs, intervals, flags, location, limit, offset, reverse, joinMetadata);
+  }
+
+  return queryData;
+}
+
+
+async function sanitizeExpandVarIDs(var_ids: string) {
+  let query = `
+    SELECT DISTINCT standard_name
+    FROM version_translations
+  `;
+  let params: string[] = [];
+  if(var_ids) {
+    let clause: string[] = [];   
+    parseListParams(var_ids, params, clause, "standard_name");
+    query += `WHERE ${clause[0]};`;
+  }
+  else {
+    query += ";";
+  }
+  let queryHandler = await hcdpDBManagerMesonet.query(query, params, { rowMode: "array" });
+  let data = await queryHandler.read(10000);
+  queryHandler.close();
+  data = data.flat();
+  return data;
 }
 
 
@@ -1428,41 +1624,42 @@ app.get("/mesonet/db/measurements", async (req, res) => {
       location = "hawaii";
     }
 
-    if(rowMode !== "array") {
-      rowMode = undefined;
+    //check if should crosstab the query (wide mode) and if query should return results as array or JSON
+    let crosstabQuery = false;
+    switch(rowMode) {
+      case "wide_array": {
+        rowMode = "array";
+        crosstabQuery = true;
+        break;
+      }
+      case "array": {
+        break;
+      }
+      case "wide_json": {
+        rowMode = undefined;
+        crosstabQuery = true;
+        break;
+      }
+      default: {
+        rowMode = undefined;
+      }
     }
 
-    let measurementsTable = `${location}_measurements`;
-
-    let params: string[] = [];
-
-    ///////////////////////////////////////////////////
-    //////////// translations where clause ////////////
-    ///////////////////////////////////////////////////
-
-    let translationsWhereClauses = [];
-
-    if(var_ids) {
-      parseListParams(var_ids, params, translationsWhereClauses, "alias");
+    if(offset) {
+      offset = parseInt(offset, 10);
+      if(isNaN(offset)) {
+        offset = undefined;
+      }
     }
-
-    if(intervals) {
-      parseListParams(intervals, params, translationsWhereClauses, "interval_seconds");
+    if(typeof limit === "string") {
+      limit = parseInt(limit, 10)
+      if(isNaN(limit)) {
+        limit = 10000;
+      }
     }
-
-    let translationsWhereClause = "";
-    if(translationsWhereClauses.length > 0) {
-      translationsWhereClause = `WHERE ${translationsWhereClauses.join(" AND ")}`;
-    } 
-
-    ///////////////////////////////////////////////////
-    //////////////// main where clause ////////////////
-    ///////////////////////////////////////////////////
-
-    let mainWhereClauses: string[] = [];
-    
-    if(station_ids) {
-      parseListParams(station_ids, params, mainWhereClauses, `${measurementsTable}.station_id`);
+    //limit must be less than max, translate 0 or negative numbers as max
+    if(limit < 1 || limit > MAX_QUERY) {
+      limit = MAX_QUERY;
     }
 
     if(start_date) {
@@ -1473,15 +1670,12 @@ app.get("/mesonet/db/measurements", async (req, res) => {
       catch(e) {
         reqData.success = false;
         reqData.code = 400;
-
+  
         return res.status(400)
         .send("Invalid start date format. Dates must be ISO 8601 compliant.");
       }
-
-      params.push(start_date);
-      mainWhereClauses.push(`timestamp >= $${params.length}`);
     }
-
+  
     if(end_date) {
       try {
         let date = new Date(end_date);
@@ -1490,92 +1684,36 @@ app.get("/mesonet/db/measurements", async (req, res) => {
       catch(e) {
         reqData.success = false;
         reqData.code = 400;
-
+  
         return res.status(400)
         .send("Invalid end date format. Dates must be ISO 8601 compliant.");
       }
-
-      params.push(end_date);
-      mainWhereClauses.push(`timestamp <= $${params.length}`);
     }
 
-    if(flags) {
-      parseListParams(flags, params, mainWhereClauses, "flag");
+
+    let data: any[] | { index: string[], data: any[] } = [];
+    let { query, params, index } = await constructMeasurementsQuery(crosstabQuery, station_ids, start_date, end_date, var_ids, intervals, flags, location, limit, offset, reverse, join_metadata);
+    if(query) {
+      let queryHandler = await hcdpDBManagerMesonet.query(query, params, {rowMode});
+    
+      const chunkSize = 10000;
+      let maxLength = 0;
+      do {
+        let chunk = await queryHandler.read(chunkSize);
+        data = data.concat(chunk);
+        maxLength += chunkSize
+      }
+      while(data.length == maxLength)
+      queryHandler.close();
     }
 
-    let mainWhereClause = "";
-    if(mainWhereClauses.length > 0) {
-      mainWhereClause = `WHERE ${mainWhereClauses.join(" AND ")}`;
-    } 
-
-    ///////////////////////////////////////////////////
-    /////////////// limit offset clause ///////////////
-    ///////////////////////////////////////////////////
-
-    let limitOffsetClause = "";
-    //limit must be less than max, translate 0 or negative numbers as max
-    if(limit < 1 || limit > MAX_QUERY) {
-      limit = MAX_QUERY;
-    }
-    params.push(limit);
-    limitOffsetClause += `LIMIT $${params.length}`;
-    if(offset) {
-      params.push(offset);
-      limitOffsetClause += ` OFFSET $${params.length}`;
-    }
-
-    let query = `
-      SELECT 
-        ${measurementsTable}.station_id,
-        timestamp,
-        variable_data.standard_name as variable,
-        value,
-        flag
-        ${join_metadata ? ", units, units_short, display_name AS variable_display_name, interval_seconds, name AS station_name, lat, lng, elevation" : ""}
-      FROM ${measurementsTable}
-      JOIN (
-        SELECT alias, standard_name, interval_seconds, program
-        FROM version_translations
-        ${translationsWhereClause}
-      ) as variable_data ON variable_data.program = ${measurementsTable}.version AND variable_data.alias = ${measurementsTable}.variable
-      ${join_metadata ? "JOIN station_metadata ON station_metadata.station_id = " + measurementsTable + ".station_id JOIN variable_metadata ON variable_metadata.standard_name = variable_data.standard_name" : ""}
-      ${mainWhereClause}
-      ORDER BY timestamp ${reverse ? "" : "DESC"}, variable_data.standard_name
-      ${limitOffsetClause};
-    `;
-
-    let queryHandler = await hcdpDBManagerMesonet.query(query, params, {rowMode});
-
-    const chunkSize = 10000;
-    let data: any = [];
-    let maxLength = 0;
-    do {
-      let chunk = await queryHandler.read(chunkSize);
-      data = data.concat(chunk);
-      maxLength += chunkSize
-    }
-    while(data.length == maxLength)
-    queryHandler.close();
-
-    if(rowMode === "array") {
-      let index = ["station_id", "timestamp", "variable", "value", "flag"];
-      if(join_metadata) {
-        index = index.concat(["units", "units_short", "variable_display_name", "interval_seconds", "station_name", "lat", "lng", "elevation"]);
-      }   
-
-      data = {
-        index,
-        data
-      };
-    }
-
-    if(local_tz) {
-      query = `SELECT timezone FROM timezone_map WHERE location = $1`;
+    if(data.length > 0 && local_tz) {
+      let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
       let queryHandler = await hcdpDBManagerMesonet.query(query, [location], {privileged: true});
       let { timezone } = (await queryHandler.read(1))[0];
       queryHandler.close();
       if(rowMode === "array") {
-        for(let row of data.data) {
+        for(let row of data) {
           let converted = moment(row[1]).tz(timezone);
           row[1] = converted.format();
         }
@@ -1587,11 +1725,17 @@ app.get("/mesonet/db/measurements", async (req, res) => {
         }
       }
     }
+    //if array form wrap with index
+    if(rowMode === "array" || rowMode == "wide_array") {
+      data = {
+        index,
+        data
+      };
+    }
 
     reqData.code = 200;
     return res.status(200)
     .json(data);
-
   });
 });
 
@@ -1753,6 +1897,85 @@ app.get("/mesonet/db/variables", async (req, res) => {
     return res.status(200)
     .json(data);
 
+  });
+});
+
+app.get("/mesonet/db/sff", async (req, res) => {
+  await handleReqNoAuth(req, res, async (reqData) => {
+    let query = `
+      SELECT hawaii_measurements.station_id, station_metadata.lat, station_metadata.lng, station_metadata.elevation, hawaii_measurements.timestamp, synoptic_translations.synoptic_name, sensor_positions.sensor_height, hawaii_measurements.value
+      FROM hawaii_measurements
+      JOIN version_translations ON version_translations.program = hawaii_measurements.version AND version_translations.alias = hawaii_measurements.variable
+      JOIN synoptic_translations ON version_translations.standard_name = synoptic_translations.standard_name
+      JOIN sensor_positions ON sensor_positions.station_id = hawaii_measurements.station_id AND version_translations.standard_name = sensor_positions.standard_name
+      JOIN station_metadata ON station_metadata.station_id = hawaii_measurements.station_id
+      WHERE timestamp >= NOW() - '1 day'::INTERVAL AND flag = 0 AND NOT EXISTS (SELECT 1 FROM synoptic_exclude WHERE synoptic_exclude.station_id = hawaii_measurements.station_id AND synoptic_exclude.standard_name = version_translations.standard_name)
+      ORDER BY hawaii_measurements.station_id, hawaii_measurements.timestamp, synoptic_translations.synoptic_name, sensor_positions.sensor_number;
+    `;
+    let queryHandler = await hcdpDBManagerMesonet.query(query, []);
+    let data = await queryHandler.read(100000);
+    queryHandler.close();
+    const varOrder = ["T [C]", "RH [%]", "FF [m/s]", "DD [deg]", "FFGUST [m/s]", "P [hPa]", "SOLRAD [W/m2]", "SOLOUT [W/m2]", "LWRAD [W/m2]", "LWOUT [W/m2]", "NETSWRAD [W/m2]", "NETLWRAD [W/m2]", "NETRAD [W/m2]", "PAR [umol/m2s]", "PCP5M [mm]", "BATV [volt]", "SOILT [C]", "SOILMP [%]"];
+    for(let i = 0; i < data.length; i++) {
+      let sid = data[i][0];
+      let lat = data[i][1];
+      let lng = data[i][2];
+      let elevation = data[i][3];
+      for(; i < data.length && data[i][0] !== sid; i++) {
+        let timestamp = data[i][4];
+        let variableData = {};
+        for(; i < data.length && data[i][4] !== timestamp; i++) {
+          let numSensors = 0;
+          let synopticName = data[i][5];
+          let sensorData = {};
+          for(; i < data.length && data[i][5] == synopticName; i++) {
+            let sensorHeight = data[i][6];
+            let sensorValue = data[i][7];
+            let sensorHeightData = sensorData[sensorHeight];
+            if(!sensorHeightData) {
+              sensorHeightData = [];
+              sensorData[sensorHeight] = sensorHeightData;
+            }
+            sensorHeightData.push(sensorValue);
+            numSensors++;
+          }
+          variableData[synopticName] = {
+            count: numSensors,
+            data: sensorData
+          };
+        }
+        let sffRow = [sid, lat, lng, timestamp, elevation];
+        for(let variable of varOrder) {
+          let varData = variableData[variable];
+          if(!varData) {
+            sffRow.push("nan");
+          }
+          else if(varData.count == 1) {
+            sffRow.push(varData[Object.keys(varData)[0]][0]);
+          }
+          else {
+            let heights: string[] = [];
+            let values: string[] = [];
+            for(let height in varData) {
+              let valueData = varData[height];
+              if(valueData.length > 1) {
+                for(let j = 0; j < valueData.length; j++) {
+                  heights.push(`${height}${String.fromCharCode(97 + j)}`);
+                  values.push(valueData[j]);
+                }
+              }
+              else {
+                heights.push(height);
+                values.push(valueData[0]);
+              }
+              let colString = `${heights.join(";")}#${values.join(";")}`;
+              sffRow.push(colString);
+            }
+          }
+        }
+        //console.log(sffRow);
+      }
+    }
   });
 });
 
