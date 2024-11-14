@@ -1714,8 +1714,8 @@ app.get("/mesonet/db/measurements", async (req, res) => {
       let { timezone } = (await queryHandler.read(1))[0];
       queryHandler.close();
       if(rowMode === "array") {
+        let tsIndex = index.indexOf("timestamp");
         for(let row of data) {
-          let tsIndex = row.indexOf("timestamp");
           console.log("1: ", row[tsIndex]);
           let converted = moment(row[tsIndex]).tz(timezone);
           row[tsIndex] = converted.format();
