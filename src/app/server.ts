@@ -1614,7 +1614,7 @@ async function sanitizeExpandVarIDs(var_ids: string) {
 app.get("/mesonet/db/measurements", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
-    let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, rowMode }: any = req.query;
+    let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, row_mode }: any = req.query;
 
     const MAX_QUERY = 1000000;
 
@@ -1626,9 +1626,9 @@ app.get("/mesonet/db/measurements", async (req, res) => {
 
     //check if should crosstab the query (wide mode) and if query should return results as array or JSON
     let crosstabQuery = false;
-    switch(rowMode) {
+    switch(row_mode) {
       case "wide_array": {
-        rowMode = "array";
+        row_mode = "array";
         crosstabQuery = true;
         break;
       }
@@ -1636,12 +1636,12 @@ app.get("/mesonet/db/measurements", async (req, res) => {
         break;
       }
       case "wide_json": {
-        rowMode = undefined;
+        row_mode = undefined;
         crosstabQuery = true;
         break;
       }
       default: {
-        rowMode = undefined;
+        row_mode = undefined;
       }
     }
 
@@ -1694,7 +1694,7 @@ app.get("/mesonet/db/measurements", async (req, res) => {
     let data: any[] | { index: string[], data: any[] } = [];
     let { query, params, index } = await constructMeasurementsQuery(crosstabQuery, station_ids, start_date, end_date, var_ids, intervals, flags, location, limit, offset, reverse, join_metadata);
     if(query) {
-      let queryHandler = await hcdpDBManagerMesonet.query(query, params, {rowMode});
+      let queryHandler = await hcdpDBManagerMesonet.query(query, params, {rowMode: row_mode});
     
       const chunkSize = 10000;
       let maxLength = 0;
@@ -1712,7 +1712,7 @@ app.get("/mesonet/db/measurements", async (req, res) => {
       let queryHandler = await hcdpDBManagerMesonet.query(query, [location]);
       let { timezone } = (await queryHandler.read(1))[0];
       queryHandler.close();
-      if(rowMode === "array") {
+      if(row_mode === "array") {
         let tsIndex = index.indexOf("timestamp");
         for(let row of data) {
           let converted = moment(row[tsIndex]).tz(timezone);
@@ -1727,7 +1727,7 @@ app.get("/mesonet/db/measurements", async (req, res) => {
       }
     }
     //if array form wrap with index
-    if(rowMode === "array" || rowMode == "wide_array") {
+    if(row_mode === "array" || row_mode == "wide_array") {
       data = {
         index,
         data
@@ -1743,15 +1743,15 @@ app.get("/mesonet/db/measurements", async (req, res) => {
 app.get("/mesonet/db/stations", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
-    let { station_ids, location, limit, offset, rowMode }: any = req.query;
+    let { station_ids, location, limit, offset, row_mode }: any = req.query;
 
     //validate location, can use direct in query
     //default to hawaii
     if(location !== "american_samoa") {
       location = "hawaii";
     }
-    if(rowMode !== "array") {
-      rowMode = undefined;
+    if(row_mode !== "array") {
+      row_mode = undefined;
     }
 
     let params: string[] = [];
@@ -1795,7 +1795,7 @@ app.get("/mesonet/db/stations", async (req, res) => {
       ${limitOffsetClause};
     `;
 
-    let queryHandler = await hcdpDBManagerMesonet.query(query, params, {rowMode});
+    let queryHandler = await hcdpDBManagerMesonet.query(query, params, {rowMode: row_mode});
 
     const chunkSize = 10000;
     let data: any = [];
@@ -1808,7 +1808,7 @@ app.get("/mesonet/db/stations", async (req, res) => {
     while(data.length == maxLength)
     queryHandler.close();
 
-    if(rowMode === "array") {
+    if(row_mode === "array") {
       let index = ["station_id", "name", "lat", "lng", "elevation"];
 
       data = {
@@ -1827,10 +1827,10 @@ app.get("/mesonet/db/stations", async (req, res) => {
 app.get("/mesonet/db/variables", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
-    let { var_ids, limit, offset, rowMode }: any = req.query;
+    let { var_ids, limit, offset, row_mode }: any = req.query;
 
-    if(rowMode !== "array") {
-      rowMode = undefined;
+    if(row_mode !== "array") {
+      row_mode = undefined;
     }
 
     let params: string[] = [];
@@ -1871,7 +1871,7 @@ app.get("/mesonet/db/variables", async (req, res) => {
       ${limitOffsetClause};
     `;
 
-    let queryHandler = await hcdpDBManagerMesonet.query(query, params, {rowMode});
+    let queryHandler = await hcdpDBManagerMesonet.query(query, params, {rowMode: row_mode});
 
     const chunkSize = 10000;
     let data: any = [];
@@ -1884,7 +1884,7 @@ app.get("/mesonet/db/variables", async (req, res) => {
     while(data.length == maxLength)
     queryHandler.close();
 
-    if(rowMode === "array") {
+    if(row_mode === "array") {
       let index = ["standard_name", "units", "units_short", "display_name"];
 
       data = {
