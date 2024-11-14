@@ -1505,7 +1505,7 @@ function constructBaseMeasurementsQuery(stationIDs: string, startDate: string, e
     ${joinMetadata ? "JOIN station_metadata ON station_metadata.station_id = " + measurementsTable + ".station_id JOIN variable_metadata ON variable_metadata.standard_name = variable_data.standard_name" : ""}
     ${mainWhereClause}
     ORDER BY timestamp ${reverse ? "" : "DESC"}, variable_data.standard_name
-    ${limitOffsetClause};
+    ${limitOffsetClause}
   `;
 
   let index = ["station_id", "timestamp", "variable", "value"];
@@ -1535,20 +1535,20 @@ function wrapCrosstabMeasurementsQuery(vars: string[], baseQueryData: QueryData,
   query = `
     SELECT ${selectString} FROM crosstab(
       $$
-        ${query.slice(0, -2)}
+        ${query}
       $$,
       $$
         VALUES ${crosstabValuesString}
       $$
-    ) AS wide(${colDefs});
+    ) AS wide(${colDefs})
   `;
   if(joinMetadata) {
     query = `
       SELECT widetable.station_id, station_metadata.name AS station_name, station_metadata.lat, station_metadata.lng, station_metadata.elevation, widetable.timestamp, ${varListString}
       FROM (
-        ${query.slice(0, -2)}
+        ${query}
       ) as widetable
-      JOIN station_metadata ON station_metadata.station_id = widetable.station_id;
+      JOIN station_metadata ON station_metadata.station_id = widetable.station_id
     `;
     index = ["station_id", "station_name", "lat", "lng", "elevation", "timestamp", ...vars];
   }
@@ -1570,6 +1570,7 @@ async function constructMeasurementsQuery(crosstabQuery: boolean, stationIDs: st
     let vars = await sanitizeExpandVarIDs(varIDs);
     if(vars.length > 0) {
       queryData = wrapCrosstabMeasurementsQuery(vars, queryData, joinMetadata);
+      queryData.query += ";";
     }
     else {
       let index = joinMetadata ? ["station_id", "station_name", "lat", "lng", "elevation", "timestamp"] : ["station_id", "timestamp"];
@@ -1583,6 +1584,7 @@ async function constructMeasurementsQuery(crosstabQuery: boolean, stationIDs: st
   }
   else {
     queryData = constructBaseMeasurementsQuery(stationIDs, startDate, endDate, varIDs, intervals, flags, location, limit, offset, reverse, joinMetadata);
+    queryData.query += ";";
   }
 
   return queryData;
@@ -1598,11 +1600,9 @@ async function sanitizeExpandVarIDs(var_ids: string) {
   if(var_ids) {
     let clause: string[] = [];   
     parseListParams(var_ids, params, clause, "standard_name");
-    query += `WHERE ${clause[0]};`;
+    query += `WHERE ${clause[0]}`;
   }
-  else {
-    query += ";";
-  }
+  query += ";";
   let queryHandler = await hcdpDBManagerMesonet.query(query, params, { rowMode: "array" });
   let data = await queryHandler.read(10000);
   queryHandler.close();
