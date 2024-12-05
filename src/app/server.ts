@@ -1916,6 +1916,9 @@ app.get("/mesonet/db/sff", async (req, res) => {
     let queryHandler = await hcdpDBManagerMesonet.query(query, []);
     let data = await queryHandler.read(100000);
     queryHandler.close();
+
+    res.set("Content-Type", "text/csv");
+    res.set("Content-Disposition", `attachment; filename="sff_data.csv"`);
     
     res.write("station_id,LAT [ddeg],LON [ddeg],date_time [UTC],ELEV [m],T [C],RH [%],FF [m/s],DD [deg],FFGUST [m/s],P [hPa],SOLRAD [W/m2],SOLOUT [W/m2],LWRAD [W/m2],LWOUT [W/m2],NETSWRAD [W/m2],NETLWRAD [W/m2],NETRAD [W/m2],PAR [umol/m2s],PCP5M [mm],BATV [volt],SOILT [C],SOILMP [%]\n");
 
@@ -1981,8 +1984,6 @@ app.get("/mesonet/db/sff", async (req, res) => {
     
 
     reqData.code = 200;
-    res.set("Content-Type", "text/csv");
-    res.set("Content-Disposition", `attachment; filename="sff_data.csv"`);
     res.status(200)
     .end();
   });
