@@ -1903,7 +1903,7 @@ app.get("/mesonet/db/variables", async (req, res) => {
 app.get("/mesonet/db/sff", async (req, res) => {
   await handleReqNoAuth(req, res, async (reqData) => {
     let query = `
-      SELECT hawaii_measurements.station_id, station_metadata.lat, station_metadata.lng, station_metadata.elevation, hawaii_measurements.timestamp, synoptic_translations.synoptic_name, sensor_positions.sensor_height, CASE WHEN hawaii_measurements.value IS NOT NULL THEN CAST(hawaii_measurements.value AS FLOAT) * synoptic_translations.unit_conversion_coefficient ELSE NULL END AS value
+      SELECT hawaii_measurements.station_id, station_metadata.lat, station_metadata.lng, station_metadata.elevation, hawaii_measurements.timestamp, synoptic_translations.synoptic_name, sensor_positions.sensor_height, CASE WHEN hawaii_measurements.value IS NOT NULL THEN CAST(hawaii_measurements.value AS DECIMAL) * synoptic_translations.unit_conversion_coefficient ELSE NULL END AS value
       FROM hawaii_measurements
       JOIN version_translations ON version_translations.program = hawaii_measurements.version AND version_translations.alias = hawaii_measurements.variable
       JOIN synoptic_translations ON version_translations.standard_name = synoptic_translations.standard_name
