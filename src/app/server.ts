@@ -1903,79 +1903,89 @@ app.get("/mesonet/db/variables", async (req, res) => {
 app.get("/mesonet/db/sff", async (req, res) => {
   await handleReqNoAuth(req, res, async (reqData) => {
     let query = `
-      SELECT hawaii_measurements.station_id, station_metadata.lat, station_metadata.lng, station_metadata.elevation, hawaii_measurements.timestamp, synoptic_translations.synoptic_name, sensor_positions.sensor_height, hawaii_measurements.value
+      SELECT hawaii_measurements.station_id, station_metadata.lat, station_metadata.lng, station_metadata.elevation, hawaii_measurements.timestamp, synoptic_translations.synoptic_name, sensor_positions.sensor_height, CASE WHEN hawaii_measurements.value IS NOT NULL THEN CAST(hawaii_measurements.value AS DECIMAL) * synoptic_translations.unit_conversion_coefficient ELSE NULL END AS value
       FROM hawaii_measurements
       JOIN version_translations ON version_translations.program = hawaii_measurements.version AND version_translations.alias = hawaii_measurements.variable
       JOIN synoptic_translations ON version_translations.standard_name = synoptic_translations.standard_name
-      JOIN sensor_positions ON sensor_positions.station_id = hawaii_measurements.station_id AND version_translations.standard_name = sensor_positions.standard_name
       JOIN station_metadata ON station_metadata.station_id = hawaii_measurements.station_id
-      WHERE timestamp >= NOW() - '1 day'::INTERVAL AND flag = 0 AND NOT EXISTS (SELECT 1 FROM synoptic_exclude WHERE synoptic_exclude.station_id = hawaii_measurements.station_id AND synoptic_exclude.standard_name = version_translations.standard_name)
+      LEFT JOIN sensor_positions ON sensor_positions.station_id = hawaii_measurements.station_id AND version_translations.standard_name = sensor_positions.standard_name
+      WHERE timestamp >= NOW() - '6 hours'::INTERVAL AND flag = 0 AND NOT EXISTS (SELECT 1 FROM synoptic_exclude WHERE synoptic_exclude.station_id = hawaii_measurements.station_id AND synoptic_exclude.standard_name = version_translations.standard_name)
       ORDER BY hawaii_measurements.station_id, hawaii_measurements.timestamp, synoptic_translations.synoptic_name, sensor_positions.sensor_number;
     `;
+
     let queryHandler = await hcdpDBManagerMesonet.query(query, []);
     let data = await queryHandler.read(100000);
     queryHandler.close();
+
+    res.set("Content-Type", "text/csv");
+    res.set("Content-Disposition", `attachment; filename="sff_data.csv"`);
+    
+    res.write("station_id,LAT [ddeg],LON [ddeg],date_time [UTC],ELEV [m],T [C],RH [%],FF [m/s],DD [deg],FFGUST [m/s],P [hPa],SOLRAD [W/m2],SOLOUT [W/m2],LWRAD [W/m2],LWOUT [W/m2],NETSWRAD [W/m2],NETLWRAD [W/m2],NETRAD [W/m2],PAR [umol/m2s],PCP5M [mm],BATV [volt],SOILT [C],SOILMP [%]\n");
+
     const varOrder = ["T [C]", "RH [%]", "FF [m/s]", "DD [deg]", "FFGUST [m/s]", "P [hPa]", "SOLRAD [W/m2]", "SOLOUT [W/m2]", "LWRAD [W/m2]", "LWOUT [W/m2]", "NETSWRAD [W/m2]", "NETLWRAD [W/m2]", "NETRAD [W/m2]", "PAR [umol/m2s]", "PCP5M [mm]", "BATV [volt]", "SOILT [C]", "SOILMP [%]"];
-    for(let i = 0; i < data.length; i++) {
-      let sid = data[i][0];
-      let lat = data[i][1];
-      let lng = data[i][2];
-      let elevation = data[i][3];
-      for(; i < data.length && data[i][0] !== sid; i++) {
-        let timestamp = data[i][4];
-        let variableData = {};
-        for(; i < data.length && data[i][4] !== timestamp; i++) {
-          let numSensors = 0;
-          let synopticName = data[i][5];
-          let sensorData = {};
-          for(; i < data.length && data[i][5] == synopticName; i++) {
-            let sensorHeight = data[i][6];
-            let sensorValue = data[i][7];
-            let sensorHeightData = sensorData[sensorHeight];
-            if(!sensorHeightData) {
-              sensorHeightData = [];
-              sensorData[sensorHeight] = sensorHeightData;
-            }
-            sensorHeightData.push(sensorValue);
-            numSensors++;
+    let variableData = {};
+    let i = 0;
+    while(i < data.length) {
+      let { station_id: sid, lat, lng, elevation, timestamp } = data[i];
+      //row is sid, timestamp
+      while(i < data.length && data[i].station_id == sid && data[i].timestamp == timestamp) {
+        let { synoptic_name: synopticName } = data[i];
+        variableData[synopticName] = {
+          count: 0,
+          data: {}
+        };
+        
+        for(; i < data.length && data[i].synoptic_name == synopticName; i++) {
+          let { sensor_height: sensorHeight, value } = data[i];
+          variableData[synopticName].count++;
+          let values = variableData[synopticName].data[sensorHeight];
+          if(!values) {
+            values = [];
+            variableData[synopticName].data[sensorHeight] = values;
           }
-          variableData[synopticName] = {
-            count: numSensors,
-            data: sensorData
-          };
+          values.push(value);
         }
-        let sffRow = [sid, lat, lng, timestamp, elevation];
-        for(let variable of varOrder) {
-          let varData = variableData[variable];
-          if(!varData) {
-            sffRow.push("nan");
-          }
-          else if(varData.count == 1) {
-            sffRow.push(varData[Object.keys(varData)[0]][0]);
-          }
-          else {
-            let heights: string[] = [];
-            let values: string[] = [];
-            for(let height in varData) {
-              let valueData = varData[height];
-              if(valueData.length > 1) {
-                for(let j = 0; j < valueData.length; j++) {
-                  heights.push(`${height}${String.fromCharCode(97 + j)}`);
-                  values.push(valueData[j]);
-                }
-              }
-              else {
-                heights.push(height);
-                values.push(valueData[0]);
-              }
-              let colString = `${heights.join(";")}#${values.join(";")}`;
-              sffRow.push(colString);
-            }
-          }
-        }
-        //console.log(sffRow);
       }
+
+      let sffRow = [sid, lat, lng, timestamp, elevation];
+
+      for(let variable of varOrder) {
+        if(!variableData[variable]) {
+          sffRow.push("nan");
+          continue;
+        }
+        let { count, data: heightData } = variableData[variable];
+        if(count == 1) {
+          sffRow.push(heightData[Object.keys(heightData)[0]][0]);
+        }
+        else {
+          let heights: string[] = [];
+          let values: string[] = [];
+          for(let height in heightData) {
+            let valueData = heightData[height];
+
+            if(valueData.length > 1) {
+              for(let j = 0; j < valueData.length; j++) {
+                heights.push(`${height}${String.fromCharCode(97 + j)}`);
+                values.push(valueData[j]);
+              }
+            }
+            else {
+              heights.push(height);
+              values.push(valueData[0]);
+            }
+          }
+          let colString = `${heights.join(";")}#${values.join(";")}`;
+          sffRow.push(colString);
+        }
+      }
+      res.write(`${sffRow.join(",")}\n`);
     }
+    
+
+    reqData.code = 200;
+    res.status(200)
+    .end();
   });
 });
 

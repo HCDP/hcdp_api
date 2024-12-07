@@ -1,5 +1,12 @@
 import pgPromise from "pg-promise";
 import Cursor from "pg-cursor";
+import pg from "pg";
+import moment from "moment-timezone";
+
+const pgTypes = pg.types;
+pgTypes.setTypeParser(1114, function(timestamp: string) {
+    return moment.tz(timestamp, "UTC").toISOString();
+});
 
 export interface Credentials {
     username: string,
