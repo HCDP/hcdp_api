@@ -2013,7 +2013,7 @@ app.patch("/mesonet/db/setFlag", async (req, res) => {
         WHERE station_metadata.station_id = $1;
     `;
 
-    let queryHandler = await hcdpDBManagerMesonet.query(query, []);
+    let queryHandler = await hcdpDBManagerMesonet.query(query, [stationID]);
     let data = await queryHandler.read(1);
     queryHandler.close();
     if(data.length < 1) {
