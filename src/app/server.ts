@@ -2028,9 +2028,8 @@ app.patch("/mesonet/db/setFlag", async (req, res) => {
     query = `
       UPDATE ${tableName}
       SET flag = $1
-      FROM ${tableName}
-      JOIN version_translations ON version_translations.program = ${tableName}.version AND version_translations.alias = ${tableName}.variable
-      WHERE station_id = $2 AND standard_name = $3
+      FROM version_translations
+      WHERE version_translations.program = ${tableName}.version AND version_translations.alias = ${tableName}.variable AND station_id = $2 AND standard_name = $3
     `;
     let params = [flag, stationID, variable];
     if(typeof timestamp == "string") {
