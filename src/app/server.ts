@@ -2047,8 +2047,8 @@ app.patch("/mesonet/db/setFlag", async (req, res) => {
 
     let modified = await hcdpDBManagerMesonet.queryNoRes(query, params, { privileged: true });
 
-    reqData.code = 204;
-    return res.status(204)
+    reqData.code = 200;
+    return res.status(200)
     .json({ modified });
   });
 });
