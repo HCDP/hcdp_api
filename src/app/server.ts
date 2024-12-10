@@ -2023,7 +2023,7 @@ app.patch("/mesonet/db/setFlag", async (req, res) => {
       return res.status(404)
       .send(`Station ID ${stationID} not found.`);
     }
-    let { tableName } = data[0];
+    let { table_name: tableName } = data[0];
 
     query = `
       UPDATE ${tableName}
