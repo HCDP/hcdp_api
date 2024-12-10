@@ -1989,6 +1989,71 @@ app.get("/mesonet/db/sff", async (req, res) => {
   });
 });
 
+app.patch("/mesonet/db/setFlag", async (req, res) => {
+  const permission = "meso_admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    let { station_id: stationID, variable, timestamp, flag }: any = req.body;
+
+    if(!(stationID && variable && /[0-9]+/.test(flag) && ((typeof timestamp === "string" && !isNaN(Date.parse(timestamp))) || (!isNaN(Date.parse(timestamp.start)) && !isNaN(Date.parse(timestamp.end)))))) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(`Request body should include the following fields: \n\
+        station_id: The station ID to set the flag for \n\
+        variable: The variable to set the flag for \n\
+        timestamp: Either an ISO 8601 formatted timestamp string or a JSON object containing the properties "start" and "end" indicating a range of timestamps to set the flag for \n\
+        flag: An integer indicating the value to set the flag to.`);
+    }
+    
+    let query = `
+        SELECT table_name
+        FROM station_metadata
+        JOIN measurement_table_map ON station_metadata.location = measurement_table_map.location
+        WHERE station_metadata.station_id = $1;
+    `;
+
+    let queryHandler = await hcdpDBManagerMesonet.query(query, []);
+    let data = await queryHandler.read(1);
+    queryHandler.close();
+    if(data.length < 1) {
+      reqData.success = false;
+      reqData.code = 404;
+
+      return res.status(404)
+      .send(`Station ID ${stationID} not found.`);
+    }
+    let { tableName } = data[0];
+
+    query = `
+      UPDATE ${tableName}
+      SET flag = $1
+      FROM ${tableName}
+      JOIN version_translations ON version_translations.program = ${tableName}.version AND version_translations.alias = ${tableName}.variable
+      WHERE station_id = $2 AND standard_name = $3
+    `;
+    let params = [flag, stationID, variable];
+    if(typeof timestamp == "string") {
+      timestamp = new Date(timestamp).toISOString();
+      query += " AND timestamp = $4;";
+      params.push(timestamp);
+    }
+    else {
+      timestamp.start = new Date(timestamp.start).toISOString();
+      timestamp.end = new Date(timestamp.end).toISOString();
+      query += "AND timestamp >= $4 AND timestamp <= $5;";
+      params.push(timestamp.start);
+      params.push(timestamp.end);
+    }
+
+    let modified = await hcdpDBManagerMesonet.queryNoRes(query, params, { privileged: true });
+
+    reqData.code = 204;
+    return res.status(204)
+    .json({ modified });
+  });
+});
+
 
 
 

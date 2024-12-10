@@ -64,7 +64,7 @@ export class HCDPDBManager {
         });
     }
 
-    async query(query: string, params: string[], options: QueryOptions = { privileged: false }) {
+    async query(query: string, params: string[], options: QueryOptions = { privileged: false }): Promise<QueryHandler> {
         const conn = await (options.privileged ? this.adminDBHandler : this.userDBHandler).connect();
 
         const cursor = conn.client.query(new Cursor(query, params, {
@@ -73,8 +73,8 @@ export class HCDPDBManager {
         return new QueryHandler(conn, cursor);
     }
 
-    async queryNoRes(query: string, params: string[], options: QueryOptions = { privileged: false }) {
-        return (options.privileged ? this.adminDBHandler : this.userDBHandler).query(query, params);
+    async queryNoRes(query: string, params: string[], options: QueryOptions = { privileged: false }): Promise<number> {
+        return (options.privileged ? this.adminDBHandler : this.userDBHandler).result(query, params, (r: any) => { return r.rowCount; });
     }
 
     mogrify(query, params): string {
