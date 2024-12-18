@@ -8,8 +8,7 @@ import { tapisV3Manager } from "../../../modules/util/resourceManagers/tapis.js"
 import { ProjectHandler } from "../../../modules/tapisHandlers.js";
 import { downloadRoot, apiURL } from "../../../modules/util/config.js";
 import { MesonetDataPackager } from "../../../modules/mesonetDataPackager.js";
-import { handleSubprocess, sendEmail } from "../../../modules/util/util.js";
-import { processTapisError } from "../../../modules/util/util.js";
+import { handleSubprocess, sendEmail, processTapisError } from "../../../modules/util/util.js";
 
 export const router = express.Router();
 

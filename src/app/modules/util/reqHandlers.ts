@@ -1,6 +1,6 @@
-import { logReq, sendEmail } from "./util";
-import { administrators } from "./config";
-import { validateToken } from "./auth";
+import { logReq, sendEmail } from "./util.js";
+import { administrators } from "./config.js";
+import { validateToken } from "./auth.js";
 
 export async function handleReqNoAuth(req, res, handler) {
   //note include success since 202 status might not indicate success in generating download package

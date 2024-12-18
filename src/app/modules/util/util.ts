@@ -1,7 +1,6 @@
 import * as fs from "fs";
 import * as nodemailer from "nodemailer";
-import { userLog, mailConfig } from "./config";
-import { smtp, smtpPort } from "./config";
+import { userLog, mailConfig, smtp, smtpPort } from "./config.js";
 
 const transporterOptions = {
   host: smtp,
