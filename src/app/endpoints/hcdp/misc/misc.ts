@@ -1,0 +1,239 @@
+import express from "express";
+import { handleReq } from "../../../modules/util/reqHandlers";
+import { tapisManager } from "../../../modules/util/resourceManagers/tapis";
+import { processTapisError, handleSubprocess } from "../../../modules/util/util";
+import { getPaths, fnamePattern, getEmpty } from "../../../modules/fileIndexer";
+import { productionRoot, urlRoot, dataRoot } from "../../../modules/util/config";
+import * as child_process from "child_process";
+import * as path from "path";
+import * as fs from "fs";
+
+export const router = express.Router();
+
+router.get("/raster/timeseries", async (req, res) => {
+  const permission = "basic";
+  await handleReq(req, res, permission, async (reqData) => {
+      let {start, end, row, col, index, lng, lat, ...properties} = req.query;
+      let posParams;
+      if(row !== undefined && col !== undefined) {
+      posParams = ["-r", row, "-c", col];
+      }
+      else if(index !== undefined) {
+      posParams = ["-i", index];
+      }
+      else if(lng !== undefined && lat !== undefined) {
+      posParams = ["-x", lng, "-y", lat];
+      }
+      if(start === undefined || end === undefined || posParams === undefined) {
+      //set failure and code in status
+      reqData.success = false;
+      reqData.code = 400;
+
+      res.status(400)
+      .send(
+          `Request must include the following parameters:
+          start: An ISO 8601 formatted date string representing the start date of the timeseries.
+          end: An ISO 8601 formatted date string representing the end date of the timeseries.
+          {index: The 1D index of the data in the file.
+          OR
+          row AND col: The row and column of the data.
+          OR
+          lat AND lng: The geographic coordinates of the data}`
+      );
+      }
+      else {
+      let dataset = [{
+          files: ["data_map"],
+          range: {
+          start,
+          end
+          },
+          ...properties
+      }];
+      //need files directly, don't collapse
+      let { numFiles, paths } = await getPaths(productionRoot, dataset, false);
+      reqData.sizeF = numFiles;
+
+      let proc;
+      //error if paths empty
+      let timeseries = {};
+      //if no paths just return empty timeseries
+      if(paths.length != 0) {
+          //want to avoid argument too large errors for large timeseries
+          //write very long path lists to temp file
+          // getconf ARG_MAX = 2097152
+          //should be alright if less than 10k paths
+          if(paths.length < 10000) {
+          proc = child_process.spawn("../assets/tiffextract.out", [...posParams, ...paths]);
+          }
+          //otherwise write paths to a file and use that
+          else {
+          let uuid = crypto.randomUUID();
+          //write paths to a file and use that, avoid potential issues from long cmd line params
+          fs.writeFileSync(uuid, paths.join("\n"));
+      
+          proc = child_process.spawn("../assets/tiffextract.out", ["-f", uuid, ...posParams]);
+          //delete temp file on process exit
+          proc.on("exit", () => {
+              fs.unlinkSync(uuid);
+          });
+          } 
+      
+          let values = "";
+          let code = await handleSubprocess(proc, (data) => {
+          values += data.toString();
+          });
+      
+          if(code !== 0) {
+          //if extractor process failed throw error for handling by main error handler
+          throw new Error(`Geotiff extract process failed with code ${code}`);
+          }
+
+          let valArr = values.trim().split(" ");
+          if(valArr.length != paths.length) {
+          //issue occurred in geotiff extraction if output does not line up, allow main error handler to process and notify admins
+          throw new Error(`An issue occurred in the geotiff extraction process. The number of output values does not match the input. Output: ${values}`);
+          }
+
+          //order of values should match file order
+          for(let i = 0; i < paths.length; i++) {
+          //if the return value for that file was empty (error reading) then skip
+          if(valArr[i] !== "_") {
+              let path = paths[i];
+              let match = path.match(fnamePattern);
+              //should never be null otherwise wouldn't have matched file to begin with, just skip if it magically happens
+              if(match !== null) {
+                  //capture date from fname and split on underscores
+                  let dateParts = match[1].split("_");
+                  //get parts
+                  const [year, month, day, hour, minute, second] = dateParts;
+                  //construct ISO date string from parts with defaults for missing values
+                  const isoDateStr = `${year}-${month || "01"}-${day || "01"}T${hour || "00"}:${minute || "00"}:${second || "00"}`;
+                  timeseries[isoDateStr] = parseFloat(valArr[i]);
+              }
+          }
+          }
+      }
+      reqData.code = 200;
+      res.status(200)
+      .json(timeseries);
+      }
+  });
+
+  });
+
+
+
+
+router.get("/raster", async (req, res) => {
+  const permission = "basic";
+  await handleReq(req, res, permission, async (reqData) => {
+      //destructure query
+      let {date, returnEmptyNotFound, type, ...properties} = req.query;
+      if(type === undefined) {
+      type = "data_map";
+      }
+
+      let data = [{
+      files: [type],
+      range: {
+          start: date,
+          end: date
+      },
+      ...properties
+      }];
+      let files = await getPaths(productionRoot, data, false);
+      reqData.sizeF = files.numFiles;
+      let file = "";
+      //should only be exactly one file
+      if(files.numFiles == 0 && returnEmptyNotFound) {
+      file = getEmpty(properties.extent);
+      }
+      else {
+      file = files.paths[0];
+      }
+      
+      if(!file) {
+      //set failure and code in status
+      reqData.success = false;
+      reqData.code = 404;
+
+      //resources not found
+      res.status(404)
+      .send("The requested file could not be found");
+      }
+      else {
+      reqData.code = 200;
+      res.status(200)
+      .sendFile(file);
+      }
+  });
+  });
+
+
+router.get("/production/list", async (req, res) => {
+  const permission = "basic";
+  await handleReq(req, res, permission, async (reqData) => {
+      let data: any = req.query.data;
+      data = JSON.parse(data);
+      if(!Array.isArray(data)) {
+      //set failure and code in status
+      reqData.success = false;
+      reqData.code = 400;
+
+      res.status(400)
+      .send(
+          "Request must include the following parameters: \n\
+          data: A JSON object representing the dataset to be listed."
+      );
+      }
+      else {
+      let files = await getPaths(productionRoot, data, false);
+      reqData.sizeF = files.numFiles;
+      let fileLinks = files.paths.map((file) => {
+          file = path.relative(dataRoot, file);
+          let fileLink = `${urlRoot}${file}`;
+          return fileLink;
+      });
+      reqData.code = 200;
+      res.status(200)
+      .json(fileLinks);
+      }
+  });
+  });
+
+router.get("/stations", async (req, res) => {
+  const permission = "basic";
+  await handleReq(req, res, permission, async (reqData) => {
+    let { q, limit, offset }: any = req.query;
+    try {
+      //parse query string to JSON
+      q = JSON.parse(q.replace(/'/g, '"'));
+    }
+    catch {
+      //set failure and code in status
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Request must include the following parameters:
+        q: Mongo DB style query for station documents.
+        limit (optional): A number indicating the maximum number of records to be returned for each variable.
+        offset (optional): A number indicating an offset in the records returned from the first available record.`
+      );
+    }
+    
+    try {
+      const data = await tapisManager.queryData(q, limit, offset);
+      reqData.code = 200;
+      return res.status(200)
+      .json(data);
+    }
+    catch(e) {
+      return processTapisError(res, reqData, e);
+    }
+  });
+});
+  
+  
