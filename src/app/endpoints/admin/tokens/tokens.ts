@@ -1,7 +1,7 @@
 import express from "express";
-import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers";
-import { HCDPDBManager } from "../../../modules/util/resourceManagers/db";
-import { sendEmail } from "../../../modules/util/util";
+import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
+import { HCDPDBManager } from "../../../modules/util/resourceManagers/db.js";
+import { sendEmail } from "../../../modules/util/util.js";
 import * as crypto from "crypto";
 
 export const router = express.Router();

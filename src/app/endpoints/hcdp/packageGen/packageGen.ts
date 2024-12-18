@@ -1,9 +1,9 @@
 import express from "express";
 import * as fs from "fs";
-import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers";
-import { sendEmail, handleSubprocess } from "../../../modules/util/util";
-import { ATTACHMENT_MAX_MB, defaultZipName, downloadRoot, productionRoot, apiURL, licenseFile } from "../../../modules/util/config";
-import { getPaths } from "../../../modules/fileIndexer";
+import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
+import { sendEmail, handleSubprocess } from "../../../modules/util/util.js";
+import { ATTACHMENT_MAX_MB, defaultZipName, downloadRoot, productionRoot, apiURL, licenseFile } from "../../../modules/util/config.js";
+import { getPaths } from "../../../modules/fileIndexer.js";
 import * as child_process from "child_process";
 import * as path from "path";
 

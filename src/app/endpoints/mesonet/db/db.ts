@@ -1,8 +1,8 @@
 
 import express from "express";
 import moment from "moment-timezone";
-import { MesonetDBManager } from "../../../modules/util/resourceManagers/db";
-import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers";
+import { MesonetDBManager } from "../../../modules/util/resourceManagers/db.js";
+import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
 
 export const router = express.Router();
 

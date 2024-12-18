@@ -1,6 +1,6 @@
 import express from "express";
-import { handleReq } from "../../../modules/util/reqHandlers";
-import { tapisDBManager } from "../../../modules/util/resourceManagers/tapis";
+import { handleReq } from "../../../modules/util/reqHandlers.js";
+import { tapisDBManager } from "../../../modules/util/resourceManagers/tapis.js";
 import * as sanitize from "mongo-sanitize";
 
 export const router = express.Router();

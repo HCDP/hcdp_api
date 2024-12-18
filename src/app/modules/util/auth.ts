@@ -1,4 +1,4 @@
-import { HCDPDBManager } from "./resourceManagers/db";
+import { HCDPDBManager } from "./resourceManagers/db.js";
 
 async function validateTokenAccess(token, permission) {
   let valid = false;

@@ -1,8 +1,8 @@
 import express from "express";
-import { handleReq } from "../../../modules/util/reqHandlers";
-import { handleSubprocess, sendEmail } from "../../../modules/util/util";
-import { tapisManager } from "../../../modules/util/resourceManagers/tapis";
-import { githubWebhookSecret } from "../../../modules/util/config";
+import { handleReq } from "../../../modules/util/reqHandlers.js";
+import { handleSubprocess, sendEmail } from "../../../modules/util/util.js";
+import { tapisManager } from "../../../modules/util/resourceManagers/tapis.js";
+import { githubWebhookSecret } from "../../../modules/util/config.js";
 import CsvReadableStream from "csv-reader";
 import * as detectDecodeStream from "autodetect-decoder-stream";
 import * as safeCompare from "safe-compare";

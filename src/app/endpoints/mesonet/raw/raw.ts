@@ -2,9 +2,9 @@ import express from "express";
 import moment from "moment-timezone";
 import * as fs from "fs";
 import * as path from "path";
-import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers";
-import { rawDataRoot, apiURL } from "../../../modules/util/config";
-import { readdir } from "../../../modules/util/util";
+import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
+import { rawDataRoot, apiURL } from "../../../modules/util/config.js";
+import { readdir } from "../../../modules/util/util.js";
 
 export const router = express.Router();
 

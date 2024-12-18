@@ -1,9 +1,9 @@
 import express from "express";
-import { handleReq } from "../../../modules/util/reqHandlers";
-import { tapisManager } from "../../../modules/util/resourceManagers/tapis";
-import { processTapisError, handleSubprocess } from "../../../modules/util/util";
-import { getPaths, fnamePattern, getEmpty } from "../../../modules/fileIndexer";
-import { productionRoot, urlRoot, dataRoot } from "../../../modules/util/config";
+import { handleReq } from "../../../modules/util/reqHandlers.js";
+import { tapisManager } from "../../../modules/util/resourceManagers/tapis.js";
+import { processTapisError, handleSubprocess } from "../../../modules/util/util.js";
+import { getPaths, fnamePattern, getEmpty } from "../../../modules/fileIndexer.js";
+import { productionRoot, urlRoot, dataRoot } from "../../../modules/util/config.js";
 import * as child_process from "child_process";
 import * as path from "path";
 import * as fs from "fs";

@@ -1,6 +1,6 @@
 
-import { tapisDBConfig, tapisConfig, tapisV3Config } from "../../../modules/util/config";
-import { DBManager, TapisManager, TapisV3Manager, ProjectHandler } from "../../../modules/tapisHandlers.js";
+import { tapisDBConfig, tapisConfig, tapisV3Config } from "../../util/config.js";
+import { DBManager, TapisManager, TapisV3Manager } from "../../../modules/tapisHandlers.js";
 
 export const tapisDBManager = new DBManager(tapisDBConfig.server, tapisDBConfig.port, tapisDBConfig.username, tapisDBConfig.password, tapisDBConfig.db, tapisDBConfig.collection, tapisDBConfig.connectionRetryLimit, tapisDBConfig.queryRetryLimit);
 export const tapisManager = new TapisManager(tapisConfig.tenantURL, tapisConfig.token, tapisDBConfig.queryRetryLimit, tapisDBManager);
