@@ -37,7 +37,7 @@ class QueryHandler {
     }
 }
 
-export class HCDPDBManager {
+export class PostgresDBManager {
     userDBHandler: any;
     adminDBHandler: any;
     pgp: any;
