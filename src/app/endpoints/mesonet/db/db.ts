@@ -2,7 +2,11 @@
 import express from "express";
 import moment from "moment-timezone";
 import { MesonetDBManager } from "../../../modules/util/resourceManagers/db.js";
+import * as fs from "fs";
+import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
+import { administrators, rawDataRoot } from "../../../modules/util/config.js";
+import { sendEmail } from "../../../modules/util/util.js";
 
 export const router = express.Router();
 
@@ -505,92 +509,148 @@ router.get("/mesonet/db/variables", async (req, res) => {
 
 router.get("/mesonet/db/sff", async (req, res) => {
   await handleReqNoAuth(req, res, async (reqData) => {
-    let query = `
-      SELECT hawaii_measurements.station_id, station_metadata.lat, station_metadata.lng, station_metadata.elevation, hawaii_measurements.timestamp, synoptic_translations.synoptic_name, sensor_positions.sensor_height, CASE WHEN hawaii_measurements.value IS NOT NULL THEN CAST(hawaii_measurements.value AS DECIMAL) * synoptic_translations.unit_conversion_coefficient ELSE NULL END AS value
-      FROM hawaii_measurements
-      JOIN version_translations ON version_translations.program = hawaii_measurements.version AND version_translations.alias = hawaii_measurements.variable
-      JOIN synoptic_translations ON version_translations.standard_name = synoptic_translations.standard_name
-      JOIN station_metadata ON station_metadata.station_id = hawaii_measurements.station_id
-      LEFT JOIN sensor_positions ON sensor_positions.station_id = hawaii_measurements.station_id AND version_translations.standard_name = sensor_positions.standard_name
-      WHERE timestamp >= NOW() - '6 hours'::INTERVAL AND flag = 0 AND NOT EXISTS (SELECT 1 FROM synoptic_exclude WHERE synoptic_exclude.station_id = hawaii_measurements.station_id AND synoptic_exclude.standard_name = version_translations.standard_name)
-      ORDER BY hawaii_measurements.station_id, hawaii_measurements.timestamp, synoptic_translations.synoptic_name, sensor_positions.sensor_number;
-    `;
-
-    let queryHandler = await MesonetDBManager.query(query, []);
-    let data = await queryHandler.read(100000);
-    queryHandler.close();
+    const MAX_DELAY_SECONDS = 3600;
 
     res.set("Content-Type", "text/csv");
     res.set("Content-Disposition", `attachment; filename="sff_data.csv"`);
-    
-    res.write("station_id,LAT [ddeg],LON [ddeg],date_time [UTC],ELEV [m],T [C],RH [%],FF [m/s],DD [deg],FFGUST [m/s],P [hPa],SOLRAD [W/m2],SOLOUT [W/m2],LWRAD [W/m2],LWOUT [W/m2],NETSWRAD [W/m2],NETLWRAD [W/m2],NETRAD [W/m2],PAR [umol/m2s],PCP5M [mm],BATV [volt],SOILT [C],SOILMP [%]\n");
 
-    const varOrder = ["T [C]", "RH [%]", "FF [m/s]", "DD [deg]", "FFGUST [m/s]", "P [hPa]", "SOLRAD [W/m2]", "SOLOUT [W/m2]", "LWRAD [W/m2]", "LWOUT [W/m2]", "NETSWRAD [W/m2]", "NETLWRAD [W/m2]", "NETRAD [W/m2]", "PAR [umol/m2s]", "PCP5M [mm]", "BATV [volt]", "SOILT [C]", "SOILMP [%]"];
-    let variableData = {};
-    let i = 0;
-    while(i < data.length) {
-      let { station_id: sid, lat, lng, elevation, timestamp } = data[i];
-      //row is sid, timestamp
-      while(i < data.length && data[i].station_id == sid && data[i].timestamp == timestamp) {
-        let { synoptic_name: synopticName } = data[i];
-        variableData[synopticName] = {
-          count: 0,
-          data: {}
+    let query = `
+      SELECT timestamp
+      FROM hawaii_measurements
+      ORDER BY timestamp DESC
+      LIMIT 1;
+    `;
+    let queryHandler = await MesonetDBManager.query(query, [], { rowMode: "array" });
+    let lastTimestampString = (await queryHandler.read(1))[0];
+    queryHandler.close();
+    let lastTimestamp = moment(lastTimestampString);
+    let boundaryTime = moment().subtract(MAX_DELAY_SECONDS, "seconds");
+    if(lastTimestamp.isSameOrBefore(boundaryTime)) {
+      if(administrators.length > 0) {
+        let mailOptions = {
+          to: administrators,
+          subject: "Mesonet SFF Fallback",
+          text: `Hawaii Mesonet database entries are more than an hour behind. A request to the /mesonet/db/sff endpoint is falling back to the raw data file.`,
+          html: `<p>Hawaii Mesonet database entries are more than an hour behind. A request to the /mesonet/db/sff endpoint is falling back to the raw data file.</p>`
         };
-        
-        for(; i < data.length && data[i].synoptic_name == synopticName; i++) {
-          let { sensor_height: sensorHeight, value } = data[i];
-          variableData[synopticName].count++;
-          let values = variableData[synopticName].data[sensorHeight];
-          if(!values) {
-            values = [];
-            variableData[synopticName].data[sensorHeight] = values;
+        try {
+          //attempt to send email to the administrators
+          let emailStatus = await sendEmail(mailOptions);
+          //if email send failed throw error for logging
+          if(!emailStatus.success) {
+            throw emailStatus.error;
           }
-          values.push(value);
+        }
+        //if error while sending admin email write to stderr
+        catch(e) {
+          console.error(`Failed to send administrator notification email for SFF fallback: ${e}`);
         }
       }
 
-      let sffRow = [sid, lat, lng, timestamp, elevation];
 
-      for(let variable of varOrder) {
-        if(!variableData[variable]) {
-          sffRow.push("nan");
-          continue;
-        }
-        let { count, data: heightData } = variableData[variable];
-        if(count == 1) {
-          sffRow.push(heightData[Object.keys(heightData)[0]][0]);
+      let file = path.join(rawDataRoot, "sff/sff_data.csv");
+      fs.access(file, fs.constants.F_OK, (e) => {
+        if(e) {
+          reqData.success = false;
+          reqData.code = 404;
+          res.status(404)
+          .send("The requested file could not be found");
         }
         else {
-          let heights: string[] = [];
-          let values: string[] = [];
-          for(let height in heightData) {
-            let valueData = heightData[height];
+          //should the size of the file in bytes be added?
+          reqData.sizeF = 1;
+          reqData.code = 200;
+          res.status(200)
+          .sendFile(file);
+        }
+      });
+    }
 
-            if(valueData.length > 1) {
-              for(let j = 0; j < valueData.length; j++) {
-                heights.push(`${height}${String.fromCharCode(97 + j)}`);
-                values.push(valueData[j]);
+    else {
+      query = `
+        SELECT hawaii_measurements.station_id, station_metadata.lat, station_metadata.lng, station_metadata.elevation, hawaii_measurements.timestamp, synoptic_translations.synoptic_name, sensor_positions.sensor_height, CASE WHEN hawaii_measurements.value IS NOT NULL THEN CAST(hawaii_measurements.value AS DECIMAL) * synoptic_translations.unit_conversion_coefficient ELSE NULL END AS value
+        FROM hawaii_measurements
+        JOIN version_translations ON version_translations.program = hawaii_measurements.version AND version_translations.alias = hawaii_measurements.variable
+        JOIN synoptic_translations ON version_translations.standard_name = synoptic_translations.standard_name
+        JOIN station_metadata ON station_metadata.station_id = hawaii_measurements.station_id
+        LEFT JOIN sensor_positions ON sensor_positions.station_id = hawaii_measurements.station_id AND version_translations.standard_name = sensor_positions.standard_name
+        WHERE timestamp >= NOW() - '6 hours'::INTERVAL AND flag = 0 AND NOT EXISTS (SELECT 1 FROM synoptic_exclude WHERE synoptic_exclude.station_id = hawaii_measurements.station_id AND synoptic_exclude.standard_name = version_translations.standard_name)
+        ORDER BY hawaii_measurements.station_id, hawaii_measurements.timestamp, synoptic_translations.synoptic_name, sensor_positions.sensor_number;
+      `;
+
+      queryHandler = await MesonetDBManager.query(query, []);
+      let data = await queryHandler.read(100000);
+      queryHandler.close();
+      
+      res.write("station_id,LAT [ddeg],LON [ddeg],date_time [UTC],ELEV [m],T [C],RH [%],FF [m/s],DD [deg],FFGUST [m/s],P [hPa],SOLRAD [W/m2],SOLOUT [W/m2],LWRAD [W/m2],LWOUT [W/m2],NETSWRAD [W/m2],NETLWRAD [W/m2],NETRAD [W/m2],PAR [umol/m2s],PCP5M [mm],BATV [volt],SOILT [C],SOILMP [%]\n");
+
+      const varOrder = ["T [C]", "RH [%]", "FF [m/s]", "DD [deg]", "FFGUST [m/s]", "P [hPa]", "SOLRAD [W/m2]", "SOLOUT [W/m2]", "LWRAD [W/m2]", "LWOUT [W/m2]", "NETSWRAD [W/m2]", "NETLWRAD [W/m2]", "NETRAD [W/m2]", "PAR [umol/m2s]", "PCP5M [mm]", "BATV [volt]", "SOILT [C]", "SOILMP [%]"];
+      let variableData = {};
+      let i = 0;
+      while(i < data.length) {
+        let { station_id: sid, lat, lng, elevation, timestamp } = data[i];
+        //row is sid, timestamp
+        while(i < data.length && data[i].station_id == sid && data[i].timestamp == timestamp) {
+          let { synoptic_name: synopticName } = data[i];
+          variableData[synopticName] = {
+            count: 0,
+            data: {}
+          };
+          
+          for(; i < data.length && data[i].synoptic_name == synopticName; i++) {
+            let { sensor_height: sensorHeight, value } = data[i];
+            variableData[synopticName].count++;
+            let values = variableData[synopticName].data[sensorHeight];
+            if(!values) {
+              values = [];
+              variableData[synopticName].data[sensorHeight] = values;
+            }
+            values.push(value);
+          }
+        }
+
+        let sffRow = [sid, lat, lng, timestamp, elevation];
+
+        for(let variable of varOrder) {
+          if(!variableData[variable]) {
+            sffRow.push("nan");
+            continue;
+          }
+          let { count, data: heightData } = variableData[variable];
+          if(count == 1) {
+            sffRow.push(heightData[Object.keys(heightData)[0]][0]);
+          }
+          else {
+            let heights: string[] = [];
+            let values: string[] = [];
+            for(let height in heightData) {
+              let valueData = heightData[height];
+
+              if(valueData.length > 1) {
+                for(let j = 0; j < valueData.length; j++) {
+                  heights.push(`${height}${String.fromCharCode(97 + j)}`);
+                  values.push(valueData[j]);
+                }
+              }
+              else {
+                heights.push(height);
+                values.push(valueData[0]);
               }
             }
-            else {
-              heights.push(height);
-              values.push(valueData[0]);
-            }
+            let colString = `${heights.join(";")}#${values.join(";")}`;
+            sffRow.push(colString);
           }
-          let colString = `${heights.join(";")}#${values.join(";")}`;
-          sffRow.push(colString);
         }
+        res.write(`${sffRow.join(",")}\n`);
       }
-      res.write(`${sffRow.join(",")}\n`);
+      
+      reqData.code = 200;
+      res.status(200)
+      .end();
     }
-    
-
-    reqData.code = 200;
-    res.status(200)
-    .end();
   });
 });
+
 
 router.patch("/mesonet/db/setFlag", async (req, res) => {
   const permission = "meso_admin";
