@@ -54,6 +54,9 @@ export async function getDatasetDateRange(dataset: any): Promise<[string, string
             return null;
         }
     }
+    if(!(await validate(datasetPath))) {
+        return null;
+    }
     let firstFile: string | null = descend(datasetPath, 1);
     let lastFile: string | null = descend(datasetPath, -1);
     if(firstFile === null || lastFile === null) {
@@ -297,7 +300,6 @@ function convert(data) {
 
 //validate file or dir exists
 async function validate(file) {
-    file = path.join(file);
     return new Promise((resolve, reject) => {
         fs.access(file, fs.constants.F_OK, (e) => {
             e ? resolve(false) : resolve(true);
