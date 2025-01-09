@@ -6,7 +6,7 @@ import * as path from "path";
 //property hierarchy (followed by file and date parts)
 const hierarchy = ["datatype", "production", "aggregation", "period", "extent", "fill"];
 const periodOrder: moment.unitOfTime.StartOf[] = ["year", "month", "day", "hour", "minute", "second"];
-const periodFormats = ["YYYY", "MM", "DD", "HH", "MM", "SS"];
+const periodFormats = ["YYYY", "MM", "DD", "HH", "mm", "ss"];
 
 //empty file index
 const emptyIndex = {
@@ -68,6 +68,8 @@ export async function getDatasetDateRange(dataset: any): Promise<[string, string
     let firstDate = firstFile.split("_").slice(-parts).join("-");
     let lastDate = lastFile.split("_").slice(-parts).join("-");
     let dateFormat = periodFormats.slice(0, parts).join("-");
+    console.log(dateFormat);
+    console.log(firstDate, lastDate);
     firstDate = moment(firstDate, dateFormat).toISOString();
     lastDate = moment(lastDate, dateFormat).toISOString();
     return [firstDate, lastDate];
