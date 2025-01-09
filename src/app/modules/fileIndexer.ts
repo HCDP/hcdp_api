@@ -36,7 +36,7 @@ function getDatasetPath(dataset: any): string{
 export async function getDatasetDateRange(dataset: any): Promise<[string, string] | null> {
     let datasetPath = getDatasetPath(dataset);
     datasetPath = path.join(datasetPath, "statewide/data_map");
-    const descend = (root: string, direction: number) => {
+    const descend = (root: string, direction: number): string | null => {
         let dirents = fs.readdirSync(root, {withFileTypes: true}).sort((a, b) => direction * a.name.localeCompare(b.name));
         let dirs = dirents.filter((dirent) => dirent.isDirectory());
         for(let i = 0; i < dirs.length; i++) {
@@ -48,14 +48,14 @@ export async function getDatasetDateRange(dataset: any): Promise<[string, string
         }
         let files = dirents.filter((dirent) => dirent.isFile());
         if(files.length > 0) {
-            return files[0];
+            return files[0].name;
         }
         else {
             return null;
         }
     }
-    let firstFile: string = descend(datasetPath, 1);
-    let lastFile: string = descend(datasetPath, -1);
+    let firstFile: string | null = descend(datasetPath, 1);
+    let lastFile: string | null = descend(datasetPath, -1);
     if(firstFile === null || lastFile === null) {
         return null;
     }
