@@ -35,7 +35,7 @@ function getDatasetPath(dataset: any): string{
 
 export async function getDatasetDateRange(dataset: any): Promise<[string, string] | null> {
     let datasetPath = getDatasetPath(dataset);
-    datasetPath = path.join(datasetPath, "data_map");
+    datasetPath = path.join(datasetPath, "statewide/data_map");
     const descend = (root: string, direction: number) => {
         let dirents = fs.readdirSync(root, {withFileTypes: true}).sort((a, b) => direction * a.name.localeCompare(b.name));
         let dirs = dirents.filter((dirent) => dirent.isDirectory());
