@@ -657,7 +657,7 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     let { station_id: stationID, variable, timestamp, flag }: any = req.body;
 
-    if(!(stationID && variable && /^[0-9]+$/.test(flag) && ((typeof timestamp === "string" && !isNaN(Date.parse(timestamp))) || (!isNaN(Date.parse(timestamp.start)) && !isNaN(Date.parse(timestamp.end)))))) {
+    if(!(stationID && variable && /^[0-9]+$/.test(flag) && timestamp && ((typeof timestamp === "string" && !isNaN(Date.parse(timestamp))) || (!isNaN(Date.parse(timestamp.start)) && !isNaN(Date.parse(timestamp.end)))))) {
       reqData.success = false;
       reqData.code = 400;
 
