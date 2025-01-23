@@ -177,7 +177,7 @@ router.post("/notify", async (req, res) => {
         throw emailStatus.error;
       }
     }
-    //if error while sending admin email erite to stderr
+    //if error while sending admin email write to stderr
     catch(e) {
       //set failure and code in status
       reqData.success = false;

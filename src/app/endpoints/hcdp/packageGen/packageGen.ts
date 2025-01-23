@@ -119,7 +119,7 @@ router.post("/genzip/email", async (req, res) => {
         /////////////////////////////////////
         
         //get paths
-        let { paths, numFiles } = await getPaths(productionRoot, data);
+        let { paths, numFiles } = await getPaths(data);
         //add license file
         paths.push(licenseFile);
         numFiles += 1;
@@ -239,7 +239,7 @@ router.post("/genzip/instant/content", async (req, res) => {
       );
     }
     else {
-      let { paths, numFiles } = await getPaths(productionRoot, data);
+      let { paths, numFiles } = await getPaths(data);
       reqData.sizeF = numFiles;
       if(paths.length > 0) {
         res.contentType("application/zip");
@@ -301,7 +301,7 @@ router.post("/genzip/instant/link", async (req, res) => {
       );
     }
     else {
-      let { paths, numFiles } = await getPaths(productionRoot, data);
+      let { paths, numFiles } = await getPaths(data);
       //add license file
       paths.push(licenseFile);
       numFiles += 1;
@@ -371,7 +371,7 @@ router.post("/genzip/instant/splitlink", async (req, res) => {
       );
     }
     else {
-      let { paths, numFiles } = await getPaths(productionRoot, data);
+      let { paths, numFiles } = await getPaths(data);
       //add license file
       paths.push(licenseFile);
       numFiles += 1;

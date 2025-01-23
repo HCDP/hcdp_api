@@ -2,8 +2,8 @@ import express from "express";
 import { handleReq } from "../../../modules/util/reqHandlers.js";
 import { tapisManager } from "../../../modules/util/resourceManagers/tapis.js";
 import { processTapisError, handleSubprocess } from "../../../modules/util/util.js";
-import { getPaths, fnamePattern, getEmpty } from "../../../modules/fileIndexer.js";
-import { productionRoot, urlRoot, dataRoot } from "../../../modules/util/config.js";
+import { getPaths, fnamePattern, getEmpty, getDatasetDateRange } from "../../../modules/fileIndexer.js";
+import { urlRoot, dataRoot } from "../../../modules/util/config.js";
 import * as child_process from "child_process";
 import * as path from "path";
 import * as fs from "fs";
@@ -51,7 +51,7 @@ router.get("/raster/timeseries", async (req, res) => {
           ...properties
       }];
       //need files directly, don't collapse
-      let { numFiles, paths } = await getPaths(productionRoot, dataset, false);
+      let { numFiles, paths } = await getPaths(dataset, false);
       reqData.sizeF = numFiles;
 
       let proc;
@@ -142,7 +142,7 @@ router.get("/raster", async (req, res) => {
       },
       ...properties
       }];
-      let files = await getPaths(productionRoot, data, false);
+      let files = await getPaths(data, false);
       reqData.sizeF = files.numFiles;
       let file = "";
       //should only be exactly one file
@@ -188,7 +188,7 @@ router.get("/production/list", async (req, res) => {
       );
       }
       else {
-      let files = await getPaths(productionRoot, data, false);
+      let files = await getPaths(data, false);
       reqData.sizeF = files.numFiles;
       let fileLinks = files.paths.map((file) => {
           file = path.relative(dataRoot, file);
@@ -235,5 +235,3 @@ router.get("/stations", async (req, res) => {
     }
   });
 });
-  
-  

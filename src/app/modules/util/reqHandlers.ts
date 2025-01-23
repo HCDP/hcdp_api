@@ -49,7 +49,7 @@ export async function handleReqNoAuth(req, res, handler) {
           throw emailStatus.error;
         }
       }
-      //if error while sending admin email erite to stderr
+      //if error while sending admin email write to stderr
       catch(e) {
         console.error(`Failed to send administrator notification email: ${e}`);
       }
@@ -124,7 +124,7 @@ export async function handleReq(req, res, permission, handler) {
           throw emailStatus.error;
         }
       }
-      //if error while sending admin email erite to stderr
+      //if error while sending admin email write to stderr
       catch(e) {
         console.error(`Failed to send administrator notification email: ${e}`);
       }

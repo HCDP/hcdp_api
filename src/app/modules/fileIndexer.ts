@@ -1,9 +1,12 @@
-import moment from "moment";
+import moment, { Moment } from "moment-timezone";
+import { productionRoot } from "./util/config.js";
 import * as fs from "fs";
 import * as path from "path";
 
 //property hierarchy (followed by file and date parts)
 const hierarchy = ["datatype", "production", "aggregation", "period", "extent", "fill"];
+const periodOrder: moment.unitOfTime.StartOf[] = ["year", "month", "day", "hour", "minute", "second"];
+const periodFormats = ["YYYY", "MM", "DD", "HH", "mm", "ss"];
 
 //empty file index
 const emptyIndex = {
@@ -18,7 +21,187 @@ const hierarchies = {
 
 export const fnamePattern = /^.+?([0-9]{4}(?:(?:_[0-9]{2}){0,5}|(?:_[0-9]{2}){5}\.[0-9]+))\.[a-zA-Z0-9]+$/;
 
-export async function getPaths(root, data, collapse?) {
+function getDatasetPath(dataset: any): string{
+    let datasetPath = productionRoot;
+    //add properties to path in order of hierarchy
+    for(let property of hierarchy) {
+        let value = dataset[property];
+        if(value !== undefined) {
+            datasetPath = path.join(datasetPath, value);
+        }
+    }
+    return datasetPath;
+}
+
+export async function getDatasetDateRange(dataset: any): Promise<[string, string] | null> {
+    let datasetPath = getDatasetPath(dataset);
+    datasetPath = path.join(datasetPath, "statewide/data_map");
+    const descend = (root: string, direction: number): string | null => {
+        let dirents = fs.readdirSync(root, {withFileTypes: true}).sort((a, b) => direction * a.name.localeCompare(b.name));
+        let dirs = dirents.filter((dirent) => dirent.isDirectory());
+        for(let i = 0; i < dirs.length; i++) {
+            let dir = path.join(root, dirs[i].name);
+            let leaf = descend(dir, direction);
+            if(leaf !== null) {
+                return leaf;
+            }
+        }
+        let files = dirents.filter((dirent) => dirent.isFile());
+        if(files.length > 0) {
+            return files[0].name;
+        }
+        else {
+            return null;
+        }
+    }
+    if(!(await validate(datasetPath))) {
+        return null;
+    }
+    let firstFile: string | null = descend(datasetPath, 1);
+    let lastFile: string | null = descend(datasetPath, -1);
+    if(firstFile === null || lastFile === null) {
+        return null;
+    }
+    firstFile = path.parse(firstFile).name;
+    lastFile = path.parse(lastFile).name;
+    let parts = periodOrder.indexOf(dataset.period) + 1;
+    //alternative
+    if(parts < 1) {
+        return null;
+    }
+    let firstDate = firstFile.split("_").slice(-parts).join("-");
+    let lastDate = lastFile.split("_").slice(-parts).join("-");
+    let dateFormat = periodFormats.slice(0, parts).join("-");
+    
+    firstDate = moment(firstDate, dateFormat).tz("Pacific/Honolulu", true).toISOString();
+    lastDate = moment(lastDate, dateFormat).tz("Pacific/Honolulu", true).toISOString();
+    return [firstDate, lastDate];
+}
+
+//should change to import roots
+export async function getDatasetNextDate(dataset: any, date: string, direction: number) {
+    let datasetPath = getDatasetPath(dataset);
+    datasetPath = path.join(datasetPath, "data_map");
+}
+
+export async function getDatasetNearestDate(dataset: any, date: string, direction: number) {
+    direction = Math.sign(direction);
+    let dateMoment = moment(date);
+    let datasetPath = getDatasetPath(dataset);
+    datasetPath = path.join(datasetPath, "data_map");
+    let period = dataset.period;
+    let parts = periodOrder.indexOf(period);
+    let dateFormatParts = periodFormats.slice(0, parts);
+    let format = dateFormatParts.join("_");
+
+    const getMatchingPath = (root: string, depth: number): string | null => {
+        let matchingPath: string | null = null;
+        let partformat = dateFormatParts[depth];
+        let target = dateMoment.format(partformat);
+        let dirs = fs.readdirSync(datasetPath);
+        if(dirs.includes(target)) {
+            matchingPath = path.join(root, target);
+        }
+        return matchingPath;
+    }
+
+    //move to reusable funct
+    const descendSide = (root: string, direction: number): string | null => {
+        let dirents = fs.readdirSync(root, {withFileTypes: true}).sort((a, b) => direction * a.name.localeCompare(b.name));
+        let dirs = dirents.filter((dirent) => dirent.isDirectory());
+        for(let i = 0; i < dirs.length; i++) {
+            let dir = path.join(root, dirs[i].name);
+            let leaf = descendSide(dir, direction);
+            if(leaf !== null) {
+                return leaf;
+            }
+        }
+        let files = dirents.filter((dirent) => dirent.isFile());
+        if(files.length > 0) {
+            return path.join(root, files[0].name);
+        }
+        else {
+            return null;
+        }
+    }
+
+    const getNearestPath = (root: string, depth: number): [string, number] => {
+        let nearestPath = "";
+        let descendSide = -direction;
+        let dirs = fs.readdirSync(root);
+        let partformat = dateFormatParts[depth];
+        let target = dateMoment.format(partformat);
+        dirs.push(target);
+        dirs.sort();
+        let sortedIndex = dirs.indexOf(target);
+
+        if(sortedIndex == 0) {
+            descendSide = -1;
+            datasetPath = path.join(root, dirs[1]);
+        }
+        else if(sortedIndex == dirs.length - 1) {
+            descendSide = 1;
+            datasetPath = path.join(root, dirs[dirs.length - 2]);
+        }
+        else {
+            datasetPath = path.join(root, dirs[sortedIndex + direction]);
+        }
+        return [nearestPath, descendSide];
+    }
+
+    //handle leaves
+    const descendMatch = (root: string, depth: number): Moment | null => {
+        //at leaves
+        //move this to get matching path to handle overflow if not found
+        if(depth == parts) {
+            //
+            let dirents = fs.readdirSync(root, {withFileTypes: true}).filter((dirent) => dirent.isFile()).sort((a, b) => a.name.localeCompare(b.name));
+            let fparse = path.parse(dirents[0].name);
+            let dsbase = fparse.name.split("_").slice(0, -parts);
+            let targetDateStr = dateMoment.format(format);
+            let target = `${dsbase}_${targetDateStr}.${fparse.ext}`;
+            let i: number;
+            for(i = 0; i < dirents.length; i++) {
+                let file = dirents[i].name;
+                let relative = target.localeCompare(file);
+                if(relative == 0) {
+                    return dateMoment;
+                }
+                //passed the target string, return current file date
+                else if(relative < 0) {
+                    fparse = path.parse(file);
+                    let dateString = fparse.name.split("_").slice(-parts).join("_");
+                    return moment(dateString, format);
+                }
+            }
+            //need to return direction
+            return null;
+        }
+
+        let matchingPath = getMatchingPath(root, depth);
+        if(matchingPath) {
+            return descendMatch(matchingPath, depth + 1);
+        }
+        else {
+            let [nearestPath, direction] = getNearestPath(root, depth);
+            let leaf = descendSide(nearestPath, direction);
+            if(leaf === null) {
+                return null;
+            }
+            //extract date from the file name
+            let fname = path.parse(leaf).name;
+            let dateString = fname.split("_").slice(-parts).join("_");
+            let date = moment(dateString, format).tz("Pacific/Honolulu");
+            return date;
+        }
+    }
+
+    let nearestDate = descendMatch(datasetPath, 0);
+    return nearestDate ? nearestDate.format() : null;
+}
+
+
+export async function getPaths(data: any, collapse: boolean = true) {
     let paths: string[] = [];
     let totalFiles = 0;
     //at least for now just catchall and return files found before failure, maybe add more catching/skipping later, or 400?
@@ -30,17 +213,17 @@ export async function getPaths(root, data, collapse?) {
         for(let item of data) {
             //use simplified version for getting ds data
             if(item.datatype == "downscaling_temperature" || item.datatype == "downscaling_rainfall") {
-                let files = await getDSFiles(root, item);
+                let files = await getDSFiles(item);
                 paths = paths.concat(files);
                 totalFiles += files.length;
             }
             else if(item.datatype == "contemporary_climatology" || item.datatype == "legacy_climatology") {
-                let files = await getClimatologyFiles(root, item);
+                let files = await getClimatologyFiles(item);
                 paths = paths.concat(files);
                 totalFiles += files.length;
             }
             else {
-                let fdir = root;
+                let fdir = productionRoot;
                 let range = item.range;
                 let ftypes = item.files;
                 //add properties to path in order of hierarchy
@@ -122,7 +305,6 @@ function convert(data) {
 
 //validate file or dir exists
 async function validate(file) {
-    file = path.join(file);
     return new Promise((resolve, reject) => {
         fs.access(file, fs.constants.F_OK, (e) => {
             e ? resolve(false) : resolve(true);
@@ -131,7 +313,7 @@ async function validate(file) {
 }
 
 
-async function getClimatologyFiles(root: string, properties: {[tag: string]: string}) {
+async function getClimatologyFiles(properties: {[tag: string]: string}) {
     let result: string[] = [];
     let {datatype, variable, aggregation, extent, mean_type, period, date, files} = properties;
     for(let file of files) {
@@ -169,7 +351,7 @@ async function getClimatologyFiles(root: string, properties: {[tag: string]: str
                 fpath = `${datatype}/${variable}/${mean_type}/${extent}/${datatype}_${variable}_${mean_type}_${extent}_${period}.tif`;
             }
         }
-        fpath = path.join(root, fpath); 
+        fpath = path.join(productionRoot, fpath); 
 
         if(await validate(fpath)) {
             result.push(fpath);
@@ -181,7 +363,7 @@ async function getClimatologyFiles(root: string, properties: {[tag: string]: str
 
 
 //expand to allow different units to be grabbed, for now just mm and celcius
-async function getDSFiles(root, properties) {
+async function getDSFiles(properties: any) {
     let files: string[] = [];
     let fileTags = properties.files;
     let file_suffix: string;
@@ -220,7 +402,7 @@ async function getDSFiles(root, properties) {
         let subpath = values.join("/");
         values.push(file_suffix);
         let fname = values.join("_");
-        let fpath = path.join(root, subpath, fname);
+        let fpath = path.join(productionRoot, subpath, fname);
         if(await validate(fpath)) {
             files.push(fpath);
         }
@@ -230,7 +412,7 @@ async function getDSFiles(root, properties) {
 }
 
 
-function handleFile(fname, start, end) {
+function handleFile(fname: string, start: Moment, end: Moment) {
     let inRange = false;
     let match = fname.match(fnamePattern);
     //if null the file name does not match the regex, just return empty
@@ -255,27 +437,26 @@ function handleFile(fname, start, end) {
     return inRange;
 }
 
-const periodOrder = ["year", "month", "day", "hour", "minute", "second"];
-function dateToDepth(date, depth) {
+function dateToDepth(date: Moment, depth: number) {
     let period = periodOrder[depth];
     return dateToPeriod(date, period);
 }
 
-function dateToPeriod(date, period) {
+function dateToPeriod(date: Moment, period: moment.unitOfTime.StartOf) {
     return date.clone().startOf(period);
 }
 
-function setDatePartByDepth(date, part, depth) {
+function setDatePartByDepth(date: Moment, part: string, depth: number) {
     let period = periodOrder[depth];
     return setDatePartByPeriod(date, part, period);
 }
 
-function setDatePartByPeriod(date, part, period) {
+function setDatePartByPeriod(date: Moment, part: string, period: moment.unitOfTime.StartOf) {
     let partNum = datePartToNumber(part, period);
-    return date.clone().set(period, partNum);
+    return date.clone().set(<moment.unitOfTime.All>period, partNum);
 }
 
-function datePartToNumber(part, period) {
+function datePartToNumber(part: string, period: moment.unitOfTime.StartOf) {
     let partNum = Number(part);
     //moment months are 0 based
     if(period == "month") {
@@ -285,7 +466,7 @@ function datePartToNumber(part, period) {
 }
 
 //note root must start at date paths
-async function getPathsBetweenDates(root, start, end, collapse = true, date = moment("0000"), depth = 0): Promise<any> {
+async function getPathsBetweenDates(root: string, start: Moment, end: Moment, collapse: boolean = true, date = moment("0000"), depth: number = 0): Promise<any> {
     const dirStart = dateToDepth(start, depth);
     const dirEnd = dateToDepth(end, depth);
 
