@@ -73,8 +73,8 @@ export async function getDatasetDateRange(dataset: any): Promise<[string, string
     let lastDate = lastFile.split("_").slice(-parts).join("-");
     let dateFormat = periodFormats.slice(0, parts).join("-");
     
-    firstDate = moment(firstDate, dateFormat).tz("Pacific/Honolulu").toISOString();
-    lastDate = moment(lastDate, dateFormat).tz("Pacific/Honolulu").toISOString();
+    firstDate = moment(firstDate, dateFormat).tz("Pacific/Honolulu", true).toISOString();
+    lastDate = moment(lastDate, dateFormat).tz("Pacific/Honolulu", true).toISOString();
     return [firstDate, lastDate];
 }
 
