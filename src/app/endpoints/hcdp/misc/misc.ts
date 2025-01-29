@@ -2,11 +2,12 @@ import express from "express";
 import { handleReq } from "../../../modules/util/reqHandlers.js";
 import { tapisManager } from "../../../modules/util/resourceManagers/tapis.js";
 import { processTapisError, handleSubprocess } from "../../../modules/util/util.js";
-import { getPaths, fnamePattern, getEmpty, getDatasetDateRange } from "../../../modules/fileIndexer.js";
+import { getPaths, fnamePattern, getEmpty } from "../../../modules/fileIndexer.js";
 import { urlRoot, dataRoot } from "../../../modules/util/config.js";
 import * as child_process from "child_process";
 import * as path from "path";
 import * as fs from "fs";
+import * as crypto from "crypto";
 
 export const router = express.Router();
 
@@ -64,24 +65,24 @@ router.get("/raster/timeseries", async (req, res) => {
           // getconf ARG_MAX = 2097152
           //should be alright if less than 10k paths
           if(paths.length < 10000) {
-          proc = child_process.spawn("../assets/tiffextract.out", [...posParams, ...paths]);
+            proc = child_process.spawn("../assets/tiffextract.out", [...posParams, ...paths]);
           }
           //otherwise write paths to a file and use that
           else {
-          let uuid = crypto.randomUUID();
-          //write paths to a file and use that, avoid potential issues from long cmd line params
-          fs.writeFileSync(uuid, paths.join("\n"));
-      
-          proc = child_process.spawn("../assets/tiffextract.out", ["-f", uuid, ...posParams]);
-          //delete temp file on process exit
-          proc.on("exit", () => {
-              fs.unlinkSync(uuid);
-          });
-          } 
-      
-          let values = "";
-          let code = await handleSubprocess(proc, (data) => {
-          values += data.toString();
+            let uuid = crypto.randomUUID();
+            //write paths to a file and use that, avoid potential issues from long cmd line params
+            fs.writeFileSync(uuid, paths.join("\n"));
+        
+            proc = child_process.spawn("../assets/tiffextract.out", ["-f", uuid, ...posParams]);
+            //delete temp file on process exit
+            proc.on("exit", () => {
+                fs.unlinkSync(uuid);
+            });
+            } 
+        
+            let values = "";
+            let code = await handleSubprocess(proc, (data) => {
+            values += data.toString();
           });
       
           if(code !== 0) {

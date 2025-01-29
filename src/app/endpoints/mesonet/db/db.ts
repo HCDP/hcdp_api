@@ -301,17 +301,25 @@ router.get("/mesonet/db/measurements", async (req, res) => {
     let data: any[] | { index: string[], data: any[] } = [];
     let { query, params, index } = await constructMeasurementsQuery(crosstabQuery, station_ids, start_date, end_date, var_ids, intervals, flags, location, limit, offset, reverse, join_metadata);
     if(query) {
-      let queryHandler = await MesonetDBManager.query(query, params, {rowMode: row_mode});
-    
-      const chunkSize = 10000;
-      let maxLength = 0;
-      do {
-        let chunk = await queryHandler.read(chunkSize);
-        data = data.concat(chunk);
-        maxLength += chunkSize
+      try {
+        let queryHandler = await MesonetDBManager.query(query, params, {rowMode: row_mode});
+        const chunkSize = 10000;
+        let maxLength = 0;
+        do {
+          let chunk = await queryHandler.read(chunkSize);
+          data = data.concat(chunk);
+          maxLength += chunkSize
+        }
+        while(data.length == maxLength)
+        queryHandler.close();
       }
-      while(data.length == maxLength)
-      queryHandler.close();
+      catch(e) {
+        reqData.success = false;
+        reqData.code = 400;
+  
+        return res.status(400)
+        .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
+      }
     }
 
     if(data.length > 0 && local_tz) {
@@ -402,18 +410,27 @@ router.get("/mesonet/db/stations", async (req, res) => {
       ${limitOffsetClause};
     `;
 
-    let queryHandler = await MesonetDBManager.query(query, params, {rowMode: row_mode});
-
-    const chunkSize = 10000;
     let data: any = [];
-    let maxLength = 0;
-    do {
-      let chunk = await queryHandler.read(chunkSize);
-      data = data.concat(chunk);
-      maxLength += chunkSize
+    try {
+      let queryHandler = await MesonetDBManager.query(query, params, {rowMode: row_mode});
+
+      const chunkSize = 10000;
+      let maxLength = 0;
+      do {
+        let chunk = await queryHandler.read(chunkSize);
+        data = data.concat(chunk);
+        maxLength += chunkSize
+      }
+      while(data.length == maxLength)
+      queryHandler.close();
     }
-    while(data.length == maxLength)
-    queryHandler.close();
+    catch(e) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
+    }
 
     if(row_mode === "array") {
       let index = ["station_id", "name", "lat", "lng", "elevation"];
@@ -478,18 +495,27 @@ router.get("/mesonet/db/variables", async (req, res) => {
       ${limitOffsetClause};
     `;
 
-    let queryHandler = await MesonetDBManager.query(query, params, {rowMode: row_mode});
-
-    const chunkSize = 10000;
     let data: any = [];
-    let maxLength = 0;
-    do {
-      let chunk = await queryHandler.read(chunkSize);
-      data = data.concat(chunk);
-      maxLength += chunkSize
+    try {
+      let queryHandler = await MesonetDBManager.query(query, params, {rowMode: row_mode});
+
+      const chunkSize = 10000;
+      let maxLength = 0;
+      do {
+        let chunk = await queryHandler.read(chunkSize);
+        data = data.concat(chunk);
+        maxLength += chunkSize
+      }
+      while(data.length == maxLength)
+      queryHandler.close();
     }
-    while(data.length == maxLength)
-    queryHandler.close();
+    catch(e) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
+    }
 
     if(row_mode === "array") {
       let index = ["standard_name", "units", "units_short", "display_name"];
@@ -676,9 +702,20 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
         WHERE station_metadata.station_id = $1;
     `;
 
-    let queryHandler = await MesonetDBManager.query(query, [stationID]);
-    let data = await queryHandler.read(1);
-    queryHandler.close();
+    let data: {table_name: string}[] = []
+    try {
+      let queryHandler = await MesonetDBManager.query(query, [stationID]);
+      data = await queryHandler.read(1);
+      queryHandler.close();
+    }
+    catch(e) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
+    }
+
     if(data.length < 1) {
       reqData.success = false;
       reqData.code = 404;
@@ -686,7 +723,7 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
       return res.status(404)
       .send(`Station ID ${stationID} not found.`);
     }
-    let { table_name: tableName } = data[0];
+    let tableName = data[0].table_name;
 
     query = `
       UPDATE ${tableName}
@@ -708,7 +745,17 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
       params.push(timestamp.end);
     }
 
-    let modified = await MesonetDBManager.queryNoRes(query, params, { privileged: true });
+    let modified = 0;
+    try {
+      modified = await MesonetDBManager.queryNoRes(query, params, { privileged: true });
+    }
+    catch(e) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
+    }
 
     reqData.code = 200;
     return res.status(200)

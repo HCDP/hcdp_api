@@ -65,11 +65,23 @@ export class PostgresDBManager {
     }
 
     async query(query: string, params: string[], options: QueryOptions = { privileged: false }): Promise<QueryHandler> {
-        const conn = await (options.privileged ? this.adminDBHandler : this.userDBHandler).connect();
-
-        const cursor = conn.client.query(new Cursor(query, params, {
-            rowMode: options.rowMode
-        }));
+        let conn: any = null;
+        let cursor: any = null;
+        try {
+            conn = await (options.privileged ? this.adminDBHandler : this.userDBHandler).connect();
+            cursor = conn.client.query(new Cursor(query, params, {
+                rowMode: options.rowMode
+            }));
+        }
+        catch(e) {
+            if(cursor) {
+                cursor.close(conn.done);
+            }
+            else if(conn) {
+                conn.done();
+            }
+            throw e;
+        }
         return new QueryHandler(conn, cursor);
     }
 
