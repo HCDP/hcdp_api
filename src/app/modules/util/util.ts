@@ -33,7 +33,7 @@ export async function handleSubprocess(subprocess, dataHandler, errHandler?) {
   });
 }
 
-export async function sendEmail(mailOptions) {
+export async function sendEmail(mailOptions): Promise<MailRes> {
   let combinedMailOptions = Object.assign({}, mailConfig, mailOptions);
   let transporter = nodemailer.createTransport(transporterOptions);
   //have to be on uh netork
@@ -78,4 +78,10 @@ export function processTapisError(res, reqData, e) {
   reqData.code = status;
   res.status(status)
   .send(reason);
+}
+
+export interface MailRes {
+  success: boolean,
+  result: any,
+  error: Error
 }

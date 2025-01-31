@@ -5,8 +5,9 @@ import { MesonetDBManager } from "../../../modules/util/resourceManagers/db.js";
 import * as fs from "fs";
 import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
-import { administrators, rawDataRoot } from "../../../modules/util/config.js";
+import { administrators, apiURL, downloadRoot, rawDataRoot } from "../../../modules/util/config.js";
 import { sendEmail } from "../../../modules/util/util.js";
+import { stringify } from "csv-stringify";
 
 export const router = express.Router();
 
@@ -304,13 +305,12 @@ router.get("/mesonet/db/measurements", async (req, res) => {
       try {
         let queryHandler = await MesonetDBManager.query(query, params, {rowMode: row_mode});
         const chunkSize = 10000;
-        let maxLength = 0;
+        let chunk: any[];
         do {
-          let chunk = await queryHandler.read(chunkSize);
+          chunk = await queryHandler.read(chunkSize);
           data = data.concat(chunk);
-          maxLength += chunkSize
         }
-        while(data.length == maxLength)
+        while(chunk.length > 0)
         queryHandler.close();
       }
       catch(e) {
@@ -415,13 +415,12 @@ router.get("/mesonet/db/stations", async (req, res) => {
       let queryHandler = await MesonetDBManager.query(query, params, {rowMode: row_mode});
 
       const chunkSize = 10000;
-      let maxLength = 0;
+      let chunk: any[];
       do {
-        let chunk = await queryHandler.read(chunkSize);
+        chunk = await queryHandler.read(chunkSize);
         data = data.concat(chunk);
-        maxLength += chunkSize
       }
-      while(data.length == maxLength)
+      while(chunk.length > 0)
       queryHandler.close();
     }
     catch(e) {
@@ -500,13 +499,12 @@ router.get("/mesonet/db/variables", async (req, res) => {
       let queryHandler = await MesonetDBManager.query(query, params, {rowMode: row_mode});
 
       const chunkSize = 10000;
-      let maxLength = 0;
+      let chunk: any[];
       do {
-        let chunk = await queryHandler.read(chunkSize);
+        chunk = await queryHandler.read(chunkSize);
         data = data.concat(chunk);
-        maxLength += chunkSize
       }
-      while(data.length == maxLength)
+      while(chunk.length > 0)
       queryHandler.close();
     }
     catch(e) {
@@ -760,5 +758,176 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
     reqData.code = 200;
     return res.status(200)
     .json({ modified });
+  });
+});
+
+
+
+router.post("/mesonet/db/measurements/email", async (req, res) => {
+  const permission = "basic";
+  await handleReq(req, res, permission, async (reqData) => {
+    let { query, email } = req.body
+    let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, local_tz }: any = query;
+
+    if(location !== "american_samoa") {
+      location = "hawaii";
+    }
+
+    if(offset) {
+      offset = parseInt(offset, 10);
+      if(isNaN(offset)) {
+        offset = undefined;
+      }
+    }
+    if(typeof limit === "string") {
+      limit = parseInt(limit, 10)
+      if(isNaN(limit)) {
+        limit = Infinity;
+      }
+    }
+    //translate 0 or negative numbers as uncapped (queries batched)
+    if(limit < 1) {
+      limit = Infinity;
+    }
+
+    if(start_date) {
+      try {
+        let date = new Date(start_date);
+        start_date = date.toISOString();
+      }
+      catch(e) {
+        reqData.success = false;
+        reqData.code = 400;
+  
+        return res.status(400)
+        .send("Invalid start date format. Dates must be ISO 8601 compliant.");
+      }
+    }
+  
+    if(end_date) {
+      try {
+        let date = new Date(end_date);
+        end_date = date.toISOString();
+      }
+      catch(e) {
+        reqData.success = false;
+        reqData.code = 400;
+  
+        return res.status(400)
+        .send("Invalid end date format. Dates must be ISO 8601 compliant.");
+      }
+    }
+
+    //response should be sent immediately after basic parameter verification
+    //202 accepted indicates request accepted but non-commital completion
+    reqData.code = 202;
+    res.status(202)
+    .send("Request received. Your query will be processed and emailed to you if successful.");
+
+    let uuid = crypto.randomUUID();
+    let fname = "data.csv"
+    let outdir = path.join(downloadRoot, uuid);
+    //write paths to a file and use that, avoid potential issues from long cmd line params
+    fs.mkdirSync(outdir);
+    let outfile = path.join(outdir, fname);
+    const outstream = fs.createWriteStream(outfile);
+    const stringifier = stringify({ header: true });
+    stringifier.pipe(outstream);
+    const chunkSize = 10000;
+    let finalElement: any = null;
+    for(; limit > 0; limit -= chunkSize, offset += chunkSize) {
+      let chunk: any[] = [];
+      let subLimit = Math.min(limit, chunkSize);
+
+      let { query, params } = await constructMeasurementsQuery(true, station_ids, start_date, end_date, var_ids, intervals, flags, location, subLimit, offset, reverse, false);
+      if(query) {
+        try {
+          let queryHandler = await MesonetDBManager.query(query, params);
+
+          chunk = await queryHandler.read(chunkSize);
+          queryHandler.close();
+        }
+        catch(e) {
+          reqData.success = false;
+          let errorMessage = "An error occured while performing your mesonet query. Please validate the parameters you provided and contact the administrators at hcdp@hawaii.edu with any questions."
+          //set failure in status
+          reqData.success = false;
+          let mailOptions = {
+            to: email,
+            subject: "Mesonet Query Error",
+            text: errorMessage,
+            html: "<p>" + errorMessage + "</p>"
+          };
+          let mailRes = await sendEmail( mailOptions);
+          if(!mailRes.success) {
+            throw new Error("Failed to send message to user " + email + ". Error: " + mailRes.error.toString());
+          }
+          return;
+        }
+      }
+
+      //no more rows, break
+      if(chunk.length === 0) {
+        //write the final element of the previous chunk to the file if it exists
+        if(finalElement) {
+          stringifier.write([finalElement]);
+        }
+        break;
+      }
+
+      //if local_tz convert all of the timestamps to the local time timezone
+      if(local_tz) {
+        //retreive local timezone
+        let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
+        let queryHandler = await MesonetDBManager.query(query, [location]);
+        let { timezone } = (await queryHandler.read(1))[0];
+        queryHandler.close();
+        for(let row of chunk) {
+          let converted = moment(row.timestamp).tz(timezone);
+          row.timestamp = converted.format();
+        }
+      }
+
+      //if there's a final element pulled from the previous chunk, check if should combine with first element
+      if(finalElement) {
+        //check if timestamps and station ids match
+        if(chunk[0].timestamp == finalElement.timestamp && chunk[0].station_id == finalElement.station_id) {
+          //combine final element from previous chunk with first element from this chunk
+          chunk[0] = {
+            ...finalElement,
+            ...chunk[0]
+          }
+        }
+        else {
+          //the final element from the previous chunk was a standalone element, just add to the start of the current chunk to be written to file
+          chunk.unshift(finalElement);
+        }
+      }
+      //the final element of the chunk may include partial data for that timestamp since the elements are pivoted, remove and combine with next chunk
+      finalElement = chunk.pop();
+      //write each row in the chunk to the stringifier piped to the output file
+      for(let row of chunk) {
+        stringifier.write(row);
+      }
+    }
+    //close the stringifier and output stream
+    stringifier.end();
+    outstream.end();
+
+    let ep = `${apiURL}/download/package`;
+    let params = `packageID=${uuid}&file=${fname}`;
+    //create download link and send in message body
+    let downloadLink = `${ep}?${params}`;
+    let mailOptions = {
+      to: email,
+      text: "Your Mesonet data is ready. Please go to " + downloadLink + " to download it. This link will expire in three days, please download your data in that time.",
+      html: "<p>Your Mesonet data is ready. Please click <a href=\"" + downloadLink + "\">here</a> to download it. This link will expire in three days, please download your data in that time.</p>"
+    };
+    let mailRes = await sendEmail(mailOptions);
+
+    if(!mailRes.success) {
+      reqData.success = false;
+      throw new Error("Failed to send message to user " + email + ". Error: " + mailRes.error.toString());
+    }
   });
 });
