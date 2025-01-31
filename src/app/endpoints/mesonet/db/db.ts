@@ -8,6 +8,7 @@ import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js
 import { administrators, apiURL, downloadRoot, rawDataRoot } from "../../../modules/util/config.js";
 import { sendEmail } from "../../../modules/util/util.js";
 import { stringify } from "csv-stringify";
+import * as crypto from "crypto";
 
 export const router = express.Router();
 
@@ -766,7 +767,22 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
 router.post("/mesonet/db/measurements/email", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
-    let { query, email } = req.body
+    let { query, email, outputName } = req.body
+
+    if(!(query && email)) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      //send error
+      return res.status(400)
+      .send(
+        `Request body should include the following fields: \n\
+        email: The email to send the package to \n\
+        query: A JSON object with parameters for the Mesonet query \n\
+        outputName (optional): What to name the produced data file. Default: data.csv`
+      );
+    }
+
     let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, local_tz }: any = query;
 
     if(location !== "american_samoa") {
@@ -825,7 +841,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
     .send("Request received. Your query will be processed and emailed to you if successful.");
 
     let uuid = crypto.randomUUID();
-    let fname = "data.csv"
+    let fname = outputName ? outputName : "data.csv";
     let outdir = path.join(downloadRoot, uuid);
     //write paths to a file and use that, avoid potential issues from long cmd line params
     fs.mkdirSync(outdir);
