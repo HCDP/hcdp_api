@@ -783,7 +783,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
       );
     }
 
-    let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, local_tz }: any = query;
+    let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, local_tz, join_metadata }: any = query;
 
     if(location !== "american_samoa") {
       location = "hawaii";
@@ -847,7 +847,13 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
     fs.mkdirSync(outdir);
     let outfile = path.join(outdir, fname);
     const outstream = fs.createWriteStream(outfile);
-    const stringifier = stringify({ header: true });
+
+    // let query = `
+    //   SELECT station_id, name
+    //   FROM station_metadata;
+    // `;
+
+    const stringifier = stringify({ header: true, columns: {} });
     stringifier.pipe(outstream);
     const chunkSize = 10000;
     let finalElement: any = null;
@@ -855,7 +861,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
       let chunk: any[] = [];
       let subLimit = Math.min(limit, chunkSize);
 
-      let { query, params } = await constructMeasurementsQuery(true, station_ids, start_date, end_date, var_ids, intervals, flags, location, subLimit, offset, reverse, false);
+      let { query, params } = await constructMeasurementsQuery(true, station_ids, start_date, end_date, var_ids, intervals, flags, location, subLimit, offset, reverse, join_metadata);
       if(query) {
         try {
           let queryHandler = await MesonetDBManager.query(query, params);

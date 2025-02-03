@@ -235,13 +235,22 @@ export async function getPaths(data: any, collapse: boolean = true) {
                 }
 
                 for(let ftype of ftypes) {
-                    let fdirType = path.join(fdir, ftype);
-                    let start = moment(range.start);
-                    let end = moment(range.end);
-                    let pathData = await getPathsBetweenDates(fdirType, start, end, collapse);
-                    totalFiles += pathData.numFiles;
-                    paths = paths.concat(pathData.paths);
+                    if(item.datatype == "ignition_probability" && ftype == "metadata") {
+                        let metaDir = path.join(fdir, "metadata");
+                        let metaFiles = fs.readdirSync(metaDir, {withFileTypes: true}).filter((dirent: fs.Dirent) => dirent.isFile()).map((dirent: fs.Dirent) => path.join(metaDir, dirent.name));
+                        paths = paths.concat(metaFiles);
+                    }
+                    else {
+                        let fdirType = path.join(fdir, ftype);
+                        let start = moment(range.start);
+                        let end = moment(range.end);
+                        let pathData = await getPathsBetweenDates(fdirType, start, end, collapse);
+                        totalFiles += pathData.numFiles;
+                        paths = paths.concat(pathData.paths);
+                    }
                 }
+
+                
             }
         }
     }
