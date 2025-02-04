@@ -868,6 +868,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
           let queryHandler = await MesonetDBManager.query(query, params);
 
           chunk = await queryHandler.read(chunkSize);
+          console.log(chunk);
           queryHandler.close();
         }
         catch(e) {
