@@ -862,6 +862,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
       let subLimit = Math.min(limit, chunkSize);
 
       let { query, params } = await constructMeasurementsQuery(true, station_ids, start_date, end_date, var_ids, intervals, flags, location, subLimit, offset, reverse, join_metadata);
+      console.log(query, params);
       if(query) {
         try {
           let queryHandler = await MesonetDBManager.query(query, params);
