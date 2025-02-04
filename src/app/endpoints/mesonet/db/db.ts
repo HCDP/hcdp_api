@@ -39,11 +39,11 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
 
   let translationsWhereClauses = [];
 
-  if(varIDs) {
+  if(varIDs.length > 0) {
     parseParams(varIDs, params, translationsWhereClauses, "standard_name");
   }
 
-  if(intervals) {
+  if(intervals.length > 0) {
     parseParams(intervals, params, translationsWhereClauses, "interval_seconds");
   }
 
@@ -58,7 +58,7 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
 
   let mainWhereClauses: string[] = [];
   
-  if(stationIDs) {
+  if(stationIDs.length > 0) {
     parseParams(stationIDs, params, mainWhereClauses, `${measurementsTable}.station_id`);
   }
 
@@ -72,7 +72,7 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
     mainWhereClauses.push(`timestamp <= $${params.length}`);
   }
 
-  if(flags) {
+  if(flags.length > 0) {
     parseParams(flags, params, mainWhereClauses, "flag");
   }
 
@@ -385,7 +385,7 @@ router.get("/mesonet/db/stations", async (req, res) => {
     params.push(location);
     whereClauses.push(`location = $${params.length}`);
     
-    if(stationIDs) {
+    if(stationIDs.length > 0) {
       parseParams(stationIDs, params, whereClauses, "station_id");
     }
 
@@ -471,7 +471,7 @@ router.get("/mesonet/db/variables", async (req, res) => {
 
     let whereClauses: string[] = [];
     
-    if(varIDs) {
+    if(varIDs.length > 0) {
       parseParams(varIDs, params, whereClauses, "standard_name");
     }
 
