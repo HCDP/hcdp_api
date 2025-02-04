@@ -18,11 +18,8 @@ interface QueryData {
   index: string[]
 }
 
-function parseListParams(paramList: string, allParams: string[], whereClauses: string[], column: string) {
-  let paramListArr = paramList.split(",");
-  parseArrParams(paramListArr, allParams, whereClauses, column);
-}
-function parseArrParams(paramListArr: string[], allParams: string[], whereClauses: string[], column: string) {
+
+function parseParams(paramListArr: string[], allParams: string[], whereClauses: string[], column: string) {
   let paramSet: string[] = [];
   for(let i = 0; i < paramListArr.length; i++) {
     allParams.push(paramListArr[i]);
@@ -31,7 +28,7 @@ function parseArrParams(paramListArr: string[], allParams: string[], whereClause
   whereClauses.push(`${column} IN (${paramSet.join(",")})`);
 }
 
-function constructBaseMeasurementsQuery(stationIDs: string, startDate: string, endDate: string, varIDs: string, intervals: string, flags: string, location: string, limit: number, offset: number, reverse: boolean, joinMetadata: boolean, selectFlag: boolean = true): QueryData {
+function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string, endDate: string, varIDs: string[], intervals: string[], flags: string[], location: string, limit: number, offset: number, reverse: boolean, joinMetadata: boolean, selectFlag: boolean = true): QueryData {
   let measurementsTable = `${location}_measurements`;
 
   let params: string[] = [];
@@ -43,11 +40,11 @@ function constructBaseMeasurementsQuery(stationIDs: string, startDate: string, e
   let translationsWhereClauses = [];
 
   if(varIDs) {
-    parseListParams(varIDs, params, translationsWhereClauses, "standard_name");
+    parseParams(varIDs, params, translationsWhereClauses, "standard_name");
   }
 
   if(intervals) {
-    parseListParams(intervals, params, translationsWhereClauses, "interval_seconds");
+    parseParams(intervals, params, translationsWhereClauses, "interval_seconds");
   }
 
   let translationsWhereClause = "";
@@ -62,7 +59,7 @@ function constructBaseMeasurementsQuery(stationIDs: string, startDate: string, e
   let mainWhereClauses: string[] = [];
   
   if(stationIDs) {
-    parseListParams(stationIDs, params, mainWhereClauses, `${measurementsTable}.station_id`);
+    parseParams(stationIDs, params, mainWhereClauses, `${measurementsTable}.station_id`);
   }
 
   if(startDate) {
@@ -76,7 +73,7 @@ function constructBaseMeasurementsQuery(stationIDs: string, startDate: string, e
   }
 
   if(flags) {
-    parseListParams(flags, params, mainWhereClauses, "flag");
+    parseParams(flags, params, mainWhereClauses, "flag");
   }
 
   let mainWhereClause = "";
@@ -170,7 +167,7 @@ function wrapCrosstabMeasurementsQuery(vars: string[], baseQueryData: QueryData,
   };
 }
 
-async function constructMeasurementsQuery(crosstabQuery: boolean, stationIDs: string, startDate: string, endDate: string, varIDs: string, intervals: string, flags: string, location: string, limit: number, offset: number, reverse: boolean, joinMetadata: boolean): Promise<QueryData> {
+async function constructMeasurementsQuery(crosstabQuery: boolean, stationIDs: string[], startDate: string, endDate: string, varIDs: string[], intervals: string[], flags: string[], location: string, limit: number, offset: number, reverse: boolean, joinMetadata: boolean): Promise<QueryData> {
   let queryData: QueryData;
   
   if(crosstabQuery) {
@@ -201,15 +198,15 @@ async function constructMeasurementsQuery(crosstabQuery: boolean, stationIDs: st
 }
 
 
-async function sanitizeExpandVarIDs(var_ids: string) {
+async function sanitizeExpandVarIDs(varIDs: string[]) {
   let query = `
     SELECT DISTINCT standard_name
     FROM version_translations
   `;
   let params: string[] = [];
-  if(var_ids) {
+  if(varIDs.length > 0) {
     let clause: string[] = [];   
-    parseListParams(var_ids, params, clause, "standard_name");
+    parseParams(varIDs, params, clause, "standard_name");
     query += `WHERE ${clause[0]}`;
   }
   query += ";";
@@ -224,6 +221,11 @@ router.get("/mesonet/db/measurements", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, row_mode }: any = req.query;
+
+    let varIDs = var_ids.split(",");
+    let stationIDs = station_ids.split(",");
+    let flagArr = flags.split(",");
+    let intervalArr = intervals.split(",");
 
     const MAX_QUERY = 1000000;
 
@@ -301,7 +303,7 @@ router.get("/mesonet/db/measurements", async (req, res) => {
 
 
     let data: any[] | { index: string[], data: any[] } = [];
-    let { query, params, index } = await constructMeasurementsQuery(crosstabQuery, station_ids, start_date, end_date, var_ids, intervals, flags, location, limit, offset, reverse, join_metadata);
+    let { query, params, index } = await constructMeasurementsQuery(crosstabQuery, stationIDs, start_date, end_date, varIDs, intervalArr, flagArr, location, limit, offset, reverse, join_metadata);
     if(query) {
       try {
         let queryHandler = await MesonetDBManager.query(query, params, {rowMode: row_mode});
@@ -361,6 +363,8 @@ router.get("/mesonet/db/stations", async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     let { station_ids, location, limit, offset, row_mode }: any = req.query;
 
+    let stationIDs = station_ids.split(",");
+
     //validate location, can use direct in query
     //default to hawaii
     if(location !== "american_samoa") {
@@ -381,8 +385,8 @@ router.get("/mesonet/db/stations", async (req, res) => {
     params.push(location);
     whereClauses.push(`location = $${params.length}`);
     
-    if(station_ids) {
-      parseListParams(station_ids, params, whereClauses, "station_id");
+    if(stationIDs) {
+      parseParams(stationIDs, params, whereClauses, "station_id");
     }
 
     let whereClause = "";
@@ -453,6 +457,8 @@ router.get("/mesonet/db/variables", async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     let { var_ids, limit, offset, row_mode }: any = req.query;
 
+    let varIDs = var_ids.split(",");
+
     if(row_mode !== "array") {
       row_mode = undefined;
     }
@@ -465,8 +471,8 @@ router.get("/mesonet/db/variables", async (req, res) => {
 
     let whereClauses: string[] = [];
     
-    if(var_ids) {
-      parseListParams(var_ids, params, whereClauses, "standard_name");
+    if(varIDs) {
+      parseParams(varIDs, params, whereClauses, "standard_name");
     }
 
     let whereClause = "";
