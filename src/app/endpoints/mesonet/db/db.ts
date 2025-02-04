@@ -116,6 +116,7 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
   `;
 
   console.log(query);
+  console.log(params);
 
   let index = ["station_id", "timestamp", "variable", "value"];
   if(selectFlag) {
