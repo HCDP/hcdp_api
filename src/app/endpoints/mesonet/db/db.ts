@@ -222,10 +222,10 @@ router.get("/mesonet/db/measurements", async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, row_mode }: any = req.query;
 
-    let varIDs = var_ids.split(",");
-    let stationIDs = station_ids.split(",");
-    let flagArr = flags.split(",");
-    let intervalArr = intervals.split(",");
+    let varIDs = var_ids?.split(",") || [];
+    let stationIDs = station_ids?.split(",") || [];
+    let flagArr = flags?.split(",") || [];
+    let intervalArr = intervals?.split(",") || [];
 
     const MAX_QUERY = 1000000;
 
@@ -363,7 +363,7 @@ router.get("/mesonet/db/stations", async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     let { station_ids, location, limit, offset, row_mode }: any = req.query;
 
-    let stationIDs = station_ids.split(",");
+    let stationIDs = station_ids?.split(",") || [];
 
     //validate location, can use direct in query
     //default to hawaii
@@ -457,7 +457,7 @@ router.get("/mesonet/db/variables", async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     let { var_ids, limit, offset, row_mode }: any = req.query;
 
-    let varIDs = var_ids.split(",");
+    let varIDs = var_ids?.split(",") || [];
 
     if(row_mode !== "array") {
       row_mode = undefined;
@@ -791,6 +791,11 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
 
     let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, local_tz, join_metadata }: any = query;
 
+    let varIDs = var_ids || [];
+    let stationIDs = station_ids || [];
+    let flagArr = flags || [];
+    let intervalArr = intervals || [];
+
     if(location !== "american_samoa") {
       location = "hawaii";
     }
@@ -867,7 +872,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
       let chunk: any[] = [];
       let subLimit = Math.min(limit, chunkSize);
 
-      let { query, params } = await constructMeasurementsQuery(true, station_ids, start_date, end_date, var_ids, intervals, flags, location, subLimit, offset, reverse, join_metadata);
+      let { query, params } = await constructMeasurementsQuery(true, stationIDs, start_date, end_date, varIDs, intervalArr, flagArr, location, subLimit, offset, reverse, join_metadata);
       console.log(query, params);
       if(query) {
         try {
