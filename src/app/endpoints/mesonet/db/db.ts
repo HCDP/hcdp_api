@@ -115,6 +115,8 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
     ${limitOffsetClause}
   `;
 
+  console.log(query);
+
   let index = ["station_id", "timestamp", "variable", "value"];
   if(selectFlag) {
     index.push("flag");
