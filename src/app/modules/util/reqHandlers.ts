@@ -94,12 +94,13 @@ export async function handleReq(req, res, permission, handler) {
       .send("User does not have permission to perform this action.");
     }
   }
-  catch(e) {
+  catch(e: any) {
     //set failure occured in request
     reqData.success = false;
     let errorMsg = `method: ${reqData.method}\n\
       endpoint: ${reqData.endpoint}\n\
-      error: ${e}`;
+      error: ${e}\n\
+      trace: ${e.stack}`;
     let htmlErrorMsg = errorMsg.replace(/\n/g, "<br>");
     console.error(`An unexpected error occured:\n${errorMsg}`);
     //if request code not set by handler set to 500 and send response (otherwise response already sent and error was in post-processing)
