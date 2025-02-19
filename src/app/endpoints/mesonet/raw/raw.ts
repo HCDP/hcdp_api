@@ -3,7 +3,7 @@ import moment from "moment-timezone";
 import * as fs from "fs";
 import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
-import { rawDataRoot, apiURL } from "../../../modules/util/config.js";
+import { rawDataRoot, apiURL, mesonetLocations } from "../../../modules/util/config.js";
 import { readdir } from "../../../modules/util/util.js";
 
 export const router = express.Router();
@@ -53,7 +53,12 @@ router.get("/raw/download", async (req, res) => {
 
 router.get("/raw/sff", async (req, res) => {
   await handleReqNoAuth(req, res, async (reqData) => {
-    let file = path.join(rawDataRoot, "sff/sff_data.csv");
+    let { location }: any = req.query;
+    if(!mesonetLocations.includes(location)) {
+      location = "hawaii";
+    }
+    let fname = `${location}_sff.csv`
+    let file = path.join(rawDataRoot, "sff", fname);
     fs.access(file, fs.constants.F_OK, (e) => {
       if(e) {
         reqData.success = false;
@@ -65,7 +70,7 @@ router.get("/raw/sff", async (req, res) => {
         //should the size of the file in bytes be added?
         reqData.sizeF = 1;
         reqData.code = 200;
-        res.set("Content-Disposition", `attachment; filename="sff_data.csv"`);
+        res.set("Content-Disposition", `attachment; filename="${fname}"`);
         res.status(200)
         .sendFile(file);
       }
@@ -99,8 +104,8 @@ router.get("/raw/list", async (req, res) => {
       );
     }
     else {
-      if(location === undefined) {
-        location = "hawaii"
+      if(!mesonetLocations.includes(location)) {
+        location = "hawaii";
       }
       let allFiles = [];
       let parsedDate = moment(startDate);

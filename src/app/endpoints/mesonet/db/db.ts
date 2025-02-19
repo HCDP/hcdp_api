@@ -5,7 +5,7 @@ import { MesonetDBManager } from "../../../modules/util/resourceManagers/db.js";
 import * as fs from "fs";
 import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
-import { administrators, apiURL, downloadRoot, rawDataRoot } from "../../../modules/util/config.js";
+import { administrators, apiURL, downloadRoot, mesonetLocations, rawDataRoot } from "../../../modules/util/config.js";
 import { sendEmail } from "../../../modules/util/util.js";
 import { stringify } from "csv-stringify";
 import * as crypto from "crypto";
@@ -234,7 +234,7 @@ router.get("/mesonet/db/measurements", async (req, res) => {
 
     //validate location, can use direct in query
     //default to hawaii
-    if(location !== "american_samoa") {
+    if(!mesonetLocations.includes(location)) {
       location = "hawaii";
     }
 
@@ -370,7 +370,7 @@ router.get("/mesonet/db/stations", async (req, res) => {
 
     //validate location, can use direct in query
     //default to hawaii
-    if(location !== "american_samoa") {
+    if(!mesonetLocations.includes(location)) {
       location = "hawaii";
     }
     if(row_mode !== "array") {
@@ -799,7 +799,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
     let flagArr = flags || [];
     let intervalArr = intervals || [];
 
-    if(location !== "american_samoa") {
+    if(!mesonetLocations.includes(location)) {
       location = "hawaii";
     }
 

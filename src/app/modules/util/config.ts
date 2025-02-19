@@ -29,6 +29,8 @@ export const tapisConfig = config.tapisConfig;
 export const tapisV3Config = config.tapisV3Config;
 export const githubWebhookSecret = config.githubWebhookSecret;
 
+export const mesonetLocations = ["american_samoa", "hawaii"];
+
 export const apiURL = "https://api.hcdp.ikewai.org";
 
 const keyFile = "../assets/privkey.pem";

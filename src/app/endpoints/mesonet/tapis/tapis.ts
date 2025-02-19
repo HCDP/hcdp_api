@@ -3,7 +3,7 @@ import moment from "moment-timezone";
 import * as fs from "fs";
 import * as child_process from "child_process";
 import { handleReq } from "../../../modules/util/reqHandlers.js";
-import { tapisV3Config } from "../../../modules/util/config.js";
+import { mesonetLocations, tapisV3Config } from "../../../modules/util/config.js";
 import { tapisV3Manager } from "../../../modules/util/resourceManagers/tapis.js";
 import { ProjectHandler } from "../../../modules/tapisHandlers.js";
 import { downloadRoot, apiURL } from "../../../modules/util/config.js";
@@ -38,7 +38,7 @@ router.get("/mesonet/getStations", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     let { location }: any = req.query;
-    if(location === undefined) {
+    if(!mesonetLocations.includes(location)) {
       location = "hawaii";
     }
     let projectHandler = projectHandlers[location];
@@ -66,7 +66,7 @@ router.get("/mesonet/getVariables", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     let { station_id, location }: any = req.query;
-    if(location === undefined) {
+    if(!mesonetLocations.includes(location)) {
       location = "hawaii";
     }
     if(station_id === undefined) {
@@ -109,7 +109,7 @@ router.get("/mesonet/getMeasurements", async (req, res) => {
     //options
     //start_date, end_date, limit, offset, var_ids (comma separated)
     let { station_id, location, ...options }: any = req.query;
-    if(location === undefined) {
+    if(!mesonetLocations.includes(location)) {
       location = "hawaii";
     }
     if(station_id === undefined) {
@@ -282,7 +282,7 @@ router.get("/mesonet/createPackage/link", async (req, res) => {
     //options
     //start_date, end_date, limit, offset, var_ids (comma separated)
     let { station_ids, location, email, combine, ftype, csvMode, ...options }: any = req.query;
-    if(location === undefined) {
+    if(!mesonetLocations.includes(location)) {
       location = "hawaii";
     }
     if(email) {
@@ -341,7 +341,7 @@ router.get("/mesonet/createPackage/email", async (req, res) => {
     //options
     //start_date, end_date, limit, offset, var_ids (comma separated)
     let { station_ids, location, email, combine, ftype, csvMode, ...options }: any = req.query;
-    if(location === undefined) {
+    if(!mesonetLocations.includes(location)) {
       location = "hawaii";
     }
     if(station_ids === undefined || email === undefined) {
