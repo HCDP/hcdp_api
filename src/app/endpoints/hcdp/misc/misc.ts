@@ -296,6 +296,7 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
     let allowed = false;
     for(let root in allowedPaths) {
       let rel = path.relative(root, dataPath);
+      console.log(dataPath, root, rel);
       //if relative path is equivalent to one of the allowed paths or it is a subfolder (no .. and relative), then path is allowed
       if(rel.length == 0 || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
         allowed = true;
