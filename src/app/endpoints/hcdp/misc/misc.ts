@@ -276,7 +276,7 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
     const allowedDirs = ["NASA_downscaling", "production", "workflow_data", "raw", "backup_data_aqs"]
     const allowedPaths = allowedDirs.map((sub: string) => path.join(dataRoot, sub));
     const epBase = url.resolve(apiURL, "/files/explorer")
-    const userPath = req.params[0];
+    const userPath = req.params[0] || "/";
     const dataPath = path.resolve(path.join(dataRoot, userPath));
     if(dataPath == path.resolve(dataRoot)) {
       const pathData: FileData[] = allowedDirs.map((dir: string) => {
