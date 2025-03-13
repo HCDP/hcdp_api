@@ -277,9 +277,7 @@ router.get("/files/explore/*", async (req, res) => {
     const allowedPaths = allowedDirs.map((sub: string) => path.join(dataRoot, sub));
     const epBase = url.resolve(apiURL, "/files/explorer")
     const userPath = req.params[0];
-    console.log(userPath);
     const dataPath = path.resolve(path.join(dataRoot, userPath));
-    console.log(dataPath);
     if(dataPath == path.resolve(dataRoot)) {
       const pathData: FileData[] = allowedDirs.map((dir: string) => {
         return {
