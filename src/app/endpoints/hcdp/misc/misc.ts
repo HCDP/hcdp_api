@@ -280,7 +280,7 @@ router.get("/files/explore/*", async (req, res) => {
     console.log(userPath);
     const dataPath = path.resolve(path.join(dataRoot, userPath));
     console.log(dataPath);
-    if(dataPath == dataRoot) {
+    if(dataPath == path.resolve(dataRoot)) {
       const pathData: FileData[] = allowedDirs.map((dir: string) => {
         return {
           url: url.resolve(epBase, dir),
