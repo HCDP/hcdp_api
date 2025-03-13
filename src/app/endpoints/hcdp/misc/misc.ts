@@ -275,13 +275,14 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     const allowedDirs = ["NASA_downscaling", "production", "workflow_data", "raw", "backup_data_aqs"]
     const allowedPaths = allowedDirs.map((sub: string) => path.join(dataRoot, sub));
-    const epBase = url.resolve(apiURL, "/files/explorer")
-    const userPath = req.params[0] || "/";
-    const dataPath = path.resolve(path.join(dataRoot, userPath));
+    const userPath = path.resolve(req.params[0]) || "/";
+    const urlPath = path.join("/files/explorer", userPath);
+    const dataPath = path.join(dataRoot, userPath);
     if(dataPath == path.resolve(dataRoot)) {
       const pathData: FileData[] = allowedDirs.map((dir: string) => {
+        let subUrlPath = path.join(urlPath, dir);
         return {
-          url: url.resolve(epBase, dir),
+          url: url.resolve(apiURL, subUrlPath),
           name: dir,
           path: dir,
           sizeBytes: 4096,
@@ -296,7 +297,6 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
     let allowed = false;
     for(let root of allowedPaths) {
       let rel = path.relative(root, dataPath);
-      console.log(dataPath, root, rel);
       //if relative path is equivalent to one of the allowed paths or it is a subfolder (no .. and relative), then path is allowed
       if(rel.length == 0 || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
         allowed = true;
@@ -324,10 +324,11 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
       let data = fs.readdirSync(dataPath)
       .reduce((pathData: FileData[], file: string) => {
         let fpath = path.join(dataPath, file);
+        let subUrlPath = path.join(urlPath, file);
         let subStat = fs.lstatSync(fpath);
         if(subStat.isFile()) {
           pathData.push({
-            url: url.resolve(epBase, fpath),
+            url: url.resolve(apiURL, subUrlPath),
             name: file,
             path: fpath,
             sizeBytes: subStat.size,
@@ -337,7 +338,7 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
         }
         else if(subStat.isDirectory()) {
           pathData.push({
-            url: url.resolve(epBase, fpath),
+            url: url.resolve(apiURL, subUrlPath),
             name: file,
             path: fpath,
             sizeBytes: subStat.size,
