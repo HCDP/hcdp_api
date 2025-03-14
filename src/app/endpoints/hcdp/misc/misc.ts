@@ -275,16 +275,17 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     const allowedDirs = ["NASA_downscaling", "production", "workflow_data", "raw", "backup_data_aqs"]
     const allowedPaths = allowedDirs.map((sub: string) => path.join(dataRoot, sub));
-    const userPath = path.resolve(req.params[0]) || "/";
+    const userPath = path.resolve(req.params[0] || "/");
     const urlPath = path.join("/files/explorer", userPath);
     const dataPath = path.join(dataRoot, userPath);
+    console.log(dataPath, path.resolve(dataRoot));
     if(dataPath == path.resolve(dataRoot)) {
       const pathData: FileData[] = allowedDirs.map((dir: string) => {
         let subUrlPath = path.join(urlPath, dir);
         return {
           url: url.resolve(apiURL, subUrlPath),
           name: dir,
-          path: dir,
+          path: `/${dir}`,
           sizeBytes: 4096,
           ext: "",
           type: "d"
@@ -325,12 +326,13 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
       .reduce((pathData: FileData[], file: string) => {
         let fpath = path.join(dataPath, file);
         let subUrlPath = path.join(urlPath, file);
+        let subUserPath = path.join(userPath, file);
         let subStat = fs.lstatSync(fpath);
         if(subStat.isFile()) {
           pathData.push({
             url: url.resolve(apiURL, subUrlPath),
             name: file,
-            path: fpath,
+            path: subUserPath,
             sizeBytes: subStat.size,
             ext: path.extname(file),
             type: "f"
@@ -340,7 +342,7 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
           pathData.push({
             url: url.resolve(apiURL, subUrlPath),
             name: file,
-            path: fpath,
+            path: subUserPath,
             sizeBytes: subStat.size,
             ext: "",
             type: "d"
