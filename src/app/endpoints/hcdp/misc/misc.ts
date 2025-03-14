@@ -278,7 +278,6 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
     const userPath = path.resolve(req.params[0] || "/");
     const urlPath = path.join("/files/explore", userPath);
     const dataPath = path.join(dataRoot, userPath);
-    console.log(dataPath, path.resolve(dataRoot));
     if(path.resolve(dataPath) == path.resolve(dataRoot)) {
       const pathData: FileData[] = allowedDirs.map((dir: string) => {
         let subUrlPath = path.join(urlPath, dir);
