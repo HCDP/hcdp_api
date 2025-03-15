@@ -131,13 +131,10 @@ router.get("/raster", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     //destructure query
-    let {date, returnEmptyNotFound, type, ...properties} = req.query;
-    if(type === undefined) {
-      type = "data_map";
-    }
+    let {date, returnEmptyNotFound, ...properties} = req.query;
 
     let data = [{
-      files: [type],
+      files: ["data_map"],
       range: {
           start: date,
           end: date
@@ -269,6 +266,64 @@ router.get("/production/list", async (req, res) => {
       }
   });
 });
+
+
+
+router.get("/files/retrieve/production", async (req, res) => {
+  const permission = "basic";
+  await handleReq(req, res, permission, async (reqData) => {
+    //destructure query
+    let {date, type, ...properties} = req.query;
+
+    if(typeof type !== "string" || !type ) {
+      type = "data_map";
+    }
+    
+    try {
+      let parsedDate = new Date(date as string);
+      date = parsedDate.toISOString();
+    }
+    catch(e) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send("Invalid date format. Date must be ISO 8601 compliant.");
+    }
+
+    let data = [{
+      files: [type],
+      range: {
+          start: date,
+          end: date
+      },
+      ...properties
+    }];
+    let files = await getPaths(data, false);
+    reqData.sizeF = files.numFiles;
+    let file = "";
+    //should only be exactly one file
+    if(files.numFiles > 0) {
+      file = files.paths[0];
+    }
+    
+    if(!file) {
+      //set failure and code in status
+      reqData.success = false;
+      reqData.code = 404;
+
+      //resources not found
+      res.status(404)
+      .send("The requested file could not be found");
+    }
+    else {
+      reqData.code = 200;
+      res.status(200)
+      .sendFile(file);
+    }
+  });
+});
+
 
 router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
   const permission = "basic";
