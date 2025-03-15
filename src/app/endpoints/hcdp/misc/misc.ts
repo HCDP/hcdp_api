@@ -273,41 +273,44 @@ router.get("/files/retrieve/production", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     //destructure query
-    let {date, type, ...properties} = req.query;
+    let {date, file, ...properties} = req.query;
 
-    if(typeof type !== "string" || !type ) {
-      type = "data_map";
+    if(typeof file !== "string" || !file) {
+      file = "data_map";
     }
     
-    try {
-      let parsedDate = new Date(date as string);
-      date = parsedDate.toISOString();
-    }
-    catch(e) {
-      reqData.success = false;
-      reqData.code = 400;
-
-      return res.status(400)
-      .send("Invalid date format. Date must be ISO 8601 compliant.");
-    }
-
-    let data = [{
-      files: [type],
-      range: {
-          start: date,
-          end: date
-      },
+    let data: any = [{
+      files: [file],
       ...properties
     }];
+
+    if(date) {
+      try {
+        let parsedDate = new Date(date as string);
+        date = parsedDate.toISOString();
+        data[0].range = {
+          start: date,
+          end: date
+        }
+      }
+      catch(e) {
+        reqData.success = false;
+        reqData.code = 400;
+  
+        return res.status(400)
+        .send("Invalid date, the date provided could not be parsed. When in doubt please provide dates in an ISO 8601 compliant format.");
+      }
+    }
+
     let files = await getPaths(data, false);
     reqData.sizeF = files.numFiles;
-    let file = "";
+    let fpath = "";
     //should only be exactly one file
     if(files.numFiles > 0) {
-      file = files.paths[0];
+      fpath = files.paths[0];
     }
     
-    if(!file) {
+    if(!fpath) {
       //set failure and code in status
       reqData.success = false;
       reqData.code = 404;
@@ -319,7 +322,7 @@ router.get("/files/retrieve/production", async (req, res) => {
     else {
       reqData.code = 200;
       res.status(200)
-      .sendFile(file);
+      .sendFile(fpath);
     }
   });
 });
