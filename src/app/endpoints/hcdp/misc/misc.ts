@@ -131,10 +131,14 @@ router.get("/raster", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     //destructure query
-    let {date, returnEmptyNotFound, ...properties} = req.query;
+    let {date, type, returnEmptyNotFound, ...properties} = req.query;
+
+    if(!type) {
+      type = "data_map";
+    }
 
     let data = [{
-      files: ["data_map"],
+      files: [type],
       range: {
           start: date,
           end: date
