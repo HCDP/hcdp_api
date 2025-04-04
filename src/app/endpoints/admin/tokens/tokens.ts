@@ -188,3 +188,54 @@ router.put("/updateTokenPermissions", async (req, res) => {
     return res.status(204).end();
   });
 });
+
+
+router.patch("/deprecateToken", async (req, res) => {
+  const permission = "admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    const { token, email } = req.body;
+
+    const newToken = crypto.randomBytes(16).toString("hex");
+
+    if(!token) {
+      //set failure and code in status
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Request body should be JSON with the fields:
+        token: The token to be deprecated and replaced.`
+      );
+    }
+
+    let query = `
+      UPDATE auth_token_store
+      SET token = $1 
+      WHERE token = $2;
+    `;
+    await HCDPDBManager.queryNoRes(query, [newToken, token], {privileged: true});
+    let message = `Your HCDP API token ${token} has been deprecated. Your new token is ${newToken}. Please email hcdp@hawaii.edu if you have any questions.`;
+    let mailOptions = {
+      to: email,
+      subject: "New HCDP token.",
+      text: message,
+      html: "<p>" + message + "</p>"
+    };
+    try {
+      //try to send the error email, last try to actually notify user
+      await sendEmail(mailOptions);
+    }
+    catch(e) {
+      reqData.success = false;
+      reqData.code = 500;
+      
+      return res.status(500)
+      .send(`Token has been replaced with ${newToken} but an error occurred while sending the update to the user. Please send the user their new token.`);
+    }
+    
+    reqData.code = 200;
+    return res.status(200)
+    .send(`Token has been replaced with ${newToken} and the user has been emailed the new token.`);
+  });
+});
