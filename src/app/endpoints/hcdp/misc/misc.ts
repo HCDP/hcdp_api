@@ -16,6 +16,7 @@ router.get("/raster/timeseries", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
       let {start, end, row, col, index, lng, lat, ...properties} = req.query;
+      console.log(req.query);
       let posParams;
       if(row !== undefined && col !== undefined) {
       posParams = ["-r", row, "-c", col];
@@ -116,6 +117,7 @@ router.get("/raster/timeseries", async (req, res) => {
           }
           }
       }
+      console.log(timeseries);
       reqData.code = 200;
       res.status(200)
       .json(timeseries);
