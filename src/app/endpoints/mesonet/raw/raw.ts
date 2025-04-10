@@ -5,7 +5,7 @@ import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
 import { rawDataRoot, apiURL, mesonetLocations, dataRoot } from "../../../modules/util/config.js";
 import { readdir } from "../../../modules/util/util.js";
-import { MesonetDBManager } from "src/app/modules/util/resourceManagers/db.js";
+import { MesonetDBManager } from "../../../modules/util/resourceManagers/db.js";
 
 export const router = express.Router();
 
