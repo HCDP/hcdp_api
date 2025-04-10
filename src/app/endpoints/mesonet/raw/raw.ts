@@ -53,7 +53,7 @@ router.post("/mesonet/dirtyFiles/process", async (req, res) => {
       catch {}
     }
     let params = Array.from(unrecordedFiles);
-    let queryParams = params.map((param: string, i: number) => `$${i}`);
+    let queryParams = params.map((param: string, i: number) => `$${i + 1}`);
     let sqlValues = `(${queryParams.join("),(")})`;
 
     let query = `
