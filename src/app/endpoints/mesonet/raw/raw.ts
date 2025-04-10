@@ -38,7 +38,7 @@ router.post("/mesonet/dirtyFiles/process", async (req, res) => {
   const permission = "meso_admin";
   await handleReq(req, res, permission, async (reqData) => {
     let unrecordedFiles: Set<string> = new Set<string>();
-    let manifestDir = path.join(dataRoot, "upload_log/new_records");
+    let manifestDir = path.join(dataRoot, "raw/upload_manifest/unprocessed/");
     let manifestFiles = fs.readdirSync(manifestDir);
     let successfullyReadManifestFiles: string[] = [];
     for(let manifest of manifestFiles) {
