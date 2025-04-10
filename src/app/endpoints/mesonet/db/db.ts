@@ -1,6 +1,5 @@
-
 import express from "express";
-import moment, { Moment } from "moment-timezone";
+import moment from "moment-timezone";
 import { MesonetDBManager } from "../../../modules/util/resourceManagers/db.js";
 import * as fs from "fs";
 import * as path from "path";
@@ -96,11 +95,6 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
   }
 
   let query = `
-    WITH variable_data AS (
-      SELECT alias, standard_name, interval_seconds, program
-      FROM version_translations
-      ${translationsWhereClause}
-    )
     SELECT
       timestamp,
       ${measurementsTable}.station_id,
@@ -109,12 +103,19 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
       ${selectFlag ? ", flag" : ""}
       ${joinMetadata ? ", units, units_short, display_name AS variable_display_name, interval_seconds, name AS station_name, lat, lng, elevation" : ""}
     FROM ${measurementsTable}
-    JOIN variable_data ON variable_data.program = ${measurementsTable}.version AND variable_data.alias = ${measurementsTable}.variable
+    JOIN (
+      SELECT alias, standard_name, interval_seconds, program
+      FROM version_translations
+      ${translationsWhereClause}
+    ) as variable_data ON variable_data.program = ${measurementsTable}.version AND variable_data.alias = ${measurementsTable}.variable
     ${joinMetadata ? "JOIN station_metadata ON station_metadata.station_id = " + measurementsTable + ".station_id JOIN variable_metadata ON variable_metadata.standard_name = variable_data.standard_name" : ""}
     ${mainWhereClause}
-    ORDER BY timestamp ${reverse ? "" : "DESC"}, ${measurementsTable}.station_id
+    ORDER BY timestamp ${reverse ? "" : "DESC"}, variable_data.standard_name
     ${limitOffsetClause}
   `;
+
+  // console.log(query);
+  // console.log(params);
 
   let index = ["station_id", "timestamp", "variable", "value"];
   if(selectFlag) {
@@ -131,7 +132,42 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
   };
 }
 
+function wrapCrosstabMeasurementsQuery(vars: string[], baseQueryData: QueryData, joinMetadata: boolean): QueryData {
+  let { query, params } = baseQueryData;
+  query = MesonetDBManager.mogrify(query, params);
+  let crosstabValuesString = `('${vars.join("'),('")}')`;
+  let varListString = vars.join(",");
+  let selectString = `timestamp, station_id, ${varListString}`;
+  let colDefs = `timestamp timestamp, station_id varchar, ${vars.join(" varchar, ")} varchar`;
+  let index = ["station_id", "timestamp", ...vars];
 
+  query = `
+    SELECT ${selectString} FROM crosstab(
+      $$
+        ${query}
+      $$,
+      $$
+        VALUES ${crosstabValuesString}
+      $$
+    ) AS wide(${colDefs})
+  `;
+  if(joinMetadata) {
+    query = `
+      SELECT widetable.station_id, station_metadata.name AS station_name, station_metadata.lat, station_metadata.lng, station_metadata.elevation, widetable.timestamp, ${varListString}
+      FROM (
+        ${query}
+      ) as widetable
+      JOIN station_metadata ON station_metadata.station_id = widetable.station_id
+    `;
+    index = ["station_id", "station_name", "lat", "lng", "elevation", "timestamp", ...vars];
+  }
+
+  return {
+    query,
+    params: [],
+    index
+  };
+}
 
 async function constructMeasurementsQuery(crosstabQuery: boolean, stationIDs: string[], startDate: string, endDate: string, varIDs: string[], intervals: string[], flags: string[], location: string, limit: number, offset: number, reverse: boolean, joinMetadata: boolean): Promise<QueryData> {
   let queryData: QueryData;
@@ -188,7 +224,7 @@ router.get("/mesonet/db/measurements", async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, row_mode }: any = req.query;
 
-    let varIDs = (var_ids as string)?.split(",") || [];
+    let varIDs = var_ids?.split(",") || [];
     let stationIDs = station_ids?.split(",") || [];
     let flagArr = flags?.split(",") || [];
     let intervalArr = intervals?.split(",") || [];
@@ -282,24 +318,12 @@ router.get("/mesonet/db/measurements", async (req, res) => {
         while(chunk.length > 0)
         queryHandler.close();
       }
-      catch(e: any) {
-        if(e.code == '57014') {
-          reqData.success = false;
-          reqData.code = 504;
-    
-          return res.status(504)
-          .send(`The query timed out before returning any data. Please chunk your query into smaller components.`);
-        }
-        else if(e.code.startsWith("42")) {
-          reqData.success = false;
-          reqData.code = 400;
-    
-          return res.status(400)
-          .send(`Invalid query syntax. Please validate the parameters used.`);
-        }
-        else {
-          throw e;
-        }
+      catch(e) {
+        reqData.success = false;
+        reqData.code = 400;
+  
+        return res.status(400)
+        .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
       }
     }
 
@@ -343,6 +367,11 @@ router.get("/mesonet/db/stations", async (req, res) => {
 
     let stationIDs = station_ids?.split(",") || [];
 
+    //validate location, can use direct in query
+    //default to hawaii
+    if(!mesonetLocations.includes(location)) {
+      location = "hawaii";
+    }
     if(row_mode !== "array") {
       row_mode = undefined;
     }
@@ -355,10 +384,8 @@ router.get("/mesonet/db/stations", async (req, res) => {
 
     let whereClauses: string[] = [];
 
-    if(location) {
-      params.push(location);
-      whereClauses.push(`location = $${params.length}`);
-    }
+    params.push(location);
+    whereClauses.push(`location = $${params.length}`);
     
     if(stationIDs.length > 0) {
       parseParams(stationIDs, params, whereClauses, "station_id");
@@ -384,9 +411,8 @@ router.get("/mesonet/db/stations", async (req, res) => {
     }
 
     let query = `
-      SELECT station_id, name, lat, lng, elevation, station_metadata.location, timezone_map.timezone
+      SELECT station_id, name, lat, lng, elevation
       FROM station_metadata
-      JOIN timezone_map ON station_metadata.location = timezone_map.location
       ${whereClause}
       ${limitOffsetClause};
     `;
@@ -413,7 +439,7 @@ router.get("/mesonet/db/stations", async (req, res) => {
     }
 
     if(row_mode === "array") {
-      let index = ["station_id", "name", "lat", "lng", "elevation", "location", "timezone"];
+      let index = ["station_id", "name", "lat", "lng", "elevation"];
 
       data = {
         index,
@@ -745,119 +771,6 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
 });
 
 
-router.get("/mesonet/db/stations/lastDate", async (req, res) => {
-  const permission = "basic";
-  await handleReq(req, res, permission, async (reqData) => {
-    let { location, station_id }: any = req.query;
-
-    if(!mesonetLocations.includes(location)) {
-      location = "hawaii";
-    }
-
-    let query = `
-        SELECT timestamp
-        FROM ${location}_measurements
-        WHERE station_id = $1
-        ORDER BY timestamp DESC
-        LIMIT 1;
-    `;
-    let params = [station_id];
-    let queryHandler = await MesonetDBManager.query(query, params);
-    let data = await queryHandler.read(1);
-    queryHandler.close();
-    if(data.length > 0) {
-      reqData.code = 200;
-      return res.status(200)
-      .json(data[0]);
-    }
-    else {
-      reqData.success = false;
-      reqData.code = 404;
-
-      return res.status(404)
-      .send(`Station not found.`);
-    }
-  });
-});
-
-router.put("/mesonet/db/measurements/insert", async (req, res) => {
-  const permission = "meso_admin";
-  await handleReq(req, res, permission, async (reqData) => {
-    let { overwrite, location, data }: any = req.body;
-
-    if(!Array.isArray(data)) {
-      reqData.success = false;
-      reqData.code = 400;
-
-      return res.status(400)
-      .send(`Invalid data provided. Data must be a 2D array with 6 element rows.`);
-    }
-
-    if(data.length < 1) {
-      reqData.code = 200;
-      return res.status(200)
-      .json({ modified: 0 });
-    }
-
-    if(!mesonetLocations.includes(location)) {
-      location = "hawaii";
-    }
-
-    let onConflict = overwrite ? `
-      DO UPDATE SET
-        version = EXCLUDED.version,
-        value = EXCLUDED.value,
-        flag = EXCLUDED.flag;
-      ` : "DO NOTHING;";
-
-    let params: string[] = [];
-    let valueClauseParts: string[] = [];
-    for(let row in data) {
-      if(!Array.isArray(row) || row.length != 6) {
-        reqData.success = false;
-        reqData.code = 400;
-
-        return res.status(400)
-        .send(`Invalid data provided. Data must be a 2D array with 6 element rows.`);
-      }
-
-      let rowParts: string[] = [];
-      for(let value of row) {
-        params.push(value);
-        rowParts.push(`%${params.length}`);
-      }
-      valueClauseParts.push(rowParts.join(","));
-    }
-    let valueClause = valueClauseParts.join(",");
-
-    let query = `
-      INSERT INTO ${location}_measurements
-      VALUES ${valueClause}
-      ON CONFLICT (timestamp, station_id, variable)
-      ${onConflict}
-    `;
-    try {
-      let modified = await MesonetDBManager.queryNoRes(query, params, { privileged: true });
-      reqData.code = 200;
-      return res.status(200)
-      .json({ modified });
-    }
-    catch(e: any) {
-      if(e.code.startsWith("42")) {
-        reqData.success = false;
-        reqData.code = 400;
-  
-        return res.status(400)
-        .send(`Invalid query syntax. Please validate the data provided is correctly formatted.`);
-      }
-      else {
-        throw e;
-      }
-    }
-  });
-});
-
-
 
 router.post("/mesonet/db/measurements/email", async (req, res) => {
   const permission = "basic";
@@ -966,10 +879,12 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
       if(query) {
         try {
           let queryHandler = await MesonetDBManager.query(query, params);
+
           chunk = await queryHandler.read(chunkSize);
+          console.log(chunk);
           queryHandler.close();
         }
-        catch(e: any) {
+        catch(e) {
           reqData.success = false;
           let errorMessage = "An error occured while performing your mesonet query. Please validate the parameters you provided and contact the administrators at hcdp@hawaii.edu with any questions."
           //set failure in status
@@ -1053,52 +968,3 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
     }
   });
 });
-
-
-
-
-function getQueryChunk(startDate: string | undefined, endDate: string | undefined, limit: number) {
-  let globalMinDateStr = "2021-08-31";
-  let maxDate = moment(endDate);
-  let minDate = moment(startDate || globalMinDateStr);
-}
-
-
-function calculateDateRange(startDate: string | undefined, endDate: string | undefined, limit: number, offset: number, reverse: boolean, numStations: number, numVariables: number): [string, string] {
-  let globalMinDateStr = "2021-08-31";
-  let maxDate = moment(endDate);
-  let minDate = moment(startDate || globalMinDateStr);
-  let anchorDate: Moment;
-  if(!reverse && endDate) {
-    anchorDate = moment.min(moment(endDate), moment());
-  }
-  else if(!reverse) {
-    anchorDate = moment();
-  }
-  else if(startDate) {
-    anchorDate = moment(startDate);
-  }
-  else {
-    //NEED TO GET THE LOW END OF THE DATE
-    anchorDate = moment();
-  }
-  let maxMeasurementsPerTimestamp = numStations * numVariables;
-  //assume 5 minute date interval, most common case, will make a good baseline
-  let minuteInterval = 5 * (limit + offset);
-  //divide by max measurements per timestamp
-  minuteInterval /= maxMeasurementsPerTimestamp;
-  //double time span to give a buffer for missing values, etc
-  minuteInterval *= 2;
-  let dateRange: [string, string] = [anchorDate.toISOString(), anchorDate.toISOString()];
-  if(!reverse) {
-    let start = anchorDate.clone().subtract(minuteInterval, "minute");
-    start = moment.min();
-    dateRange[0] = start.toISOString();
-  }
-  else {
-    let end = anchorDate.clone().add(minuteInterval, "minute");
-    end = moment.min();
-    dateRange[1] = end.toISOString();
-  }
-  return dateRange;
-}

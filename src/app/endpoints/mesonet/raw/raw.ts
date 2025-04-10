@@ -40,12 +40,17 @@ router.post("/mesonet/dirtyFiles/process", async (req, res) => {
     let unrecordedFiles: Set<string> = new Set<string>();
     let manifestDir = path.join(dataRoot, "upload_log/new_records");
     let manifestFiles = fs.readdirSync(manifestDir);
+    let successfullyReadManifestFiles: string[] = [];
     for(let manifest of manifestFiles) {
       let manifestPath = path.join(manifestDir, manifest);
-      let dataFiles: string[] = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-      for(let file of dataFiles) {
-        unrecordedFiles = unrecordedFiles.add(file);
+      try {
+        let dataFiles: string[] = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+        for(let file of dataFiles) {
+          unrecordedFiles = unrecordedFiles.add(file);
+        }
+        successfullyReadManifestFiles.push(manifestPath);
       }
+      catch {}
     }
     let params = Array.from(unrecordedFiles);
     let queryParams = params.map((param: string, i: number) => `$${i}`);
@@ -60,7 +65,7 @@ router.post("/mesonet/dirtyFiles/process", async (req, res) => {
 
     let inserted = await MesonetDBManager.queryNoRes(query, params, { privileged: true });
 
-    for(let manifest of manifestFiles) {
+    for(let manifest of successfullyReadManifestFiles) {
       let manifestPath = path.join(manifestDir, manifest);
       fs.unlinkSync(manifestPath);
     }
