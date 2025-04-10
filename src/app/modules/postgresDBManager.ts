@@ -41,12 +41,9 @@ export class PostgresDBManager {
     userDBHandler: any;
     adminDBHandler: any;
     pgp: any;
-    queryTimeout: number;
 
     constructor(host: string, port: number, database: string, userCredentials: Credentials, adminCredentials: Credentials, userCons: number, adminCons: number) {
         this.pgp = pgPromise();
-        //move to config?
-        this.queryTimeout = 12000;
 
         this.userDBHandler = this.pgp({
             host: host,
@@ -71,8 +68,7 @@ export class PostgresDBManager {
         let conn: any = null;
         let cursor: any = null;
         try {
-            let handler = (options.privileged ? this.adminDBHandler : this.userDBHandler);
-            const conn = await handler.connect();
+            conn = await (options.privileged ? this.adminDBHandler : this.userDBHandler).connect();
             cursor = conn.client.query(new Cursor(query, params, {
                 rowMode: options.rowMode
             }));
