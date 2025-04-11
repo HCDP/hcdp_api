@@ -17,7 +17,7 @@ router.get("/mesonet/dirtyFiles/list", async (req, res) => {
       FROM dirty_files;
     `;
 
-    let queryHandler = await MesonetDBManager.query(query, []);
+    let queryHandler = await MesonetDBManager.query(query, [], { rowMode: "array" });
     let files: string[] = [];
     let chunkSize = 10000;
     let chunk: string[];
@@ -27,6 +27,7 @@ router.get("/mesonet/dirtyFiles/list", async (req, res) => {
     }
     while(chunk.length > 0)
     queryHandler.close();
+    files = files.flat()
 
     reqData.code = 200;
     return res.status(200)
