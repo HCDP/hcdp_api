@@ -3,10 +3,91 @@ import moment from "moment-timezone";
 import * as fs from "fs";
 import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
-import { rawDataRoot, apiURL, mesonetLocations } from "../../../modules/util/config.js";
+import { rawDataRoot, apiURL, mesonetLocations, dataRoot } from "../../../modules/util/config.js";
 import { readdir } from "../../../modules/util/util.js";
+import { MesonetDBManager } from "../../../modules/util/resourceManagers/db.js";
 
 export const router = express.Router();
+
+router.get("/mesonet/dirtyFiles/list", async (req, res) => {
+  const permission = "meso_admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    let query = `
+      SELECT file
+      FROM dirty_files;
+    `;
+
+    let queryHandler = await MesonetDBManager.query(query, [], { rowMode: "array" });
+    let files: string[] = [];
+    let chunkSize = 10000;
+    let chunk: string[];
+    do {
+      chunk = await queryHandler.read(chunkSize);
+      files = files.concat(chunk);
+    }
+    while(chunk.length > 0)
+    queryHandler.close();
+    files = files.flat()
+
+    reqData.code = 200;
+    return res.status(200)
+    .json(Array.from(files));
+  });
+});
+
+router.post("/mesonet/dirtyFiles/process", async (req, res) => {
+  const permission = "meso_admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    let unrecordedFiles: Set<string> = new Set<string>();
+    let manifestDir = path.join(dataRoot, "raw/upload_manifest/unprocessed/");
+    let manifestFiles = fs.readdirSync(manifestDir);
+    let successfullyReadManifestFiles: string[] = [];
+    for(let manifest of manifestFiles) {
+      let manifestPath = path.join(manifestDir, manifest);
+      try {
+        let dataFiles: string[] = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+        for(let file of dataFiles) {
+          unrecordedFiles = unrecordedFiles.add(file);
+        }
+        successfullyReadManifestFiles.push(manifestPath);
+      }
+      catch {}
+    }
+    let params = Array.from(unrecordedFiles);
+    let queryParams = params.map((param: string, i: number) => `$${i + 1}`);
+    let sqlValues = `(${queryParams.join("),(")})`;
+
+    let query = `
+      INSERT INTO dirty_files
+      VALUES ${sqlValues}
+      ON CONFLICT (file)
+      DO NOTHING;
+    `;
+
+    let inserted = await MesonetDBManager.queryNoRes(query, params, { privileged: true });
+
+    for(let manifest of successfullyReadManifestFiles) {
+      fs.unlinkSync(manifest);
+    }
+
+    reqData.code = 200;
+    return res.status(200)
+    .json({ inserted });
+  });
+});
+
+router.delete(/^\/mesonet\/dirtyFiles\/remove\/(.*)?$/, async (req, res) => {
+  const permission = "meso_admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    let record2Delete = req.params[0];
+    let query = "DELETE FROM dirty_files WHERE file = $1";
+    let deleted = await MesonetDBManager.queryNoRes(query, [ record2Delete ], { privileged: true });
+    reqData.code = 200;
+    return res.status(200)
+    .json({ deleted });
+  });
+});
+
 
 router.get("/raw/download", async (req, res) => {
   await handleReqNoAuth(req, res, async (reqData) => {

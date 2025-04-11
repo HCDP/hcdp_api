@@ -42,7 +42,7 @@ export class PostgresDBManager {
     adminDBHandler: any;
     pgp: any;
 
-    constructor(host: string, port: number, database: string, userCredentials: Credentials, adminCredentials: Credentials) {
+    constructor(host: string, port: number, database: string, userCredentials: Credentials, adminCredentials: Credentials, userCons: number, adminCons: number) {
         this.pgp = pgPromise();
 
         this.userDBHandler = this.pgp({
@@ -51,7 +51,7 @@ export class PostgresDBManager {
             database: database,
             user: userCredentials.username,
             password: userCredentials.password,
-            max: 40
+            max: userCons
         });
 
         this.adminDBHandler = this.pgp({
@@ -60,7 +60,7 @@ export class PostgresDBManager {
             database: database,
             user: adminCredentials.username,
             password: adminCredentials.password,
-            max: 40
+            max: adminCons
         });
     }
 
