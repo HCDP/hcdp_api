@@ -66,8 +66,7 @@ router.post("/mesonet/dirtyFiles/process", async (req, res) => {
     let inserted = await MesonetDBManager.queryNoRes(query, params, { privileged: true });
 
     for(let manifest of successfullyReadManifestFiles) {
-      let manifestPath = path.join(manifestDir, manifest);
-      fs.unlinkSync(manifestPath);
+      fs.unlinkSync(manifest);
     }
 
     reqData.code = 200;
