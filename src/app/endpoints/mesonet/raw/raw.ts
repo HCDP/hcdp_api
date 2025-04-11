@@ -80,10 +80,11 @@ router.delete(/^\/mesonet\/dirtyFiles\/remove(\/.*)?$/, async (req, res) => {
   const permission = "meso_admin";
   await handleReq(req, res, permission, async (reqData) => {
     let record2Delete = req.params[0];
-    let query = "DELETE FROM dirty_files WHERE file = %1";
-    await MesonetDBManager.queryNoRes(query, [record2Delete], { privileged: true });
-    reqData.code = 204;
-    return res.status(204).end();
+    let query = "DELETE FROM dirty_files WHERE file = $1";
+    let deleted = await MesonetDBManager.queryNoRes(query, [record2Delete], { privileged: true });
+    reqData.code = 200;
+    return res.status(200)
+    .json({ deleted });
   });
 });
 
