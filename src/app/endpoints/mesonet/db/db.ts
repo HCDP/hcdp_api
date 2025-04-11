@@ -411,7 +411,7 @@ router.get("/mesonet/db/stations", async (req, res) => {
     }
 
     let query = `
-      SELECT station_id, name, lat, lng, elevation
+      SELECT station_id, name, full_name, lat, lng, elevation, status
       FROM station_metadata
       ${whereClause}
       ${limitOffsetClause};
