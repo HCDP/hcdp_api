@@ -834,6 +834,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
       ON CONFLICT (timestamp, station_id, variable)
       ${onConflict}
     `;
+    console.log(query);
     try {
       let modified = await MesonetDBManager.queryNoRes(query, params, { privileged: true });
       reqData.code = 200;
@@ -841,6 +842,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
       .json({ modified });
     }
     catch(e: any) {
+      console.log(e);
       if(e.code.startsWith("42")) {
         console.log("invalid query");
         reqData.success = false;
