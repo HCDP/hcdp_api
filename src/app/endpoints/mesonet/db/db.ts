@@ -809,6 +809,8 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
     let valueClauseParts: string[] = [];
     for(let row in data) {
       if(!Array.isArray(row) || row.length != 6) {
+        console.log(row);
+        console.log(row.length);
         console.log("data not 2D array or row length incorrect");
         reqData.success = false;
         reqData.code = 400;
