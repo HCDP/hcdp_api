@@ -41,33 +41,35 @@ router.post("/mesonet/dirtyFiles/process", async (req, res) => {
     let unrecordedFiles: Set<string> = new Set<string>();
     let manifestDir = path.join(dataRoot, "raw/upload_manifest/unprocessed/");
     let manifestFiles = fs.readdirSync(manifestDir);
-    let successfullyReadManifestFiles: string[] = [];
-    for(let manifest of manifestFiles) {
-      let manifestPath = path.join(manifestDir, manifest);
-      try {
-        let dataFiles: string[] = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-        for(let file of dataFiles) {
-          unrecordedFiles = unrecordedFiles.add(file);
+    let inserted = 0;
+    if(manifestFiles.length > 0) {
+      let successfullyReadManifestFiles: string[] = [];
+      for(let manifest of manifestFiles) {
+        let manifestPath = path.join(manifestDir, manifest);
+        try {
+          let dataFiles: string[] = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+          for(let file of dataFiles) {
+            unrecordedFiles = unrecordedFiles.add(file);
+          }
+          successfullyReadManifestFiles.push(manifestPath);
         }
-        successfullyReadManifestFiles.push(manifestPath);
+        catch {}
       }
-      catch {}
-    }
-    let params = Array.from(unrecordedFiles);
-    let queryParams = params.map((param: string, i: number) => `$${i + 1}`);
-    let sqlValues = `(${queryParams.join("),(")})`;
-
-    let query = `
-      INSERT INTO dirty_files
-      VALUES ${sqlValues}
-      ON CONFLICT (file)
-      DO NOTHING;
-    `;
-
-    let inserted = await MesonetDBManager.queryNoRes(query, params, { privileged: true });
-
-    for(let manifest of successfullyReadManifestFiles) {
-      fs.unlinkSync(manifest);
+      let params = Array.from(unrecordedFiles);
+      let queryParams = params.map((param: string, i: number) => `$${i + 1}`);
+      let sqlValues = `(${queryParams.join("),(")})`;
+  
+      let query = `
+        INSERT INTO dirty_files
+        VALUES ${sqlValues}
+        ON CONFLICT (file)
+        DO NOTHING;
+      `;
+  
+      inserted = await MesonetDBManager.queryNoRes(query, params, { privileged: true });
+      for(let manifest of successfullyReadManifestFiles) {
+        fs.unlinkSync(manifest);
+      }
     }
 
     reqData.code = 200;
