@@ -367,11 +367,6 @@ router.get("/mesonet/db/stations", async (req, res) => {
 
     let stationIDs = station_ids?.split(",") || [];
 
-    //validate location, can use direct in query
-    //default to hawaii
-    if(!mesonetLocations.includes(location)) {
-      location = "hawaii";
-    }
     if(row_mode !== "array") {
       row_mode = undefined;
     }
@@ -384,8 +379,10 @@ router.get("/mesonet/db/stations", async (req, res) => {
 
     let whereClauses: string[] = [];
 
-    params.push(location);
-    whereClauses.push(`location = $${params.length}`);
+    if(location) {
+      params.push(location);
+      whereClauses.push(`location = $${params.length}`);
+    }
     
     if(stationIDs.length > 0) {
       parseParams(stationIDs, params, whereClauses, "station_id");
@@ -411,8 +408,9 @@ router.get("/mesonet/db/stations", async (req, res) => {
     }
 
     let query = `
-      SELECT station_id, name, full_name, lat, lng, elevation, status
+      SELECT station_id, name, full_name, lat, lng, elevation, status, station_metadata.location, timezone_map.timezone
       FROM station_metadata
+      JOIN timezone_map ON station_metadata.location = timezone_map.location
       ${whereClause}
       ${limitOffsetClause};
     `;
