@@ -114,8 +114,6 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
     ${limitOffsetClause}
   `;
 
-  // console.log(query);
-  // console.log(params);
 
   let index = ["station_id", "timestamp", "variable", "value"];
   if(selectFlag) {
@@ -773,10 +771,8 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
   const permission = "meso_admin";
   await handleReq(req, res, permission, async (reqData) => {
     let { overwrite, location, data }: any = req.body;
-    console.log(req.body);
 
     if(!Array.isArray(data)) {
-      console.log("data not array");
       reqData.success = false;
       reqData.code = 400;
 
@@ -809,9 +805,6 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
     let valueClauseParts: string[] = [];
     for(let row of data) {
       if(!Array.isArray(row) || row.length != 6) {
-        console.log(row);
-        console.log(row.length);
-        console.log("data not 2D array or row length incorrect");
         reqData.success = false;
         reqData.code = 400;
 
@@ -834,7 +827,6 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
       ON CONFLICT (timestamp, station_id, variable)
       ${onConflict}
     `;
-    console.log(query);
     try {
       let modified = await MesonetDBManager.queryNoRes(query, params, { privileged: true });
       reqData.code = 200;
@@ -842,9 +834,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
       .json({ modified });
     }
     catch(e: any) {
-      console.log(e);
       if(e.code.startsWith("42")) {
-        console.log("invalid query");
         reqData.success = false;
         reqData.code = 400;
   
