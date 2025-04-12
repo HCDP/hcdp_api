@@ -773,6 +773,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
   const permission = "meso_admin";
   await handleReq(req, res, permission, async (reqData) => {
     let { overwrite, location, data }: any = req.body;
+    console.log(req.body);
 
     if(!Array.isArray(data)) {
       reqData.success = false;
