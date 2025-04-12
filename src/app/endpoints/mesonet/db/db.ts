@@ -771,6 +771,83 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
 });
 
 
+router.put("/mesonet/db/measurements/insert", async (req, res) => {
+  const permission = "meso_admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    let { overwrite, location, data }: any = req.body;
+
+    if(!Array.isArray(data)) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(`Invalid data provided. Data must be a 2D array with 6 element rows.`);
+    }
+
+    if(data.length < 1) {
+      reqData.code = 200;
+      return res.status(200)
+      .json({ modified: 0 });
+    }
+
+    if(!mesonetLocations.includes(location)) {
+      location = "hawaii";
+    }
+
+    let onConflict = overwrite ? `
+      DO UPDATE SET
+        version = EXCLUDED.version,
+        value = EXCLUDED.value,
+        flag = EXCLUDED.flag;
+      ` : "DO NOTHING;";
+
+    let params: string[] = [];
+    let valueClauseParts: string[] = [];
+    for(let row in data) {
+      if(!Array.isArray(row) || row.length != 6) {
+        reqData.success = false;
+        reqData.code = 400;
+
+        return res.status(400)
+        .send(`Invalid data provided. Data must be a 2D array with 6 element rows.`);
+      }
+
+      let rowParts: string[] = [];
+      for(let value of row) {
+        params.push(value);
+        rowParts.push(`%${params.length}`);
+      }
+      valueClauseParts.push(rowParts.join(","));
+    }
+    let valueClause = `(${valueClauseParts.join("),(")})`;
+
+    let query = `
+      INSERT INTO ${location}_measurements
+      VALUES ${valueClause}
+      ON CONFLICT (timestamp, station_id, variable)
+      ${onConflict}
+    `;
+    try {
+      let modified = await MesonetDBManager.queryNoRes(query, params, { privileged: true });
+      reqData.code = 200;
+      return res.status(200)
+      .json({ modified });
+    }
+    catch(e: any) {
+      if(e.code.startsWith("42")) {
+        reqData.success = false;
+        reqData.code = 400;
+  
+        return res.status(400)
+        .send(`Invalid query syntax. Please validate the data provided is correctly formatted.`);
+      }
+      else {
+        throw e;
+      }
+    }
+  });
+});
+
 
 router.post("/mesonet/db/measurements/email", async (req, res) => {
   const permission = "basic";
