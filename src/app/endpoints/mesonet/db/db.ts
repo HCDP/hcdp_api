@@ -379,7 +379,7 @@ router.get("/mesonet/db/stations", async (req, res) => {
 
     if(location) {
       params.push(location);
-      whereClauses.push(`location = $${params.length}`);
+      whereClauses.push(`station_metadata.location = $${params.length}`);
     }
     
     if(stationIDs.length > 0) {
