@@ -776,6 +776,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
     console.log(req.body);
 
     if(!Array.isArray(data)) {
+      console.log("data not array");
       reqData.success = false;
       reqData.code = 400;
 
@@ -790,7 +791,11 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
     }
 
     if(!mesonetLocations.includes(location)) {
-      location = "hawaii";
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(`Invalid location provided.`);
     }
 
     let onConflict = overwrite ? `
@@ -804,6 +809,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
     let valueClauseParts: string[] = [];
     for(let row in data) {
       if(!Array.isArray(row) || row.length != 6) {
+        console.log("data not 2D array or row length incorrect");
         reqData.success = false;
         reqData.code = 400;
 
@@ -834,6 +840,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
     }
     catch(e: any) {
       if(e.code.startsWith("42")) {
+        console.log("invalid query");
         reqData.success = false;
         reqData.code = 400;
   
