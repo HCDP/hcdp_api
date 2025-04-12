@@ -822,7 +822,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
       let rowParts: string[] = [];
       for(let value of row) {
         params.push(value);
-        rowParts.push(`%${params.length}`);
+        rowParts.push(`$${params.length}`);
       }
       valueClauseParts.push(rowParts.join(","));
     }
