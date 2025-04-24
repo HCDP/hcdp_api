@@ -1218,6 +1218,17 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
     else {
       start_date = await getStartDate(location, stationIDs);
     }
+    //no start date provided and no data from get start date function, so sids must be invalid
+    if(!start_date) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      //send error
+      return res.status(400)
+      .send(
+        `Station data range could not be found. Please check the provided station IDs are valid.`
+      );
+    }
 
     if(end_date) {
       try {
@@ -1389,7 +1400,7 @@ async function getLocationTimezone(location: string) {
 }
 
 
-async function getStartDate(location: string, stationIDs: string[]) {
+async function getStartDate(location: string, stationIDs: string[]): Promise<string> {
   let measurementsTable = `${location}_measurements`;
   let mainWhereClauses: string[] = [];
   let params: string[] = [];
@@ -1409,7 +1420,11 @@ async function getStartDate(location: string, stationIDs: string[]) {
     LIMIT 1;
   `;
   let queryHandler = await MesonetDBManager.query(query, params);
-  let { timestamp } = await queryHandler.read(1)[0];
+  let data = await queryHandler.read(1);
+  let timestamp = null;
+  if(data.length > 0) {
+    timestamp = data[0].timestamp;
+  }
   queryHandler.close();
   return timestamp;
 }
