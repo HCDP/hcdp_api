@@ -1155,7 +1155,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
 router.post("/mesonet/db/measurements/email", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
-    let { data, email, outputName } = req.body
+    let { data, email, outputName } = req.body;
 
     if(!(data && email)) {
       reqData.success = false;
@@ -1166,7 +1166,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
       .send(
         `Request body should include the following fields: \n\
         email: The email to send the package to \n\
-        query: A JSON object with parameters for the Mesonet query \n\
+        data: A JSON object with parameters for the Mesonet query \n\
         outputName (optional): What to name the produced data file. Default: data.csv`
       );
     }
