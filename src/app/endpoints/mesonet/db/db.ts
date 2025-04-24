@@ -1156,6 +1156,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     let { data, email, outputName } = req.body;
+    console.log(req.body);
 
     if(!(data && email)) {
       reqData.success = false;
