@@ -1,18 +1,18 @@
 import express from "express";
-import moment from "moment-timezone";
+import moment, { DurationInputArg1, DurationInputArg2, Moment } from "moment-timezone";
 import { MesonetDBManager } from "../../../modules/util/resourceManagers/db.js";
 import * as fs from "fs";
 import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
 import { administrators, apiURL, downloadRoot, mesonetLocations, rawDataRoot } from "../../../modules/util/config.js";
 import { sendEmail } from "../../../modules/util/util.js";
-import { stringify } from "csv-stringify";
+import { Stringifier, stringify } from "csv-stringify";
 import * as crypto from "crypto";
 
 export const router = express.Router();
 
 interface QueryData {
-  query: string | null,
+  query: string,
   params: any[],
   index: string[]
 }
@@ -358,6 +358,160 @@ router.get("/mesonet/db/measurements", async (req, res) => {
   });
 });
 
+
+
+function constructMeasurementsQueryEmail(stationIDs: string[], startDate: string, endDate: string, varIDs: string[], intervals: string[], flags: string[], location: string, limit: number, offset: number, reverse: boolean, joinMetadata: boolean): QueryData {
+	// varIDs = varIDs.map((id: string) => id.toLowerCase());
+
+	let measurementsTable = `${location}_measurements`;
+
+  let params: string[] = [];
+
+  ///////////////////////////////////////////////////
+  //////////// translations where clause ////////////
+  ///////////////////////////////////////////////////
+
+  let translationsWhereClauses = [];
+
+  if(varIDs.length > 0) {
+    parseParams(varIDs, params, translationsWhereClauses, "standard_name");
+  }
+
+  if(intervals.length > 0) {
+    parseParams(intervals, params, translationsWhereClauses, "interval_seconds");
+  }
+
+  let translationsWhereClause = "";
+  if(translationsWhereClauses.length > 0) {
+    translationsWhereClause = `WHERE ${translationsWhereClauses.join(" AND ")}`;
+  } 
+
+  ///////////////////////////////////////////////////
+  //////////////// main where clause ////////////////
+  ///////////////////////////////////////////////////
+
+  let mainWhereClauses: string[] = [];
+  
+  if(stationIDs.length > 0) {
+    parseParams(stationIDs, params, mainWhereClauses, `${measurementsTable}.station_id`);
+  }
+
+  if(startDate) {
+    params.push(startDate);
+    mainWhereClauses.push(`timestamp >= $${params.length}`);
+  }
+
+  if(endDate) {
+    params.push(endDate);
+    mainWhereClauses.push(`timestamp <= $${params.length}`);
+  }
+
+  if(flags.length > 0) {
+    parseParams(flags, params, mainWhereClauses, "flag");
+  }
+
+  let mainWhereClause = "";
+  if(mainWhereClauses.length > 0) {
+    mainWhereClause = `WHERE ${mainWhereClauses.join(" AND ")}`;
+  }
+
+
+  ///////////////////////////////////////////////////
+  /////////////// limit offset clause ///////////////
+  ///////////////////////////////////////////////////
+
+  let limitOffsetClause = "";
+  if(Number.isFinite(limit)) {
+    params.push(limit.toString());
+    limitOffsetClause += `LIMIT $${params.length}`;
+  }
+  
+  if(offset) {
+    params.push(offset.toString());
+    limitOffsetClause += ` OFFSET $${params.length}`;
+  }
+
+  let query = `
+    SELECT
+      timestamp,
+      ${measurementsTable}.station_id,
+      variable_data.standard_name as variable,
+      value,
+			flag
+      ${joinMetadata ? ", units, units_short, display_name AS variable_display_name, interval_seconds, name AS station_name, lat, lng, elevation" : ""}
+    FROM ${measurementsTable}
+    JOIN (
+      SELECT alias, standard_name, interval_seconds, program
+      FROM version_translations
+      ${translationsWhereClause}
+    ) as variable_data ON variable_data.program = ${measurementsTable}.version AND variable_data.alias = ${measurementsTable}.variable
+    ${joinMetadata ? "JOIN station_metadata ON station_metadata.station_id = " + measurementsTable + ".station_id JOIN variable_metadata ON variable_metadata.standard_name = variable_data.standard_name" : ""}
+    ${mainWhereClause}
+    ORDER BY timestamp ${reverse ? "" : "DESC"}, ${measurementsTable}.station_id, variable_data.standard_name
+    ${limitOffsetClause}
+  `;
+
+
+  let index = ["station_id", "timestamp", "variable", "value", "flag"];
+  if(joinMetadata) {
+    index = index.concat(["units", "units_short", "variable_display_name", "interval_seconds", "station_name", "lat", "lng", "elevation"]);
+  }
+
+  return {
+    query,
+    params,
+    index
+  };
+}
+
+function constructVariablesQuery(varIDs: string[], limit?: number, offset?: number): QueryData {
+  let params: string[] = [];
+
+  ////////////////////////////////////////////////////
+  /////////////////// where clause ///////////////////
+  ////////////////////////////////////////////////////
+
+  let whereClauses: string[] = [];
+  
+  if(varIDs.length > 0) {
+    parseParams(varIDs, params, whereClauses, "standard_name");
+  }
+
+  let whereClause = "";
+  if(whereClauses.length > 0) {
+    whereClause = `WHERE ${whereClauses.join(" AND ")}`;
+  } 
+
+  ///////////////////////////////////////////////////
+  /////////////// limit offset clause ///////////////
+  ///////////////////////////////////////////////////
+
+  let limitOffsetClause = "";
+  if(limit) {
+    params.push(limit.toString());
+    limitOffsetClause += `LIMIT $${params.length}`;
+  }
+  if(offset) {
+    params.push(offset.toString());
+    limitOffsetClause += ` OFFSET $${params.length}`;
+  }
+
+  let query = `
+    SELECT standard_name, units, units_short, display_name
+    FROM variable_metadata
+    ${whereClause}
+    ${limitOffsetClause};
+  `;
+
+  let index = ["standard_name", "units", "units_short", "display_name"];
+
+  return {
+    query,
+    params,
+    index
+  }
+}
+
 router.get("/mesonet/db/stations", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
@@ -461,43 +615,7 @@ router.get("/mesonet/db/variables", async (req, res) => {
       row_mode = undefined;
     }
 
-    let params: string[] = [];
-
-    ////////////////////////////////////////////////////
-    /////////////////// where clause ///////////////////
-    ////////////////////////////////////////////////////
-
-    let whereClauses: string[] = [];
-    
-    if(varIDs.length > 0) {
-      parseParams(varIDs, params, whereClauses, "standard_name");
-    }
-
-    let whereClause = "";
-    if(whereClauses.length > 0) {
-      whereClause = `WHERE ${whereClauses.join(" AND ")}`;
-    } 
-
-    ///////////////////////////////////////////////////
-    /////////////// limit offset clause ///////////////
-    ///////////////////////////////////////////////////
-
-    let limitOffsetClause = "";
-    if(limit) {
-      params.push(limit);
-      limitOffsetClause += `LIMIT $${params.length}`;
-    }
-    if(offset) {
-      params.push(offset);
-      limitOffsetClause += ` OFFSET $${params.length}`;
-    }
-
-    let query = `
-      SELECT standard_name, units, units_short, display_name
-      FROM variable_metadata
-      ${whereClause}
-      ${limitOffsetClause};
-    `;
+    let { query, params } = constructVariablesQuery(varIDs, limit, offset);
 
     let data: any = [];
     try {
@@ -849,12 +967,197 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
 });
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// async function convertTZJSON(data: MesonetMeasurementValue[], location: string) {
+//   let timezone = await getLocationTimezone(location);
+//   for(let item of data) {
+//     let converted = moment(item.timestamp).tz(timezone);
+//     item.timestamp = converted.toISOString();
+//   }
+// }
+// async function convertTZArray(data: (string | number)[], index: string[], location: string) {
+//   let timezone = await getLocationTimezone(location);
+
+// }
+
+// router.get("/mesonet/db/measurements", async (req, res) => {
+//   const permission = "basic";
+//   await handleReq(req, res, permission, async (reqData) => {
+//     let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, row_mode }: any = req.query;
+
+//     let varIDs = var_ids?.split(",") || [];
+//     let stationIDs = station_ids?.split(",") || [];
+//     let flagArr = flags?.split(",") || [];
+//     let intervalArr = intervals?.split(",") || [];
+
+//     const MAX_QUERY = 1000000;
+
+//     //validate location, can use direct in query
+//     //default to hawaii
+//     if(!mesonetLocations.includes(location)) {
+//       location = "hawaii";
+//     }
+
+//     if(offset) {
+//       offset = parseInt(offset, 10);
+//       if(isNaN(offset)) {
+//         offset = undefined;
+//       }
+//     }
+//     if(typeof limit === "string") {
+//       limit = parseInt(limit, 10)
+//       if(isNaN(limit)) {
+//         limit = 10000;
+//       }
+//     }
+//     //limit must be less than max, translate 0 or negative numbers as max
+//     if(limit < 1 || limit > MAX_QUERY) {
+//       limit = MAX_QUERY;
+//     }
+
+//     if(start_date) {
+//       try {
+//         let date = new Date(start_date);
+//         start_date = date.toISOString();
+//       }
+//       catch(e) {
+//         reqData.success = false;
+//         reqData.code = 400;
+  
+//         return res.status(400)
+//         .send("Invalid start date format. Dates must be ISO 8601 compliant.");
+//       }
+//     }
+  
+//     if(end_date) {
+//       try {
+//         let date = new Date(end_date);
+//         end_date = date.toISOString();
+//       }
+//       catch(e) {
+//         reqData.success = false;
+//         reqData.code = 400;
+  
+//         return res.status(400)
+//         .send("Invalid end date format. Dates must be ISO 8601 compliant.");
+//       }
+//     }
+
+//     let data: MesonetMeasurementValue[] | { index: string[], data: (string | number)[] }
+//     switch(row_mode) {
+//       case "json": {
+//         data = handleMeasurementsJSON(stationIDs, start_date, end_date, varIDs, intervals, flags, location, limit, offset, reverse, join_metadata, local_tz);
+//         break;
+//       }
+//       case "wide_json": {
+//         data = handleMeasurementsWideJSON(stationIDs, start_date, end_date, varIDs, intervals, flags, location, limit, offset, reverse, join_metadata, local_tz);
+//         break;
+//       }
+//       case "array": {
+//         data = handleMeasurementsArray(stationIDs, start_date, end_date, varIDs, intervals, flags, location, limit, offset, reverse, join_metadata, local_tz);
+//         break;
+//       }
+//       case "wide_array": {
+//         data = handleMeasurementsWideArray(stationIDs, start_date, end_date, varIDs, intervals, flags, location, limit, offset, reverse, join_metadata, local_tz);
+//         break;
+//       }
+//       default: {
+//         data = handleMeasurementsJSON(stationIDs, start_date, end_date, varIDs, intervals, flags, location, limit, offset, reverse, join_metadata, local_tz);
+//       }
+//     }
+
+//     reqData.code = 200;
+//     return res.status(200)
+//     .json(data);
+
+
+//     let values: any[] = [];
+//     let index: string[];
+//     ({ query, params, index } = constructMeasurementsQuery(stationIDs, start_date, end_date, varIDs, intervalArr, flagArr, location, limit, offset, reverse, join_metadata));
+
+//     //check if should crosstab the query (wide mode) and if query should return results as array or JSON
+//     let wide = row_mode.startsWith("wide_");
+//     let queryStyle: "array" | undefined = row_mode.startsWith("wide_") || row_mode.endsWith("json") ? undefined : "array";
+//     let returnArray = row_mode.endsWith("array");
+
+//     try {
+//       let queryHandler = await MesonetDBManager.query(query, params, {rowMode: queryStyle});
+//       const chunkSize = 10000;
+//       let chunk: any[];
+//       do {
+//         chunk = await queryHandler.read(chunkSize);
+//         values = values.concat(chunk);
+//       }
+//       while(chunk.length > 0)
+//       queryHandler.close();
+//     }
+//     catch(e) {
+//       reqData.success = false;
+//       reqData.code = 400;
+
+//       return res.status(400)
+//       .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
+//     }
+
+//     let timezone = local_tz ? await getLocationTimezone(location) : "UTC";
+
+//     if(wide) {
+//       let wideData = convertWide(values, varMetadata, limit, offset, timezone)
+//       if(returnArray) {
+        
+//       }
+//     }
+
+//     if(data.length > 0 && local_tz) {
+//       let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
+//       let queryHandler = await MesonetDBManager.query(query, [location]);
+//       let { timezone } = (await queryHandler.read(1))[0];
+//       queryHandler.close();
+//       if(row_mode === "array") {
+//         let tsIndex = index.indexOf("timestamp");
+//         for(let row of data) {
+//           let converted = moment(row[tsIndex]).tz(timezone);
+//           row[tsIndex] = converted.format();
+//         }
+//       }
+//       else {
+//         for(let row of data) {
+//           let converted = moment(row.timestamp).tz(timezone);
+//           row.timestamp = converted.format();
+//         }
+//       }
+//     }
+//     //if array form wrap with index
+//     if(row_mode === "array" || row_mode == "wide_array") {
+//       data = {
+//         index,
+//         data
+//       };
+//     }
+
+    
+//   });
+// });
+
 router.post("/mesonet/db/measurements/email", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
-    let { query, email, outputName } = req.body
+    let { data, email, outputName } = req.body
 
-    if(!(query && email)) {
+    if(!(data && email)) {
       reqData.success = false;
       reqData.code = 400;
 
@@ -868,7 +1171,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
       );
     }
 
-    let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, local_tz, join_metadata }: any = query;
+    let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit, offset, reverse, local_tz }: any = data;
 
     let varIDs = var_ids || [];
     let stationIDs = station_ids || [];
@@ -876,52 +1179,76 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
     let intervalArr = intervals || [];
 
     if(!mesonetLocations.includes(location)) {
-      location = "hawaii";
+    	location = "hawaii";
     }
 
-    if(offset) {
-      offset = parseInt(offset, 10);
-      if(isNaN(offset)) {
-        offset = undefined;
-      }
+    if(typeof offset === "string") {
+      offset = parseInt(limit, 10)
     }
+    //translate negative numbers or undefined/invalid values as no offset
+    if(offset === undefined || isNaN(offset) || offset < 0) {
+      offset = 0;
+    }
+
     if(typeof limit === "string") {
       limit = parseInt(limit, 10)
-      if(isNaN(limit)) {
-        limit = Infinity;
-      }
     }
-    //translate 0 or negative numbers as uncapped (queries batched)
-    if(limit < 1) {
+    //translate 0, negative numbers, or undefined/invalid values as uncapped (queries batched)
+    if(limit === undefined || isNaN(limit) || limit < 1) {
       limit = Infinity;
     }
 
     if(start_date) {
       try {
-        let date = new Date(start_date);
-        start_date = date.toISOString();
-      }
-      catch(e) {
-        reqData.success = false;
-        reqData.code = 400;
-  
-        return res.status(400)
-        .send("Invalid start date format. Dates must be ISO 8601 compliant.");
+          let date = new Date(start_date);
+          start_date = date.toISOString();
+        }
+        catch(e) {
+          reqData.success = false;
+          reqData.code = 400;
+    
+          //send error
+          return res.status(400)
+          .send(
+            `Invalid start date provided.`
+          );
       }
     }
-  
+    else {
+      start_date = await getStartDate(location, stationIDs);
+    }
+
     if(end_date) {
       try {
-        let date = new Date(end_date);
-        end_date = date.toISOString();
+          let date = new Date(end_date);
+          end_date = date.toISOString();
       }
       catch(e) {
         reqData.success = false;
         reqData.code = 400;
   
+        //send error
         return res.status(400)
-        .send("Invalid end date format. Dates must be ISO 8601 compliant.");
+        .send(
+          `Invalid end date provided.`
+        );
       }
+    }
+
+    let { query, params } = constructVariablesQuery(varIDs);
+    let queryHandler = await MesonetDBManager.query(query, params);
+    let varMetadata: VariableMetadata[] = await queryHandler.read(10000);
+    queryHandler.close();
+
+    if(varMetadata.length < 1) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      //send error
+      return res.status(400)
+      .send(
+        `None of the provided variables exist.`
+      );
     }
 
     //response should be sent immediately after basic parameter verification
@@ -929,119 +1256,411 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
     reqData.code = 202;
     res.status(202)
     .send("Request received. Your query will be processed and emailed to you if successful.");
+    try {
+      let timezone = local_tz ? await getLocationTimezone(location) : "UTC";
 
-    let uuid = crypto.randomUUID();
-    let fname = outputName ? outputName : "data.csv";
-    let outdir = path.join(downloadRoot, uuid);
-    //write paths to a file and use that, avoid potential issues from long cmd line params
-    fs.mkdirSync(outdir);
-    let outfile = path.join(outdir, fname);
-    const outstream = fs.createWriteStream(outfile);
-
-    // let query = `
-    //   SELECT station_id, name
-    //   FROM station_metadata;
-    // `;
-
-    const stringifier = stringify({ header: true, columns: {} });
-    stringifier.pipe(outstream);
-    const chunkSize = 10000;
-    let finalElement: any = null;
-    for(; limit > 0; limit -= chunkSize, offset += chunkSize) {
-      let chunk: any[] = [];
-      let subLimit = Math.min(limit, chunkSize);
-
-      let { query, params } = await constructMeasurementsQuery(true, stationIDs, start_date, end_date, varIDs, intervalArr, flagArr, location, subLimit, offset, reverse, join_metadata);
-      console.log(query, params);
-      if(query) {
-        try {
-          let queryHandler = await MesonetDBManager.query(query, params);
-
-          chunk = await queryHandler.read(chunkSize);
-          console.log(chunk);
-          queryHandler.close();
-        }
-        catch(e) {
-          reqData.success = false;
-          let errorMessage = "An error occured while performing your mesonet query. Please validate the parameters you provided and contact the administrators at hcdp@hawaii.edu with any questions."
-          //set failure in status
-          reqData.success = false;
-          let mailOptions = {
-            to: email,
-            subject: "Mesonet Query Error",
-            text: errorMessage,
-            html: "<p>" + errorMessage + "</p>"
-          };
-          let mailRes = await sendEmail( mailOptions);
-          if(!mailRes.success) {
-            throw new Error("Failed to send message to user " + email + ". Error: " + mailRes.error.toString());
+      let uuid = crypto.randomUUID();
+      let fname = outputName ? outputName : "data.csv";
+      let outdir = path.join(downloadRoot, uuid);
+      //write paths to a file and use that, avoid potential issues from long cmd line params
+      fs.mkdirSync(outdir);
+      let outfile = path.join(outdir, fname);
+      const outstream = fs.createWriteStream(outfile);
+      const stringifier = stringify();
+      stringifier.pipe(outstream);
+  
+      let e: any;
+      try {
+        let maxLimit = limit * varIDs.length + offset * varIDs.length;
+  
+        let chunkSize: [DurationInputArg1, DurationInputArg2] = [1, "hour"];
+        let slowStart = true;
+        let backoffBaseMS = 1000;
+        let minFailures = 0;
+    
+        let queryChunker = new QueryChunkGenerator(start_date, end_date, reverse);
+        let chunk = queryChunker.next(chunkSize);
+        let writeState: WriteStateConfig = { limit, offset, totalRecordsRead: 0, lastRecordsRead: 0, totalRowsWritten: 0, lastRowsWritten: 0, writeHeader: true, finished: false };
+        while(chunk && !writeState.finished) {
+          let timeout = false;
+          try {
+            let [ startDate, endDate ] = chunk;
+            ({ query, params } = constructMeasurementsQueryEmail(stationIDs, startDate, endDate, varIDs, intervalArr, flagArr, location, maxLimit, 0, reverse, false));
+            queryHandler = await MesonetDBManager.query(query, params);
+            const readChunkSize = 10000;
+            let readChunk: MesonetMeasurementValue[];
+            do {
+              readChunk = await queryHandler.read(readChunkSize);
+              writeState = write2Stringifier(stringifier, readChunk, varMetadata, timezone, writeState);
+              maxLimit -= writeState.lastRecordsRead;
+            }
+            while(readChunk.length > 0 && !writeState.finished)
+            queryHandler.close();
+            chunk = queryChunker.next(chunkSize);
           }
-          return;
-        }
-      }
-
-      //no more rows, break
-      if(chunk.length === 0) {
-        //write the final element of the previous chunk to the file if it exists
-        if(finalElement) {
-          stringifier.write([finalElement]);
-        }
-        break;
-      }
-
-      //if local_tz convert all of the timestamps to the local time timezone
-      if(local_tz) {
-        //retreive local timezone
-        let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
-        let queryHandler = await MesonetDBManager.query(query, [location]);
-        let { timezone } = (await queryHandler.read(1))[0];
-        queryHandler.close();
-        for(let row of chunk) {
-          let converted = moment(row.timestamp).tz(timezone);
-          row.timestamp = converted.format();
-        }
-      }
-
-      //if there's a final element pulled from the previous chunk, check if should combine with first element
-      if(finalElement) {
-        //check if timestamps and station ids match
-        if(chunk[0].timestamp == finalElement.timestamp && chunk[0].station_id == finalElement.station_id) {
-          //combine final element from previous chunk with first element from this chunk
-          chunk[0] = {
-            ...finalElement,
-            ...chunk[0]
+          catch(e: any) {
+            //non-timeout error, rethrow error to be caught by outer handler
+            if(e.code != "57014") {
+              throw e;
+            }
+            //reset chunk
+            queryChunker.previous(chunkSize);
+            timeout = true;
+          }
+    
+          if(timeout && chunkSize[0] == 1) {
+            if(minFailures >= 10) {
+              throw new Error("Minimum data timed out 10 times. Cannot retreive the minimum data threshold");
+            }
+            slowStart = false;
+            await new Promise(resolve => setTimeout(resolve, backoffBaseMS * Math.pow(2, minFailures)));
+            minFailures++;
+          }
+          else if(timeout) {
+            slowStart = false;
+            chunkSize[0] = Math.max(Math.floor((<number>chunkSize[0]) / 2), 1);
+          }
+          else if(slowStart) {
+            minFailures = 0;
+            chunkSize[0] = (<number>chunkSize[0]) * 2;
+          }
+          else {
+            minFailures = 0;
+            (<number>chunkSize[0])++;
           }
         }
-        else {
-          //the final element from the previous chunk was a standalone element, just add to the start of the current chunk to be written to file
-          chunk.unshift(finalElement);
-        }
       }
-      //the final element of the chunk may include partial data for that timestamp since the elements are pivoted, remove and combine with next chunk
-      finalElement = chunk.pop();
-      //write each row in the chunk to the stringifier piped to the output file
-      for(let row of chunk) {
-        stringifier.write(row);
+      catch(err) {
+        e = err;
+      }
+      stringifier.end();
+      outstream.end();
+
+      if(e !== undefined) { throw e; }
+  
+      let ep = `${apiURL}/download/package`;
+      let downloadUrlParams = `packageID=${uuid}&file=${fname}`;
+      //create download link and send in message body
+      let downloadLink = `${ep}?${downloadUrlParams}`;
+      let mailOptions = {
+        to: email,
+        text: "Your Mesonet data is ready. Please go to " + downloadLink + " to download it. This link will expire in three days, please download your data in that time.",
+        html: "<p>Your Mesonet data is ready. Please click <a href=\"" + downloadLink + "\">here</a> to download it. This link will expire in three days, please download your data in that time.</p>"
+      };
+      let mailRes = await sendEmail(mailOptions);
+  
+      if(!mailRes.success) {
+        reqData.success = false;
+        throw new Error("Failed to send message to user " + email + ". Error: " + mailRes.error.toString());
       }
     }
-    //close the stringifier and output stream
-    stringifier.end();
-    outstream.end();
-
-    let ep = `${apiURL}/download/package`;
-    let params = `packageID=${uuid}&file=${fname}`;
-    //create download link and send in message body
-    let downloadLink = `${ep}?${params}`;
-    let mailOptions = {
-      to: email,
-      text: "Your Mesonet data is ready. Please go to " + downloadLink + " to download it. This link will expire in three days, please download your data in that time.",
-      html: "<p>Your Mesonet data is ready. Please click <a href=\"" + downloadLink + "\">here</a> to download it. This link will expire in three days, please download your data in that time.</p>"
-    };
-    let mailRes = await sendEmail(mailOptions);
-
-    if(!mailRes.success) {
+    catch(e) {
+      //set failure in status
       reqData.success = false;
-      throw new Error("Failed to send message to user " + email + ". Error: " + mailRes.error.toString());
-    }
+      //attempt to send an error email to the user, ignore any errors
+      try {
+        let message = "An error occurred while generating your Mesonet data. We appologize for the inconvenience. The site administrators will be notified of the issue. Please try again later or email us at hcdp@hawaii.edu for assistance.";
+        let mailOptions = {
+          to: email,
+          subject: "Mesonet Data Error",
+          text: message,
+          html: "<p>" + message + "</p>"
+        };
+        //try to send the error email, last try to actually notify user
+        await sendEmail(mailOptions);
+      }
+      catch(err) {}
+      //rethrow to be handled by main error handler
+      throw e;
+    } 
   });
 });
+
+
+
+
+async function getLocationTimezone(location: string) {
+  let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
+  let queryHandler = await MesonetDBManager.query(query, [location]);
+  let { timezone } = (await queryHandler.read(1))[0];
+  queryHandler.close();
+  return timezone;
+}
+
+
+async function getStartDate(location: string, stationIDs: string[]) {
+  let measurementsTable = `${location}_measurements`;
+  let mainWhereClauses: string[] = [];
+  let params: string[] = [];
+  if(stationIDs.length > 0) {
+    parseParams(stationIDs, params, mainWhereClauses, `${measurementsTable}.station_id`);
+  }
+  let mainWhereClause = "";
+  if(mainWhereClauses.length > 0) {
+    mainWhereClause = `WHERE ${mainWhereClauses.join(" AND ")}`;
+  }
+  
+  let query = `
+    SELECT timestamp
+    FROM ${measurementsTable}
+    ORDER BY timestamp
+    ${mainWhereClause}
+    LIMIT 1;
+  `;
+  let queryHandler = await MesonetDBManager.query(query, params);
+  let { timestamp } = await queryHandler.read(1)[0];
+  queryHandler.close();
+  return timestamp;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+// function convertWide(values: MesonetMeasurementValue[], varMetadata: VariableMetadata[], limit: number, offset: number, timezone: string): {[tag: string]: any}[] {
+//   let pivotedData: {[tag: string]: any}[] = [];
+//   let baseRow = {
+//     timestamp: null,
+//     station_id: null
+//   };
+//   for(let item of varMetadata) {
+//     baseRow[item.standard_name] = null;
+//   }
+
+// 	let pivotedRow: {[tag: string]: any} | undefined;
+// 	let currentTS = pivotedRow ? pivotedRow[0] : "";
+// 	let currentSID = pivotedRow ? pivotedRow[1] : "";
+// 	for(let row of values) {
+
+// 		let {timestamp, station_id, variable, value} = row;
+//     let converted = moment(timestamp).tz(timezone);
+//     timestamp = converted.format();
+    
+// 		if(timestamp != currentTS || station_id != currentSID) {
+// 			if(pivotedRow) {
+//         if(offset > 0) {
+//           offset--;
+//         }
+//         else {
+//           pivotedData.push(pivotedRow);
+//           if(--limit < 1) {
+//             break;
+//           }
+//         }
+// 			}
+// 			pivotedRow = {
+//         ...baseRow
+//       };
+// 			pivotedRow[0] = timestamp;
+// 			pivotedRow[1] = station_id;
+// 		}
+//     pivotedRow![variable] = value;
+// 		currentTS = timestamp;
+// 		currentSID = station_id;
+// 	}
+
+// 	return pivotedData;
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+function write2Stringifier(stringifier: Stringifier, values: MesonetMeasurementValue[], varMetadata: VariableMetadata[], timezone: string, state: WriteStateConfig): WriteStateConfig {
+	let { limit, offset, writeHeader, partialRow, index, header, totalRecordsRead, totalRowsWritten } = state;
+  let lastRecordsRead = 0;
+  let lastRowsWritten = 0;
+  let finished = false;
+
+	if(!header || !index) {
+		index = {};
+		header = ["Timestamp", "Station ID"];
+		for(let item of varMetadata) {
+			let {display_name, units_short, standard_name} = item;
+			let headerVar = display_name;
+			if(units_short) {
+				headerVar += ` (${units_short})`;
+			}
+			index[standard_name] = header.length;
+			header.push(headerVar);
+		}
+	}
+	if(writeHeader) {
+		stringifier.write(header);
+	}
+
+	let pivotedRow: string[] | undefined = partialRow;
+	let currentTS = pivotedRow ? pivotedRow[0] : "";
+	let currentSID = pivotedRow ? pivotedRow[1] : "";
+	for(let row of values) {
+    totalRecordsRead += 1;
+    lastRecordsRead += 1;
+
+		let {timestamp, station_id, variable, value} = row;
+    let converted = moment(timestamp).tz(timezone);
+    timestamp = converted.format();
+    
+		if(timestamp != currentTS || station_id != currentSID) {
+			if(pivotedRow) {
+        if(offset > 0) {
+          offset--;
+        }
+        else {
+          stringifier.write(pivotedRow);
+          totalRowsWritten += 1;
+          lastRowsWritten += 1;
+          if(--limit < 1) {
+            finished = true;
+            break;
+          }
+        }
+			}
+			pivotedRow = new Array(header!.length).fill(null);
+			pivotedRow[0] = timestamp;
+			pivotedRow[1] = station_id;
+		}
+		let valueIndex = index![variable];
+		pivotedRow![valueIndex] = value;
+		currentTS = timestamp;
+		currentSID = station_id;
+	}
+
+	return {
+    limit,
+    offset,
+    totalRecordsRead,
+    lastRecordsRead,
+    totalRowsWritten,
+    lastRowsWritten,
+    finished,
+		writeHeader: false,
+		partialRow: pivotedRow,
+		header,
+		index
+	};
+}
+
+
+class QueryChunkGenerator {
+  private date: Moment;
+  private startDate: Moment | null;
+  private endDate: Moment | null;
+  private __reverse: boolean;
+
+  //if no start date provided need to query stations for earliest record
+  constructor(startDate: string, endDate?: string, reverse: boolean = false) {
+    this.startDate = moment(startDate);
+    this.endDate = endDate ? moment(endDate) : moment();
+    this.date = reverse? this.startDate.clone() : this.endDate.clone();
+    this.__reverse = reverse;
+  }
+
+  next(chunkSize: [DurationInputArg1, DurationInputArg2]): [string, string] | null {
+    if(this.__reverse) {
+      return this.forward(chunkSize);
+    }
+    return this.backward(chunkSize);
+  }
+
+  previous(chunkSize: [DurationInputArg1, DurationInputArg2]): [string, string] | null {
+    if(this.__reverse) {
+      return this.backward(chunkSize);
+    }
+    return this.forward(chunkSize);
+  }
+
+  private forward(chunkSize: [DurationInputArg1, DurationInputArg2]): [string, string] | null {
+    if(this.endDate && this.date.isSame(this.endDate)) {
+      return null;
+    }
+    let startDate = this.date.toISOString();
+    this.date.add(...chunkSize);
+    if(this.endDate && this.date.isAfter(this.endDate)) {
+      this.date = this.endDate.clone();
+    }
+    let endDate = this.date.toISOString();
+    return [startDate, endDate];
+  }
+
+  private backward(chunkSize: [DurationInputArg1, DurationInputArg2]): [string, string] | null {
+    if(this.startDate && this.date.isSame(this.startDate)) {
+      return null;
+    }
+    let endDate = this.date.toISOString();
+    this.date.subtract(...chunkSize);
+    if(this.startDate && this.date.isBefore(this.startDate)) {
+      this.date = this.startDate.clone();
+    }
+    let startDate = this.date.toISOString();
+    return [startDate, endDate];
+  }
+
+  get reverse() {
+    return this.__reverse;
+  }
+}
+
+
+interface WriteStateConfig {
+  limit: number,
+  offset: number,
+	writeHeader: boolean,
+  totalRecordsRead: number,
+  lastRecordsRead: number,
+  totalRowsWritten: number,
+  lastRowsWritten: number,
+  finished: boolean,
+	partialRow?: string[],
+	header?: string[],
+	index?: {[variable: string]: number}
+}
+
+interface VariableMetadata {
+	display_name: string,
+	units_short: string,
+	standard_name: string
+}
+
+interface StationMetadata {
+	station_id: string,
+	name: string,
+  full_name: string,
+	lat: number,
+	lng: number,
+	elevation: number,
+  status: string,
+  location: string,
+  timezone: string
+}
+
+interface MesonetMeasurementValue {
+	timestamp: string,
+  station_id: string,
+  variable: string,
+  value: string,
+	flag: number,
+	units?: string,
+	units_short?: string,
+	variable_display_name?: string
+	interval_seconds?: string,
+	station_name?: string,
+	lat?: number,
+	lng?: number,
+	elevation?: number
+}
