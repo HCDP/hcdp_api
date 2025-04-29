@@ -1419,8 +1419,10 @@ async function getStartDate(location: string, stationIDs: string[]): Promise<str
     ${mainWhereClause}
     LIMIT 1;
   `;
+  console.log(query, params);
   let queryHandler = await MesonetDBManager.query(query, params);
   let data = await queryHandler.read(1);
+  console.log(data);
   let timestamp = null;
   if(data.length > 0) {
     timestamp = data[0].timestamp;
