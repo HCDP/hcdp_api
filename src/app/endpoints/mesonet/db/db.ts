@@ -1642,7 +1642,7 @@ class QueryWindow {
   }
 
   get windowUnit() {
-    return this.windowSize[1];
+    return this._windowSize[1];
   }
 
   get windowSize() {
@@ -1650,7 +1650,7 @@ class QueryWindow {
   }
 
   set windowSize(size: number) {
-    this.windowSize[0] = Math.max(size, 1);
+    this._windowSize[0] = Math.max(size, 1);
   }
 
   get window(): [string, string] | null {
