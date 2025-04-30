@@ -1297,6 +1297,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
           try {
             let [ startDate, endDate ] = chunk;
             ({ query, params } = constructMeasurementsQueryEmail(stationIDs, startDate, endDate, varIDs, intervalArr, flagArr, location, maxLimit, 0, reverse, false));
+            console.log("query");
             console.log(query, params);
             queryHandler = await MesonetDBManager.query(query, params);
             const readChunkSize = 10000;
@@ -1519,6 +1520,7 @@ class MesonetCSVWriter {
     let lastRecordsRead = 0;
     let lastRowsWritten = 0;
 
+    console.log("values!");
     console.log(values);
   
     if(!this.state.header || !this.state.index) {
@@ -1612,6 +1614,7 @@ class MesonetCSVWriter {
   }
 
   private flush() {
+    console.log("flush!");
     console.log(this.state.partialRow);
     if(this.state.partialRow) {
       if(this.state.offset > 0) {
