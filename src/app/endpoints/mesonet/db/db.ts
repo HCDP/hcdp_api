@@ -1277,23 +1277,22 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
       //write paths to a file and use that, avoid potential issues from long cmd line params
       fs.mkdirSync(outdir);
       let outfile = path.join(outdir, fname);
-      const outstream = fs.createWriteStream(outfile);
-      const stringifier = stringify();
-      stringifier.pipe(outstream);
+
+      let writeManager = new MesonetCSVWriter(outfile, varMetadata, timezone, limit, offset);
   
       let e: any;
       try {
         let maxLimit = limit * varIDs.length + offset * varIDs.length;
   
-        let chunkSize: [DurationInputArg1, DurationInputArg2] = [1, "hour"];
+        // let chunkSize: [DurationInputArg1, DurationInputArg2] = [1, "hour"];
         let slowStart = true;
         let backoffBaseMS = 1000;
         let minFailures = 0;
     
-        let queryChunker = new QueryChunkGenerator(start_date, end_date, reverse);
-        let chunk = queryChunker.next(chunkSize);
-        let writeState: WriteStateConfig = { limit, offset, totalRecordsRead: 0, lastRecordsRead: 0, totalRowsWritten: 0, lastRowsWritten: 0, writeHeader: true, finished: false };
-        while(chunk && !writeState.finished) {
+        let queryChunker = new QueryWindow(1, start_date, end_date, reverse);
+        let chunk = queryChunker.window;
+
+        while(chunk && maxLimit > 0 && !writeManager.finished) {
           let timeout = false;
           try {
             let [ startDate, endDate ] = chunk;
@@ -1304,24 +1303,21 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
             let readChunk: MesonetMeasurementValue[];
             do {
               readChunk = await queryHandler.read(readChunkSize);
-              writeState = write2Stringifier(stringifier, readChunk, varMetadata, timezone, writeState);
-              maxLimit -= writeState.lastRecordsRead;
+              writeManager.write(readChunk);
+              maxLimit -= writeManager.lastRecordsRead;
             }
-            while(readChunk.length > 0 && !writeState.finished)
+            while(chunk && maxLimit > 0 && !writeManager.finished)
             queryHandler.close();
-            chunk = queryChunker.next(chunkSize);
           }
           catch(e: any) {
             //non-timeout error, rethrow error to be caught by outer handler
             if(e.code != "57014") {
               throw e;
             }
-            //reset chunk
-            queryChunker.previous(chunkSize);
             timeout = true;
           }
     
-          if(timeout && chunkSize[0] == 1) {
+          if(timeout && queryChunker.windowSize == 1) {
             if(minFailures >= 10) {
               throw new Error("Minimum data timed out 10 times. Cannot retreive the minimum data threshold");
             }
@@ -1331,23 +1327,25 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
           }
           else if(timeout) {
             slowStart = false;
-            chunkSize[0] = Math.max(Math.floor((<number>chunkSize[0]) / 2), 1);
+            queryChunker.windowSize = Math.floor(queryChunker.windowSize / 2);
           }
           else if(slowStart) {
             minFailures = 0;
-            chunkSize[0] = (<number>chunkSize[0]) * 2;
+            queryChunker.windowSize *= 2;
+            queryChunker.advanceWindow();
           }
           else {
             minFailures = 0;
-            (<number>chunkSize[0])++;
+            queryChunker.windowSize++;
+            queryChunker.advanceWindow();
           }
+          chunk = queryChunker.window;
         }
       }
       catch(err) {
         e = err;
       }
-      stringifier.end();
-      outstream.end();
+      writeManager.end();
 
       if(e !== undefined) { throw e; }
   
@@ -1497,141 +1495,223 @@ async function getStartDate(location: string, stationIDs: string[]): Promise<str
 
 
 
+class MesonetCSVWriter {
+  private state: WriteStateConfig;
+  private stringifier: Stringifier;
+  private outstream: fs.WriteStream;
+  private varMetadata: VariableMetadata[];
+  private timezone: string;
 
+  constructor(outfile: string, varMetadata: VariableMetadata[], timezone: string, limit: number, offset: number) {
+    this.outstream = fs.createWriteStream(outfile);
+    this.stringifier = stringify();
+    this.stringifier.pipe(this.outstream);
+    this.varMetadata = varMetadata;
+    this.timezone = timezone;
+    this.state = { limit, offset, totalRecordsRead: 0, lastRecordsRead: 0, totalRowsWritten: 0, lastRowsWritten: 0, writeHeader: true, finished: false };
+  }
 
-
-
-function write2Stringifier(stringifier: Stringifier, values: MesonetMeasurementValue[], varMetadata: VariableMetadata[], timezone: string, state: WriteStateConfig): WriteStateConfig {
-	let { limit, offset, writeHeader, partialRow, index, header, totalRecordsRead, totalRowsWritten } = state;
-  let lastRecordsRead = 0;
-  let lastRowsWritten = 0;
-  let finished = false;
-
-	if(!header || !index) {
-		index = {};
-		header = ["Timestamp", "Station ID"];
-		for(let item of varMetadata) {
-			let {display_name, units_short, standard_name} = item;
-			let headerVar = display_name;
-			if(units_short) {
-				headerVar += ` (${units_short})`;
-			}
-			index[standard_name] = header.length;
-			header.push(headerVar);
-		}
-	}
-	if(writeHeader) {
-		stringifier.write(header);
-	}
-
-	let pivotedRow: string[] | undefined = partialRow;
-	let currentTS = pivotedRow ? pivotedRow[0] : "";
-	let currentSID = pivotedRow ? pivotedRow[1] : "";
-	for(let row of values) {
-    totalRecordsRead += 1;
-    lastRecordsRead += 1;
-
-		let {timestamp, station_id, variable, value} = row;
-    let converted = moment(timestamp).tz(timezone);
-    timestamp = converted.format();
-    
-		if(timestamp != currentTS || station_id != currentSID) {
-			if(pivotedRow) {
-        if(offset > 0) {
-          offset--;
+  write(values: MesonetMeasurementValue[]): void {
+    if(this.state.finished) {
+      throw new Error("Attempting to write to stream after finished");
+    }
+    // let { limit, offset, writeHeader, partialRow, index, header, totalRecordsRead, totalRowsWritten } = state;
+    let lastRecordsRead = 0;
+    let lastRowsWritten = 0;
+  
+    if(!this.state.header || !this.state.index) {
+      this.state.index = {};
+      this.state.header = ["Timestamp", "Station ID"];
+      for(let item of this.varMetadata) {
+        let {display_name, units_short, standard_name} = item;
+        let headerVar = display_name;
+        if(units_short) {
+          headerVar += ` (${units_short})`;
         }
-        else {
-          stringifier.write(pivotedRow);
-          totalRowsWritten += 1;
-          lastRowsWritten += 1;
-          if(--limit < 1) {
-            finished = true;
-            break;
+        this.state.index[standard_name] = this.state.header.length;
+        this.state.header.push(headerVar);
+      }
+    }
+    if(this.state.writeHeader) {
+      this.stringifier.write(this.state.header);
+    }
+  
+    let pivotedRow: string[] = this.state.partialRow;
+    let currentTS = pivotedRow ? pivotedRow[0] : "";
+    let currentSID = pivotedRow ? pivotedRow[1] : "";
+    for(let row of values) {
+      this.state.totalRecordsRead += 1;
+      lastRecordsRead += 1;
+  
+      let {timestamp, station_id, variable, value} = row;
+      let converted = moment(timestamp).tz(this.timezone);
+      timestamp = converted.format();
+      
+      if(timestamp != currentTS || station_id != currentSID) {
+        if(pivotedRow) {
+          if(this.state.offset > 0) {
+            this.state.offset--;
+          }
+          else {
+            if(--this.state.limit < 1) {
+              //end will flush the row to the stream so no need to write again
+              this.end();
+              lastRowsWritten += 1;
+              break;
+            }
+            else {
+              this.stringifier.write(pivotedRow);
+              this.state.totalRowsWritten += 1;
+              lastRowsWritten += 1;
+            }
           }
         }
-			}
-			pivotedRow = new Array(header!.length).fill(null);
-			pivotedRow[0] = timestamp;
-			pivotedRow[1] = station_id;
-		}
-		let valueIndex = index![variable];
-		pivotedRow![valueIndex] = value;
-		currentTS = timestamp;
-		currentSID = station_id;
-	}
+        pivotedRow = new Array(this.state.header!.length).fill(null);
+        pivotedRow[0] = timestamp;
+        pivotedRow[1] = station_id;
+      }
+      let valueIndex = this.state.index![variable];
+      pivotedRow![valueIndex] = value;
+      currentTS = timestamp;
+      currentSID = station_id;
+    }
+    
+    this.state.lastRecordsRead = lastRecordsRead;
+    this.state.lastRowsWritten = lastRowsWritten;
+  }
 
-	return {
-    limit,
-    offset,
-    totalRecordsRead,
-    lastRecordsRead,
-    totalRowsWritten,
-    lastRowsWritten,
-    finished,
-		writeHeader: false,
-		partialRow: pivotedRow,
-		header,
-		index
-	};
+  get totalRecordsRead() {
+    return this.state.totalRecordsRead;
+  }
+
+  get lastRecordsRead(){
+    return this.state.lastRecordsRead;
+  }
+  
+  get totalRowsWritten(){
+    return this.state.totalRowsWritten;
+  }
+  
+  get lastRowsWritten(){
+    return this.state.lastRowsWritten;
+  }
+  
+  get finished(){
+    return this.state.finished;
+  }
+  
+  end() {
+    if(!this.state.finished) {
+      this.state.finished = true;
+      this.flush();
+      this.stringifier.end();
+      this.outstream.end();
+    }
+  }
+
+  private flush() {
+    if(this.state.partialRow) {
+      if(this.state.offset > 0) {
+        this.state.offset--;
+      }
+      else {
+        this.stringifier.write(this.state.partialRow);
+        this.state.totalRowsWritten += 1;
+        this.state.limit--;
+      }
+    }
+  }
 }
 
 
-class QueryChunkGenerator {
+class QueryWindow {
+  private static WINDOW_UNIT: DurationInputArg2 = "hour";
   private date: Moment;
-  private startDate: Moment | null;
-  private endDate: Moment | null;
-  private __reverse: boolean;
+  private startDate: Moment;
+  private endDate: Moment;
+  private _reverse: boolean;
+  private _windowSize: [DurationInputArg1, DurationInputArg2];
 
   //if no start date provided need to query stations for earliest record
-  constructor(startDate: string, endDate?: string, reverse: boolean = false) {
+  constructor(windowSize: number, startDate: string, endDate?: string, reverse: boolean = false) {
+    this._windowSize = [windowSize, QueryWindow.WINDOW_UNIT]
     this.startDate = moment(startDate);
     this.endDate = endDate ? moment(endDate) : moment();
     this.date = reverse? this.startDate.clone() : this.endDate.clone();
-    this.__reverse = reverse;
+    this._reverse = reverse;
   }
 
-  next(chunkSize: [DurationInputArg1, DurationInputArg2]): [string, string] | null {
-    if(this.__reverse) {
-      return this.forward(chunkSize);
+  get windowUnit() {
+    return this.windowSize[1];
+  }
+
+  get windowSize() {
+    return <number>this._windowSize[0];
+  }
+
+  set windowSize(size: number) {
+    this.windowSize[0] = Math.max(size, 1);
+  }
+
+  get window(): [string, string] | null {
+    if(this._reverse) {
+      return this.forwardWindow;
     }
-    return this.backward(chunkSize);
+    return this.backwardWindow;
   }
 
-  previous(chunkSize: [DurationInputArg1, DurationInputArg2]): [string, string] | null {
-    if(this.__reverse) {
-      return this.backward(chunkSize);
+  advanceWindow() {
+    if(this._reverse) {
+      this.moveWindowForward();
     }
-    return this.forward(chunkSize);
+    this.moveWindowBackward();
   }
 
-  private forward(chunkSize: [DurationInputArg1, DurationInputArg2]): [string, string] | null {
-    if(this.endDate && this.date.isSame(this.endDate)) {
+  private get forwardWindow(): [string, string] | null {
+    if(this.date.isSameOrAfter(this.endDate)) {
       return null;
     }
-    let startDate = this.date.toISOString();
-    this.date.add(...chunkSize);
-    if(this.endDate && this.date.isAfter(this.endDate)) {
+    let date = this.date.clone();
+    let startDate = date.toISOString();
+    date.add(...this._windowSize);
+    if(date.isAfter(this.endDate)) {
+      date = this.endDate.clone();
+    }
+    let endDate = date.toISOString();
+    return [startDate, endDate];
+  }
+
+  private get backwardWindow(): [string, string] | null {
+    if(this.date.isSameOrBefore(this.startDate)) {
+      return null;
+    }
+    let date = this.date.clone();
+    let endDate = date.toISOString();
+    date.subtract(...this._windowSize);
+    if(date.isBefore(this.startDate)) {
+      date = this.startDate.clone();
+    }
+    let startDate = date.toISOString();
+    return [startDate, endDate];
+  }
+
+
+  private moveWindowForward() {
+    this.date.add(...this._windowSize);
+    if(this.date.isAfter(this.endDate)) {
       this.date = this.endDate.clone();
     }
-    let endDate = this.date.toISOString();
-    return [startDate, endDate];
   }
 
-  private backward(chunkSize: [DurationInputArg1, DurationInputArg2]): [string, string] | null {
-    if(this.startDate && this.date.isSame(this.startDate)) {
-      return null;
-    }
-    let endDate = this.date.toISOString();
-    this.date.subtract(...chunkSize);
-    if(this.startDate && this.date.isBefore(this.startDate)) {
+  private moveWindowBackward() {
+    this.date.subtract(...this._windowSize);
+    if(this.date.isBefore(this.startDate)) {
       this.date = this.startDate.clone();
     }
-    let startDate = this.date.toISOString();
-    return [startDate, endDate];
   }
 
   get reverse() {
-    return this.__reverse;
+    return this._reverse;
   }
 }
 
