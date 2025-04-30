@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 //property hierarchy (followed by file and date parts)
-const hierarchy = ["datatype", "production", "aggregation", "period", "extent", "fill"];
+const hierarchy = ["datatype", "production", "aggregation", "period", "lead", "extent", "fill"];
 const periodOrder: moment.unitOfTime.StartOf[] = ["year", "month", "day", "hour", "minute", "second"];
 const periodFormats = ["YYYY", "MM", "DD", "HH", "mm", "ss"];
 
@@ -33,7 +33,14 @@ function getDatasetPath(dataset: any): string{
     return datasetPath;
 }
 
+function fillDefaults(dataset: any) {
+    if(dataset.datatype == "ignition_probability" && dataset.lead === undefined) {
+        dataset.lead = "lead00";
+    }
+}
+
 export async function getDatasetDateRange(dataset: any): Promise<[string, string] | null> {
+    fillDefaults(dataset);
     let datasetPath = getDatasetPath(dataset);
     datasetPath = path.join(datasetPath, "statewide/data_map");
     const descend = (root: string, direction: number): string | null => {
@@ -211,6 +218,7 @@ export async function getPaths(data: any, collapse: boolean = true) {
             data = convert(data);
         }
         for(let item of data) {
+            fillDefaults(item);
             //use simplified version for getting ds data
             if(item.datatype == "downscaling_temperature" || item.datatype == "downscaling_rainfall") {
                 let files = await getDSFiles(item);
