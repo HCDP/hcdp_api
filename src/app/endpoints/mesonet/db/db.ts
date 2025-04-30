@@ -1298,6 +1298,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
           try {
             let [ startDate, endDate ] = chunk;
             ({ query, params } = constructMeasurementsQueryEmail(stationIDs, startDate, endDate, varIDs, intervalArr, flagArr, location, maxLimit, 0, reverse, false));
+            console.log(query, params);
             queryHandler = await MesonetDBManager.query(query, params);
             const readChunkSize = 10000;
             let readChunk: MesonetMeasurementValue[];
