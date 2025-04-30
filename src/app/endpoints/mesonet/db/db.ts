@@ -1518,6 +1518,8 @@ class MesonetCSVWriter {
     // let { limit, offset, writeHeader, partialRow, index, header, totalRecordsRead, totalRowsWritten } = state;
     let lastRecordsRead = 0;
     let lastRowsWritten = 0;
+
+    console.log(values);
   
     if(!this.state.header || !this.state.index) {
       this.state.index = {};
@@ -1610,6 +1612,7 @@ class MesonetCSVWriter {
   }
 
   private flush() {
+    console.log(this.state.partialRow);
     if(this.state.partialRow) {
       if(this.state.offset > 0) {
         this.state.offset--;
