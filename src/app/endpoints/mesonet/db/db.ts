@@ -1304,7 +1304,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
             let readChunk: MesonetMeasurementValue[];
             do {
               readChunk = await queryHandler.read(readChunkSize);
-              writeManager.write(readChunk);
+              await writeManager.write(readChunk);
               maxLimit -= writeManager.lastRecordsRead;
               console.log("max limit:");
               console.log(maxLimit);
@@ -1348,7 +1348,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
       catch(err) {
         e = err;
       }
-      writeManager.end();
+      await writeManager.end();
 
       if(e !== undefined) { throw e; }
   
@@ -1514,7 +1514,7 @@ class MesonetCSVWriter {
     this.state = { limit, offset, totalRecordsRead: 0, lastRecordsRead: 0, totalRowsWritten: 0, lastRowsWritten: 0, writeHeader: true, finished: false };
   }
 
-  write(values: MesonetMeasurementValue[]): void {
+  async write(values: MesonetMeasurementValue[]): Promise<void> {
     if(this.state.finished) {
       throw new Error("Attempting to write to stream after finished");
     }
@@ -1539,7 +1539,7 @@ class MesonetCSVWriter {
       }
     }
     if(this.state.writeHeader) {
-      this.stringifier.write(this.state.header);
+      await this.write2stringifier(this.state.header);
       this.state.writeHeader = false;
     }
   
@@ -1562,16 +1562,12 @@ class MesonetCSVWriter {
           else {
             if(--this.state.limit < 1) {
               //end will flush the row to the stream so no need to write again
-              this.end();
+              await this.end();
               lastRowsWritten += 1;
               break;
             }
             else {
-              console.log(pivotedRow);
-              this.stringifier.write(pivotedRow, (e) => {
-                console.log("cb");
-                console.log(e);
-              });
+              await this.write2stringifier(pivotedRow);
               this.state.totalRowsWritten += 1;
               lastRowsWritten += 1;
             }
@@ -1615,16 +1611,27 @@ class MesonetCSVWriter {
     return this.state.finished;
   }
   
-  end() {
+  async end() {
     if(!this.state.finished) {
       this.state.finished = true;
-      this.flush();
+      await this.flush();
       this.stringifier.end();
       this.outstream.end();
     }
   }
 
-  private flush() {
+  private async write2stringifier(row: string[]): Promise<void> {
+    await new Promise<void>((accept, reject) => {
+      this.stringifier.write(row, (e) => {
+        if(e !== undefined) {
+          reject(e);
+        }
+        accept();
+      });
+    });
+  }
+
+  private async flush() {
     console.log("flush!");
     console.log(a);
     console.log(this.state.partialRow);
@@ -1633,7 +1640,7 @@ class MesonetCSVWriter {
         this.state.offset--;
       }
       else {
-        this.stringifier.write(this.state.partialRow);
+        await this.write2stringifier(this.state.partialRow);
         this.state.totalRowsWritten += 1;
         this.state.limit--;
       }
