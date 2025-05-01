@@ -1538,6 +1538,7 @@ class MesonetCSVWriter {
     }
     if(this.state.writeHeader) {
       this.stringifier.write(this.state.header);
+      this.state.writeHeader = false;
     }
   
     let pivotedRow: string[] = this.state.partialRow;
