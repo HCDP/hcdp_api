@@ -1496,7 +1496,7 @@ async function getStartDate(location: string, stationIDs: string[]): Promise<str
 
 
 
-
+let a = 0;
 
 class MesonetCSVWriter {
   private state: WriteStateConfig;
@@ -1568,6 +1568,7 @@ class MesonetCSVWriter {
             }
             else {
               console.log(pivotedRow);
+              a++;
               this.stringifier.write(pivotedRow);
               this.state.totalRowsWritten += 1;
               lastRowsWritten += 1;
@@ -1623,6 +1624,7 @@ class MesonetCSVWriter {
 
   private flush() {
     console.log("flush!");
+    console.log(a);
     console.log(this.state.partialRow);
     if(this.state.partialRow) {
       if(this.state.offset > 0) {
