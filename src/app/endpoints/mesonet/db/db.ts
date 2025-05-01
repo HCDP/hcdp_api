@@ -1307,7 +1307,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
               writeManager.write(readChunk);
               maxLimit -= writeManager.lastRecordsRead;
             }
-            while(readChunk && maxLimit > 0 && !writeManager.finished)
+            while(readChunk.length > 0 && maxLimit > 0 && !writeManager.finished)
             queryHandler.close();
           }
           catch(e: any) {
