@@ -1156,8 +1156,6 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     let { data, email, outputName } = req.body;
-    console.log(req.body);
-
     if(!(data && email)) {
       reqData.success = false;
       reqData.code = 400;
@@ -1297,8 +1295,6 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
           try {
             let [ startDate, endDate ] = window;
             ({ query, params } = constructMeasurementsQueryEmail(stationIDs, startDate, endDate, varIDs, intervalArr, flagArr, location, maxLimit, 0, reverse, false));
-            console.log("query");
-            console.log(query, params);
             queryHandler = await MesonetDBManager.query(query, params);
             const readChunkSize = 10000;
             let readChunk: MesonetMeasurementValue[];
@@ -1306,8 +1302,6 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
               readChunk = await queryHandler.read(readChunkSize);
               await writeManager.write(readChunk);
               maxLimit -= writeManager.lastRecordsRead;
-              console.log("max limit:");
-              console.log(maxLimit);
             }
             while(readChunk.length > 0 && maxLimit > 0 && !writeManager.finished)
             queryHandler.close();
@@ -1421,10 +1415,8 @@ async function getStartDate(location: string, stationIDs: string[]): Promise<str
     ORDER BY timestamp
     LIMIT 1;
   `;
-  console.log(query, params);
   let queryHandler = await MesonetDBManager.query(query, params);
   let data = await queryHandler.read(1);
-  console.log(data);
   let timestamp = null;
   if(data.length > 0) {
     timestamp = data[0].timestamp;
@@ -1519,9 +1511,6 @@ class MesonetCSVWriter {
     // let { limit, offset, writeHeader, partialRow, index, header, totalRecordsRead, totalRowsWritten } = state;
     let lastRecordsRead = 0;
     let lastRowsWritten = 0;
-
-    console.log("value length");
-    console.log(values.length);
   
     if(!this.state.header || !this.state.index) {
       this.state.index = {};
@@ -1583,10 +1572,6 @@ class MesonetCSVWriter {
     this.state.partialRow = pivotedRow;
     this.state.lastRecordsRead = lastRecordsRead;
     this.state.lastRowsWritten = lastRowsWritten;
-    console.log("limit:");
-    console.log(this.state.limit);
-    console.log("rows written:");
-    console.log(this.state.totalRowsWritten);
   }
 
   get totalRecordsRead() {
@@ -1632,8 +1617,6 @@ class MesonetCSVWriter {
   }
 
   private async flush() {
-    console.log("flush!");
-    console.log(this.state.partialRow);
     if(this.state.partialRow) {
       if(this.state.offset > 0) {
         this.state.offset--;
