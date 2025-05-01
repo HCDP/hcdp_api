@@ -1568,8 +1568,10 @@ class MesonetCSVWriter {
             }
             else {
               console.log(pivotedRow);
-              a++;
-              this.stringifier.write(pivotedRow);
+              this.stringifier.write(pivotedRow, (e) => {
+                console.log("cb");
+                console.log(e);
+              });
               this.state.totalRowsWritten += 1;
               lastRowsWritten += 1;
             }
