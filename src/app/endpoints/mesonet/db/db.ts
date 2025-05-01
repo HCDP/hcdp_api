@@ -1587,6 +1587,8 @@ class MesonetCSVWriter {
     this.state.lastRowsWritten = lastRowsWritten;
     console.log("limit:");
     console.log(this.state.limit);
+    console.log("rows written:");
+    console.log(this.state.totalRowsWritten);
   }
 
   get totalRecordsRead() {
