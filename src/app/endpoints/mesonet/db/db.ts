@@ -1417,8 +1417,8 @@ async function getStartDate(location: string, stationIDs: string[]): Promise<str
   let query = `
     SELECT timestamp
     FROM ${measurementsTable}
-    ORDER BY timestamp
     ${mainWhereClause}
+    ORDER BY timestamp
     LIMIT 1;
   `;
   console.log(query, params);
@@ -1495,8 +1495,6 @@ async function getStartDate(location: string, stationIDs: string[]): Promise<str
 
 
 
-
-let a = 0;
 
 class MesonetCSVWriter {
   private state: WriteStateConfig;
@@ -1626,14 +1624,15 @@ class MesonetCSVWriter {
         if(e !== undefined) {
           reject(e);
         }
-        accept();
+        else {
+          accept();
+        }
       });
     });
   }
 
   private async flush() {
     console.log("flush!");
-    console.log(a);
     console.log(this.state.partialRow);
     if(this.state.partialRow) {
       if(this.state.offset > 0) {
