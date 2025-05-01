@@ -1306,6 +1306,8 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
               readChunk = await queryHandler.read(readChunkSize);
               writeManager.write(readChunk);
               maxLimit -= writeManager.lastRecordsRead;
+              console.log("max limit:");
+              console.log(maxLimit);
             }
             while(readChunk.length > 0 && maxLimit > 0 && !writeManager.finished)
             queryHandler.close();
@@ -1583,6 +1585,8 @@ class MesonetCSVWriter {
     this.state.partialRow = pivotedRow;
     this.state.lastRecordsRead = lastRecordsRead;
     this.state.lastRowsWritten = lastRowsWritten;
+    console.log("limit:");
+    console.log(this.state.limit);
   }
 
   get totalRecordsRead() {
