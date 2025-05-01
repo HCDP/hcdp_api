@@ -1522,8 +1522,8 @@ class MesonetCSVWriter {
     let lastRecordsRead = 0;
     let lastRowsWritten = 0;
 
-    console.log("values!");
-    console.log(values);
+    console.log("value length");
+    console.log(values.length);
   
     if(!this.state.header || !this.state.index) {
       this.state.index = {};
