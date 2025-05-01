@@ -1290,12 +1290,12 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
         let minFailures = 0;
     
         let queryChunker = new QueryWindow(1, start_date, end_date, reverse);
-        let chunk = queryChunker.window;
+        let window = queryChunker.window;
 
-        while(chunk && maxLimit > 0 && !writeManager.finished) {
+        while(window && maxLimit > 0 && !writeManager.finished) {
           let timeout = false;
           try {
-            let [ startDate, endDate ] = chunk;
+            let [ startDate, endDate ] = window;
             ({ query, params } = constructMeasurementsQueryEmail(stationIDs, startDate, endDate, varIDs, intervalArr, flagArr, location, maxLimit, 0, reverse, false));
             console.log("query");
             console.log(query, params);
@@ -1340,7 +1340,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
             queryChunker.windowSize++;
             queryChunker.advanceWindow();
           }
-          chunk = queryChunker.window;
+          window = queryChunker.window;
         }
       }
       catch(err) {
