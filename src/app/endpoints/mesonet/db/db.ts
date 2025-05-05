@@ -1594,12 +1594,17 @@ class MesonetCSVWriter {
     return this.state.finished;
   }
   
-  async end() {
+  async end(): Promise<void> {
     if(!this.state.finished) {
-      this.state.finished = true;
-      await this.flush();
-      this.stringifier.end();
-      this.outstream.end();
+      return new Promise<void>(async (accept) => {
+        this.outstream.once("finish", () => {
+          accept();
+        });
+        this.state.finished = true;
+        await this.flush();
+        this.stringifier.end();
+        this.outstream.end();
+      });
     }
   }
 
