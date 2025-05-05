@@ -1605,14 +1605,19 @@ class MesonetCSVWriter {
 
   private async write2stringifier(row: string[]): Promise<void> {
     await new Promise<void>((accept, reject) => {
-      this.stringifier.write(row, (e) => {
-        if(e !== undefined) {
+      let written = this.stringifier.write(row, (e) => {
+        if(e) {
           reject(e);
         }
-        else {
+      })
+      if(written) {
+        accept();
+      }
+      else {
+        this.stringifier.once("drain", () => {
           accept();
-        }
-      });
+        });
+      }
     });
   }
 
