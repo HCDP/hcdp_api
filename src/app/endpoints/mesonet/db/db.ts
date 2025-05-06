@@ -1331,14 +1331,14 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
           else if(slowStart) {
             console.log("success slow start");
             minFailures = 0;
-            queryChunker.windowSize *= 2;
             queryChunker.advanceWindow();
+            queryChunker.windowSize *= 2;
           }
           else {
             console.log("success linear");
             minFailures = 0;
-            queryChunker.windowSize++;
             queryChunker.advanceWindow();
+            queryChunker.windowSize++;
           }
           window = queryChunker.window;
         }
@@ -1682,17 +1682,20 @@ class QueryWindow {
     if(this._reverse) {
       return this.forwardWindow;
     }
-    console.log(this._windowSize);
-    console.log(this.backwardWindow);
-    return this.backwardWindow;
-  }
+    else {
+      return this.backwardWindow;
+    }
+    
+  } 
 
   advanceWindow() {
     console.log("advance window");
     if(this._reverse) {
       this.moveWindowForward();
     }
-    this.moveWindowBackward();
+    else {
+      this.moveWindowBackward();
+    }
   }
 
   private get forwardWindow(): [string, string] | null {
