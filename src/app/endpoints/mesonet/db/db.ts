@@ -1315,6 +1315,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
           }
     
           if(timeout && queryChunker.windowSize == 1) {
+            console.log("timeout min");
             if(minFailures >= 10) {
               throw new Error("Minimum data timed out 10 times. Cannot retreive the minimum data threshold");
             }
@@ -1323,15 +1324,18 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
             minFailures++;
           }
           else if(timeout) {
+            console.log("timeout");
             slowStart = false;
             queryChunker.windowSize = Math.floor(queryChunker.windowSize / 2);
           }
           else if(slowStart) {
+            console.log("success slow start");
             minFailures = 0;
             queryChunker.windowSize *= 2;
             queryChunker.advanceWindow();
           }
           else {
+            console.log("success linear");
             minFailures = 0;
             queryChunker.windowSize++;
             queryChunker.advanceWindow();
@@ -1678,11 +1682,13 @@ class QueryWindow {
     if(this._reverse) {
       return this.forwardWindow;
     }
+    console.log(this._windowSize);
     console.log(this.backwardWindow);
     return this.backwardWindow;
   }
 
   advanceWindow() {
+    console.log("advance window");
     if(this._reverse) {
       this.moveWindowForward();
     }
