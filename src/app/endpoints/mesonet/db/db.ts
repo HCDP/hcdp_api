@@ -1598,10 +1598,12 @@ class MesonetCSVWriter {
     if(!this.state.finished) {
       return new Promise<void>(async (accept) => {
         this.outstream.once("finish", () => {
+          console.log("outstream finish");
           accept();
         });
         this.state.finished = true;
         await this.flush();
+        console.log("ending streams");
         this.stringifier.end();
         this.outstream.end();
       });
@@ -1633,6 +1635,8 @@ class MesonetCSVWriter {
       }
       else {
         await this.write2stringifier(this.state.partialRow);
+        console.log("data flushed");
+        console.log(this.state.partialRow);
         this.state.totalRowsWritten += 1;
         this.state.limit--;
       }
