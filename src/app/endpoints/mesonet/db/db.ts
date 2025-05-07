@@ -1616,16 +1616,24 @@ class MesonetCSVWriter {
 
   private async write2stringifier(row: string[]): Promise<void> {
     await new Promise<void>((accept, reject) => {
-      let written = this.outstream.write(row[0], (e) => {
+      let written = this.stringifier.write(row, (e) => {
         if(e) {
           reject(e);
         }
-      })
+      });
       if(written) {
+        console.log("Written is true");
+        console.log(`Outstream highwater ${this.outstream.writableHighWaterMark}`);
+        console.log(`Outstream needs draining ${this.outstream.writableNeedDrain}`);
+        
         accept();
       }
       else {
-        this.outstream.once("drain", () => {
+        console.log("Written is false");
+        console.log(`Outstream highwater ${this.outstream.writableHighWaterMark}`);
+        console.log(`Outstream needs draining ${this.outstream.writableNeedDrain}`);
+        this.stringifier.once("drain", () => {
+          console.log("Drained");
           accept();
         });
       }
