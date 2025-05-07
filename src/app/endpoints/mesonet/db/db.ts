@@ -1572,7 +1572,7 @@ class MesonetCSVWriter {
       currentTS = timestamp;
       currentSID = station_id;
     }
-    
+    this.state.partialRow = pivotedRow;
     this.state.lastRecordsRead = lastRecordsRead;
     this.state.lastRowsWritten = lastRowsWritten;
   }
