@@ -1625,7 +1625,7 @@ class MesonetCSVWriter {
         accept();
       }
       else {
-        this.stringifier.once("drain", () => {
+        this.outstream.once("drain", () => {
           accept();
         });
       }
