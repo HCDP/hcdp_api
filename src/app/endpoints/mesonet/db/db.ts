@@ -1315,7 +1315,6 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
           }
     
           if(timeout && queryChunker.windowSize == 1) {
-            console.log("timeout min");
             if(minFailures >= 10) {
               throw new Error("Minimum data timed out 10 times. Cannot retreive the minimum data threshold");
             }
@@ -1324,18 +1323,15 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
             minFailures++;
           }
           else if(timeout) {
-            console.log("timeout");
             slowStart = false;
             queryChunker.windowSize = Math.floor(queryChunker.windowSize / 2);
           }
           else if(slowStart) {
-            console.log("success slow start");
             minFailures = 0;
             queryChunker.advanceWindow();
             queryChunker.windowSize *= 2;
           }
           else {
-            console.log("success linear");
             minFailures = 0;
             queryChunker.advanceWindow();
             queryChunker.windowSize++;
@@ -1601,12 +1597,10 @@ class MesonetCSVWriter {
     if(!this.state.finished) {
       return new Promise<void>(async (accept) => {
         this.outstream.once("finish", () => {
-          console.log("outstream finish");
           accept();
         });
         this.state.finished = true;
         await this.flush();
-        console.log("ending streams");
         this.outstream.end();
       });
     }
@@ -1624,9 +1618,7 @@ class MesonetCSVWriter {
         accept();
       }
       else {
-        console.log("Written is false");
         this.outstream.once("drain", () => {
-          console.log("Drained");
           accept();
         });
       }
@@ -1634,17 +1626,12 @@ class MesonetCSVWriter {
   }
 
   private async flush() {
-    console.log("flushing");
-    console.log(this.state);
-    console.log(this.state.partialRow);
     if(this.state.partialRow) {
       if(this.state.offset > 0) {
         this.state.offset--;
       }
       else {
         await this.write2Outstream(this.state.partialRow);
-        console.log("data flushed");
-        console.log(this.state.partialRow);
         this.state.totalRowsWritten += 1;
         this.state.limit--;
       }
@@ -1687,14 +1674,12 @@ class QueryWindow {
       return this.forwardWindow;
     }
     else {
-      console.log(this.backwardWindow);
       return this.backwardWindow;
     }
     
   } 
 
   advanceWindow() {
-    console.log("advance window");
     if(this._reverse) {
       this.moveWindowForward();
     }
