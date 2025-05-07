@@ -1616,7 +1616,7 @@ class MesonetCSVWriter {
 
   private async write2stringifier(row: string[]): Promise<void> {
     await new Promise<void>((accept, reject) => {
-      let written = this.stringifier.write(row, (e) => {
+      let written = this.outstream.write(row[0], (e) => {
         if(e) {
           reject(e);
         }
