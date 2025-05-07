@@ -1612,7 +1612,7 @@ class MesonetCSVWriter {
 
   private async write2Outstream(row: string[]): Promise<void> {
     await new Promise<void>((accept, reject) => {
-      let dataStr = stringify(row);
+      let dataStr = stringify([row]);
       let written = this.outstream.write(dataStr, (e) => {
         if(e) {
           reject(e);
