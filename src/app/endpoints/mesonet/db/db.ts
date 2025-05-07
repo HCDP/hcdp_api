@@ -1549,7 +1549,9 @@ class MesonetCSVWriter {
           }
           else {
             if(--this.state.limit < 1) {
-              //end will flush the row to the stream so no need to write again
+              //end will flush the partial row to the stream so no need to write again
+              //set partial row to pivoted row
+              this.state.partialRow = pivotedRow;
               await this.end();
               lastRowsWritten += 1;
               break;
@@ -1570,7 +1572,7 @@ class MesonetCSVWriter {
       currentTS = timestamp;
       currentSID = station_id;
     }
-    this.state.partialRow = pivotedRow;
+    
     this.state.lastRecordsRead = lastRecordsRead;
     this.state.lastRowsWritten = lastRowsWritten;
   }
@@ -1619,16 +1621,10 @@ class MesonetCSVWriter {
         }
       });
       if(written) {
-        console.log("Written is true");
-        console.log(`Outstream highwater ${this.outstream.writableHighWaterMark}`);
-        console.log(`Outstream needs draining ${this.outstream.writableNeedDrain}`);
-        
         accept();
       }
       else {
         console.log("Written is false");
-        console.log(`Outstream highwater ${this.outstream.writableHighWaterMark}`);
-        console.log(`Outstream needs draining ${this.outstream.writableNeedDrain}`);
         this.outstream.once("drain", () => {
           console.log("Drained");
           accept();
