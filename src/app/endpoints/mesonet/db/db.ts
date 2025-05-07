@@ -1683,6 +1683,7 @@ class QueryWindow {
       return this.forwardWindow;
     }
     else {
+      console.log(this.backwardWindow);
       return this.backwardWindow;
     }
     
