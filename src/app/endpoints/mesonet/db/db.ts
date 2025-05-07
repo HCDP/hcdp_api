@@ -1634,6 +1634,9 @@ class MesonetCSVWriter {
   }
 
   private async flush() {
+    console.log("flushing");
+    console.log(this.state);
+    console.log(this.state.partialRow);
     if(this.state.partialRow) {
       if(this.state.offset > 0) {
         this.state.offset--;
