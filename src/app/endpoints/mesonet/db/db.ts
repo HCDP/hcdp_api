@@ -6,7 +6,7 @@ import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
 import { administrators, apiURL, downloadRoot, mesonetLocations, rawDataRoot } from "../../../modules/util/config.js";
 import { sendEmail } from "../../../modules/util/util.js";
-import { Stringifier, stringify } from "csv-stringify";
+import { stringify } from "csv-stringify/sync";
 import * as crypto from "crypto";
 
 export const router = express.Router();
@@ -1494,15 +1494,12 @@ async function getStartDate(location: string, stationIDs: string[]): Promise<str
 
 class MesonetCSVWriter {
   private state: WriteStateConfig;
-  private stringifier: Stringifier;
   private outstream: fs.WriteStream;
   private varMetadata: VariableMetadata[];
   private timezone: string;
 
   constructor(outfile: string, varMetadata: VariableMetadata[], timezone: string, limit: number, offset: number) {
     this.outstream = fs.createWriteStream(outfile);
-    this.stringifier = stringify();
-    this.stringifier.pipe(this.outstream);
     this.varMetadata = varMetadata;
     this.timezone = timezone;
     this.state = { limit, offset, totalRecordsRead: 0, lastRecordsRead: 0, totalRowsWritten: 0, lastRowsWritten: 0, writeHeader: true, finished: false };
@@ -1530,7 +1527,7 @@ class MesonetCSVWriter {
       }
     }
     if(this.state.writeHeader) {
-      await this.write2stringifier(this.state.header);
+      await this.write2Outstream(this.state.header);
       this.state.writeHeader = false;
     }
   
@@ -1558,7 +1555,7 @@ class MesonetCSVWriter {
               break;
             }
             else {
-              await this.write2stringifier(pivotedRow);
+              await this.write2Outstream(pivotedRow);
               this.state.totalRowsWritten += 1;
               lastRowsWritten += 1;
             }
@@ -1608,15 +1605,15 @@ class MesonetCSVWriter {
         this.state.finished = true;
         await this.flush();
         console.log("ending streams");
-        this.stringifier.end();
         this.outstream.end();
       });
     }
   }
 
-  private async write2stringifier(row: string[]): Promise<void> {
+  private async write2Outstream(row: string[]): Promise<void> {
     await new Promise<void>((accept, reject) => {
-      let written = this.stringifier.write(row, (e) => {
+      let dataStr = stringify(row);
+      let written = this.outstream.write(dataStr, (e) => {
         if(e) {
           reject(e);
         }
@@ -1632,7 +1629,7 @@ class MesonetCSVWriter {
         console.log("Written is false");
         console.log(`Outstream highwater ${this.outstream.writableHighWaterMark}`);
         console.log(`Outstream needs draining ${this.outstream.writableNeedDrain}`);
-        this.stringifier.once("drain", () => {
+        this.outstream.once("drain", () => {
           console.log("Drained");
           accept();
         });
@@ -1646,7 +1643,7 @@ class MesonetCSVWriter {
         this.state.offset--;
       }
       else {
-        await this.write2stringifier(this.state.partialRow);
+        await this.write2Outstream(this.state.partialRow);
         console.log("data flushed");
         console.log(this.state.partialRow);
         this.state.totalRowsWritten += 1;
