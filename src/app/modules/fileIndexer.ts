@@ -219,6 +219,7 @@ export async function getPaths(data: any, collapse: boolean = true) {
         }
         for(let item of data) {
             fillDefaults(item);
+            console.log(item);
             //use simplified version for getting ds data
             if(item.datatype == "downscaling_temperature" || item.datatype == "downscaling_rainfall") {
                 let files = await getDSFiles(item);
