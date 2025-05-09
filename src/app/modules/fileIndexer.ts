@@ -259,13 +259,11 @@ export async function getPaths(data: any, collapse: boolean = true) {
                         totalFiles += pathData.numFiles;
                         paths = paths.concat(pathData.paths);
                     }
-                }
-
-                
+                } 
             }
         }
     }
-    catch(e) {}
+    catch(e) { console.log(e); }
     return {
         numFiles: totalFiles,
         paths
