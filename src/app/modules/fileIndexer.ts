@@ -211,17 +211,15 @@ export async function getDatasetNearestDate(dataset: any, date: string, directio
 export async function getPaths(data: any, collapse: boolean = true) {
     let paths: string[] = [];
     let totalFiles = 0;
-    console.log(data);
-    //at least for now just catchall and return files found before failure, maybe add more catching/skipping later, or 400?
-    try {
-        //maintain compatibility, only convert if new style TEMP
-        if(data[0]?.fileData) {
-            data = convert(data);
-        }
-        console.log(data);
-        for(let item of data) {
+ 
+    //maintain compatibility, only convert if new style TEMP
+    if(data[0]?.fileData) {
+        data = convert(data);
+    }
+    for(let item of data) {
+        //at least for now just catchall and return files found before failure, maybe add more catching/skipping later, or 400?
+        try {
             fillDefaults(item);
-            console.log(item);
             //use simplified version for getting ds data
             if(item.datatype == "downscaling_temperature" || item.datatype == "downscaling_rainfall") {
                 let files = await getDSFiles(item);
@@ -262,8 +260,9 @@ export async function getPaths(data: any, collapse: boolean = true) {
                 } 
             }
         }
+        catch(e) {}
     }
-    catch(e) { console.log(e); }
+
     return {
         numFiles: totalFiles,
         paths
