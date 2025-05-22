@@ -9,12 +9,79 @@ import * as safeCompare from "safe-compare";
 import * as crypto from "crypto";
 import * as child_process from "child_process";
 import * as https from "https";
+import { HCDPDBManager } from "../../../modules/util/resourceManagers/db.js";
+import { parseListParam, parseParams } from "../../../modules/util/dbUtil.js";
 
 export const router = express.Router();
 
 function signBlob(key, blob) {
   return "sha1=" + crypto.createHmac("sha1", key).update(blob).digest("hex");
 }
+
+router.get("/users/emails/apitokens", async (req, res) => {
+  const permission = "admin";
+  await handleReq(req, res, permission, async (reqData) => {
+
+    let { status }: any = req.query;
+
+    //true, false, null approved
+    let params = [];
+    let whereClause = [];
+    let query = `
+      SELECT email
+      FROM token_requests
+    `;
+
+    let sqlValueMap = {
+      approved: true,
+      rejected: false,
+      pending: null
+    }
+    let statusList = parseListParam(status, new Set(["approved", "rejected", "pending"]));
+    if(statusList === null) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send("The status parameter must be a comma separated list of token request statuses or an array of values.");
+    }
+    statusList = statusList.map((value) => sqlValueMap[value]);
+    parseParams(statusList, params, whereClause, "approved");
+    if(statusList.length > 0) {
+      query += `WHERE ${whereClause[0]}`;
+    }
+    query += ";";
+    let handler = await HCDPDBManager.query(query, params, { rowMode: "array", privileged: true });
+    let data = await handler.read(100000);
+    handler.close();
+    let emails = data.flat();
+    reqData.code = 200;
+    return res.status(200)
+    .json(emails);
+  });
+});
+
+router.get("/users/emails/apiqueries", async (req, res) => {
+  const permission = "admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    let proc = child_process.spawn("python3", ["/logs/utils/get_emails.py"]);
+
+    let output = "";
+    let code = await handleSubprocess(proc, (data: string) => {
+      output += data.toString();
+    }, (error: string) => {
+      throw new Error(`Could not process log files, something went wrong: ${error}`);
+    });
+    if(code !== 0) {
+      throw new Error(`Could not process log files, something went wrong, process exited with code ${code}`);
+    }
+    let emails = output.trim().split("\n");
+    reqData.code = 200;
+    return res.status(200)
+    .json(emails);
+  });
+});
+
 
 router.get("/apistats", async (req, res) => {
   try {

@@ -9,6 +9,7 @@ import { ProjectHandler } from "../../../modules/tapisHandlers.js";
 import { downloadRoot, apiURL } from "../../../modules/util/config.js";
 import { MesonetDataPackager } from "../../../modules/mesonetDataPackager.js";
 import { handleSubprocess, sendEmail, processTapisError } from "../../../modules/util/util.js";
+import { parseListParam } from "../../../modules/util/dbUtil.js";
 
 export const router = express.Router();
 
@@ -319,7 +320,7 @@ router.get("/mesonet/createPackage/link", async (req, res) => {
       .send("Unknown location provided.");
     }
 
-    let stationIDs = station_ids.split(",");
+    let stationIDs = parseListParam(station_ids);
     let link: string;
     try {
       link = await createMesonetPackage(projectHandler, stationIDs, combine, ftype, csvMode, options, reqData);
@@ -404,7 +405,7 @@ router.get("/mesonet/createPackage/email", async (req, res) => {
     }
     
     try {
-      let stationIDs = station_ids.split(",");
+      let stationIDs = parseListParam(station_ids);
       let link = await createMesonetPackage(projectHandler, stationIDs, combine, ftype, csvMode, options, reqData);
   
       let mailOptions = {
