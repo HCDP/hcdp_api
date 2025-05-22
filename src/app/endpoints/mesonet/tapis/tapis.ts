@@ -9,7 +9,7 @@ import { ProjectHandler } from "../../../modules/tapisHandlers.js";
 import { downloadRoot, apiURL } from "../../../modules/util/config.js";
 import { MesonetDataPackager } from "../../../modules/mesonetDataPackager.js";
 import { handleSubprocess, sendEmail, processTapisError } from "../../../modules/util/util.js";
-import { parseListParam } from "src/app/modules/util/dbUtil.js";
+import { parseListParam } from "../../../modules/util/dbUtil.js";
 
 export const router = express.Router();
 
