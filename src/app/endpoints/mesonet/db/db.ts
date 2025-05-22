@@ -8,7 +8,7 @@ import { administrators, apiURL, downloadRoot, mesonetLocations, rawDataRoot } f
 import { sendEmail } from "../../../modules/util/util.js";
 import { stringify } from "csv-stringify/sync";
 import * as crypto from "crypto";
-import { parseListParam } from "src/app/modules/util/dbUtil.js";
+import { parseListParam, parseParams } from "src/app/modules/util/dbUtil.js";
 
 export const router = express.Router();
 
