@@ -64,7 +64,7 @@ router.get("/users/emails/apitokens", async (req, res) => {
 router.get("/users/emails/apiqueries", async (req, res) => {
   const permission = "admin";
   await handleReq(req, res, permission, async (reqData) => {
-    let proc = child_process.spawn("python3", ["/logs/util/get_emails.py"]);
+    let proc = child_process.spawn("python3", ["/logs/utils/get_emails.py"]);
 
     let output = "";
     let code = await handleSubprocess(proc, (data: string) => {
