@@ -79,10 +79,10 @@ router.get("/raster/timeseries", async (req, res) => {
             proc.on("exit", () => {
                 fs.unlinkSync(uuid);
             });
-            } 
+          } 
         
-            let values = "";
-            let code = await handleSubprocess(proc, (data) => {
+          let values = "";
+          let code = await handleSubprocess(proc, (data) => {
             values += data.toString();
           });
       

@@ -8,6 +8,7 @@ import { administrators, apiURL, downloadRoot, mesonetLocations, rawDataRoot } f
 import { sendEmail } from "../../../modules/util/util.js";
 import { stringify } from "csv-stringify/sync";
 import * as crypto from "crypto";
+import { parseListParam } from "src/app/modules/util/dbUtil.js";
 
 export const router = express.Router();
 
@@ -15,16 +16,6 @@ interface QueryData {
   query: string,
   params: any[],
   index: string[]
-}
-
-
-function parseParams(paramListArr: string[], allParams: string[], whereClauses: string[], column: string) {
-  let paramSet: string[] = [];
-  for(let i = 0; i < paramListArr.length; i++) {
-    allParams.push(paramListArr[i]);
-    paramSet.push(`$${allParams.length}`);
-  }
-  whereClauses.push(`${column} IN (${paramSet.join(",")})`);
 }
 
 function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string, endDate: string, varIDs: string[], intervals: string[], flags: string[], location: string, limit: number, offset: number, reverse: boolean, joinMetadata: boolean, selectFlag: boolean = true): QueryData {
@@ -222,10 +213,10 @@ router.get("/mesonet/db/measurements", async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, row_mode }: any = req.query;
 
-    let varIDs = var_ids?.split(",") || [];
-    let stationIDs = station_ids?.split(",") || [];
-    let flagArr = flags?.split(",") || [];
-    let intervalArr = intervals?.split(",") || [];
+    let varIDs = parseListParam(var_ids);
+    let stationIDs = parseListParam(station_ids);
+    let flagArr = parseListParam(flags);
+    let intervalArr = parseListParam(intervals);
 
     const MAX_QUERY = 1000000;
 
@@ -517,7 +508,7 @@ router.get("/mesonet/db/stations", async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     let { station_ids, location, limit, offset, row_mode }: any = req.query;
 
-    let stationIDs = station_ids?.split(",") || [];
+    let stationIDs = parseListParam(station_ids);
 
     if(row_mode !== "array") {
       row_mode = undefined;
@@ -609,7 +600,7 @@ router.get("/mesonet/db/variables", async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     let { var_ids, limit, offset, row_mode }: any = req.query;
 
-    let varIDs = var_ids?.split(",") || [];
+    let varIDs = parseListParam(var_ids);
 
     if(row_mode !== "array") {
       row_mode = undefined;
