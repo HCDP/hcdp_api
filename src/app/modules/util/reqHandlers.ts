@@ -58,6 +58,23 @@ export async function handleReqNoAuth(req, res, handler) {
   logReq(reqData);
 }
 
+let rpm = 2;
+let throttleTimer = null;
+function throttleRequest() {
+  let throttle = true;
+  if(rpm > 0) {
+    rpm--;
+    if(throttleTimer === null) {
+      throttleTimer = setTimeout(() => {
+        throttleTimer = null;
+        rpm = 2;
+      }, 60000);
+    }
+    throttle = false;
+  }
+  return throttle;
+}
+
 export async function handleReq(req, res, permission, handler) {
   //note include success since 202 status might not indicate success in generating download package
   //note sizeB will be 0 for everything but download packages
@@ -75,6 +92,13 @@ export async function handleReq(req, res, permission, handler) {
   try {
     const tokenData = await validateToken(req, permission);
     const { valid, allowed, token, user } = tokenData;
+
+    if(user == "cherryle_heu" && throttleRequest()) {
+      reqData.code = 429;
+      return res.status(429)
+      .send("Too many requests.");
+    }
+
     reqData.token = token;
     reqData.tokenUser = user;
     //token was valid and user is allowed to perform this action, send to handler
