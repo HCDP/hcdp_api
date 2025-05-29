@@ -2,7 +2,8 @@ FROM node:22-slim
 
 RUN apt-get update \
 && apt-get install -y zip \
-&& apt-get install -y uuid-runtime
+&& apt-get install -y uuid-runtime \
+&& apt-get install -y g++
 
 # Create app directory
 WORKDIR /api
