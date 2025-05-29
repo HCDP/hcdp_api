@@ -36,7 +36,6 @@ router.get("/health", async (req, res) => {
     health.fs = true;
   }
   catch(e) {}
-  
-  
-  
+  return res.status(200)
+  .json(health);
 });

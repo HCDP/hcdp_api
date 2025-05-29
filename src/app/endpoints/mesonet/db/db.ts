@@ -1,6 +1,6 @@
 import express from "express";
 import moment, { DurationInputArg1, DurationInputArg2, Moment } from "moment-timezone";
-import { MesonetDBManager } from "../../../modules/util/resourceManagers/db.js";
+import { mesonetDBAdmin, mesonetDBUser } from "../../../modules/util/resourceManagers/db.js";
 import * as fs from "fs";
 import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
@@ -123,7 +123,7 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
 
 function wrapCrosstabMeasurementsQuery(vars: string[], baseQueryData: QueryData, joinMetadata: boolean): QueryData {
   let { query, params } = baseQueryData;
-  query = MesonetDBManager.mogrify(query, params);
+  query = mesonetDBUser.mogrify(query, params);
   let crosstabValuesString = `('${vars.join("'),('")}')`;
   let varListString = vars.join(",");
   let selectString = `timestamp, station_id, ${varListString}`;
@@ -201,7 +201,7 @@ async function sanitizeExpandVarIDs(varIDs: string[]) {
     query += `WHERE ${clause[0]}`;
   }
   query += ";";
-  let queryHandler = await MesonetDBManager.query(query, params, { rowMode: "array" });
+  let queryHandler = await mesonetDBUser.query(query, params, { rowMode: "array" });
   let data = await queryHandler.read(10000);
   queryHandler.close();
   data = data.flat();
@@ -297,7 +297,7 @@ router.get("/mesonet/db/measurements", async (req, res) => {
     let { query, params, index } = await constructMeasurementsQuery(crosstabQuery, stationIDs, start_date, end_date, varIDs, intervalArr, flagArr, location, limit, offset, reverse, join_metadata);
     if(query) {
       try {
-        let queryHandler = await MesonetDBManager.query(query, params, {rowMode: row_mode});
+        let queryHandler = await mesonetDBUser.query(query, params, {rowMode: row_mode});
         const chunkSize = 10000;
         let chunk: any[];
         do {
@@ -318,7 +318,7 @@ router.get("/mesonet/db/measurements", async (req, res) => {
 
     if(data.length > 0 && local_tz) {
       let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
-      let queryHandler = await MesonetDBManager.query(query, [location]);
+      let queryHandler = await mesonetDBUser.query(query, [location]);
       let { timezone } = (await queryHandler.read(1))[0];
       queryHandler.close();
       if(row_mode === "array") {
@@ -560,7 +560,7 @@ router.get("/mesonet/db/stations", async (req, res) => {
 
     let data: any = [];
     try {
-      let queryHandler = await MesonetDBManager.query(query, params, {rowMode: row_mode});
+      let queryHandler = await mesonetDBUser.query(query, params, {rowMode: row_mode});
 
       const chunkSize = 10000;
       let chunk: any[];
@@ -610,7 +610,7 @@ router.get("/mesonet/db/variables", async (req, res) => {
 
     let data: any = [];
     try {
-      let queryHandler = await MesonetDBManager.query(query, params, {rowMode: row_mode});
+      let queryHandler = await mesonetDBUser.query(query, params, {rowMode: row_mode});
 
       const chunkSize = 10000;
       let chunk: any[];
@@ -658,7 +658,7 @@ router.get("/mesonet/db/sff", async (req, res) => {
       ORDER BY timestamp DESC
       LIMIT 1;
     `;
-    let queryHandler = await MesonetDBManager.query(query, [], { rowMode: "array" });
+    let queryHandler = await mesonetDBUser.query(query, [], { rowMode: "array" });
     let lastTimestampString = (await queryHandler.read(1))[0];
     queryHandler.close();
     let lastTimestamp = moment(lastTimestampString);
@@ -716,7 +716,7 @@ router.get("/mesonet/db/sff", async (req, res) => {
         ORDER BY hawaii_measurements.station_id, hawaii_measurements.timestamp, synoptic_translations.synoptic_name, sensor_positions.sensor_number;
       `;
 
-      queryHandler = await MesonetDBManager.query(query, []);
+      queryHandler = await mesonetDBUser.query(query, []);
       let data = await queryHandler.read(100000);
       queryHandler.close();
       
@@ -816,7 +816,7 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
 
     let data: {table_name: string}[] = []
     try {
-      let queryHandler = await MesonetDBManager.query(query, [stationID]);
+      let queryHandler = await mesonetDBUser.query(query, [stationID]);
       data = await queryHandler.read(1);
       queryHandler.close();
     }
@@ -859,7 +859,7 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
 
     let modified = 0;
     try {
-      modified = await MesonetDBManager.queryNoRes(query, params, { privileged: true });
+      modified = await mesonetDBAdmin.queryNoRes(query, params);
     }
     catch(e) {
       reqData.success = false;
@@ -937,7 +937,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
       ${onConflict}
     `;
     try {
-      let modified = await MesonetDBManager.queryNoRes(query, params, { privileged: true });
+      let modified = await mesonetDBAdmin.queryNoRes(query, params);
       reqData.code = 200;
       return res.status(200)
       .json({ modified });
@@ -1085,7 +1085,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
 //     let returnArray = row_mode.endsWith("array");
 
 //     try {
-//       let queryHandler = await MesonetDBManager.query(query, params, {rowMode: queryStyle});
+//       let queryHandler = await mesonetDBUser.query(query, params, {rowMode: queryStyle});
 //       const chunkSize = 10000;
 //       let chunk: any[];
 //       do {
@@ -1114,7 +1114,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
 
 //     if(data.length > 0 && local_tz) {
 //       let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
-//       let queryHandler = await MesonetDBManager.query(query, [location]);
+//       let queryHandler = await mesonetDBUser.query(query, [location]);
 //       let { timezone } = (await queryHandler.read(1))[0];
 //       queryHandler.close();
 //       if(row_mode === "array") {
@@ -1237,7 +1237,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
     }
 
     let { query, params } = constructVariablesQuery(varIDs);
-    let queryHandler = await MesonetDBManager.query(query, params);
+    let queryHandler = await mesonetDBUser.query(query, params);
     let varMetadata: VariableMetadata[] = await queryHandler.read(10000);
     queryHandler.close();
 
@@ -1286,7 +1286,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
           try {
             let [ startDate, endDate ] = window;
             ({ query, params } = constructMeasurementsQueryEmail(stationIDs, startDate, endDate, varIDs, intervalArr, flagArr, location, maxLimit, 0, reverse, false));
-            queryHandler = await MesonetDBManager.query(query, params);
+            queryHandler = await mesonetDBUser.query(query, params);
             const readChunkSize = 10000;
             let readChunk: MesonetMeasurementValue[];
             do {
@@ -1380,7 +1380,7 @@ router.post("/mesonet/db/measurements/email", async (req, res) => {
 
 async function getLocationTimezone(location: string) {
   let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
-  let queryHandler = await MesonetDBManager.query(query, [location]);
+  let queryHandler = await mesonetDBUser.query(query, [location]);
   let { timezone } = (await queryHandler.read(1))[0];
   queryHandler.close();
   return timezone;
@@ -1406,7 +1406,7 @@ async function getStartDate(location: string, stationIDs: string[]): Promise<str
     ORDER BY timestamp
     LIMIT 1;
   `;
-  let queryHandler = await MesonetDBManager.query(query, params);
+  let queryHandler = await mesonetDBUser.query(query, params);
   let data = await queryHandler.read(1);
   let timestamp = null;
   if(data.length > 0) {
