@@ -5,7 +5,7 @@ import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
 import { rawDataRoot, apiURL, mesonetLocations, dataRoot } from "../../../modules/util/config.js";
 import { readdir } from "../../../modules/util/util.js";
-import { MesonetDBManager } from "../../../modules/util/resourceManagers/db.js";
+import { mesonetDBUser, mesonetDBAdmin } from "../../../modules/util/resourceManagers/db.js";
 
 export const router = express.Router();
 
@@ -17,7 +17,7 @@ router.get("/mesonet/dirtyFiles/list", async (req, res) => {
       FROM dirty_files;
     `;
 
-    let queryHandler = await MesonetDBManager.query(query, [], { rowMode: "array" });
+    let queryHandler = await mesonetDBUser.query(query, [], { rowMode: "array" });
     let files: string[] = [];
     let chunkSize = 10000;
     let chunk: string[];
@@ -66,7 +66,7 @@ router.post("/mesonet/dirtyFiles/process", async (req, res) => {
         DO NOTHING;
       `;
   
-      inserted = await MesonetDBManager.queryNoRes(query, params, { privileged: true });
+      inserted = await mesonetDBAdmin.queryNoRes(query, params);
       for(let manifest of successfullyReadManifestFiles) {
         fs.unlinkSync(manifest);
       }
@@ -83,7 +83,7 @@ router.delete(/^\/mesonet\/dirtyFiles\/remove\/(.*)?$/, async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     let record2Delete = req.params[0];
     let query = "DELETE FROM dirty_files WHERE file = $1";
-    let deleted = await MesonetDBManager.queryNoRes(query, [ record2Delete ], { privileged: true });
+    let deleted = await mesonetDBAdmin.queryNoRes(query, [ record2Delete ]);
     reqData.code = 200;
     return res.status(200)
     .json({ deleted });
