@@ -1,6 +1,11 @@
-import { hcdpDBConfig } from "../../util/config.js";
+import { databaseConnections } from "../../util/config.js";
 import { PostgresDBManager } from "../../postgresDBManager.js";
 
-export const MesonetDBManager = new PostgresDBManager(hcdpDBConfig.host, hcdpDBConfig.port, "mesonet", hcdpDBConfig.userCredentials, hcdpDBConfig.adminCredentials, 75, 10);
-export const HCDPDBManager = new PostgresDBManager(hcdpDBConfig.host, hcdpDBConfig.port, "hcdp", hcdpDBConfig.userCredentials, hcdpDBConfig.adminCredentials, 1, 14);
+const dbManagers: {[key: string]: PostgresDBManager} = {};
 
+for(let key in databaseConnections) {
+  const { host, port, db, user, password, connections } = databaseConnections[key];
+  dbManagers[key] = new PostgresDBManager(host, port, db, user, password, connections);
+}
+
+export const { mesonetDBUser, mesonetDBAdmin, apiDB } = dbManagers;

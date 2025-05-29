@@ -9,7 +9,7 @@ import * as safeCompare from "safe-compare";
 import * as crypto from "crypto";
 import * as child_process from "child_process";
 import * as https from "https";
-import { HCDPDBManager } from "../../../modules/util/resourceManagers/db.js";
+import { apiDB } from "../../../modules/util/resourceManagers/db.js";
 import { parseListParam, parseParams } from "../../../modules/util/dbUtil.js";
 
 export const router = express.Router();
@@ -51,7 +51,7 @@ router.get("/users/emails/apitokens", async (req, res) => {
       query += `WHERE ${whereClause[0]}`;
     }
     query += ";";
-    let handler = await HCDPDBManager.query(query, params, { rowMode: "array", privileged: true });
+    let handler = await apiDB.query(query, params, { rowMode: "array" });
     let data = await handler.read(100000);
     handler.close();
     let emails = data.flat();

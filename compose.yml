@@ -1,0 +1,52 @@
+services:
+  hcdp-api:
+    build:
+      context: .
+    restart: on-failure
+    container_name: api
+    ports:
+      - "443:443"
+    volumes:
+      - /mnt/lustre/annotated/HCDP:/data
+      - /home/hcdp/hcdp-api/logs:/logs
+    profiles: [ prod ]
+    healthcheck:
+      test: "curl -f https://storeapi.ikewai.org/health"
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+  hcdp-api-dev:
+    build:
+      context: .
+    restart: on-failure
+    container_name: apitest
+    ports:
+      - "8443:443"
+    volumes:
+      - /mnt/lustre/annotated/HCDP:/data
+      - /home/hcdp/hcdp-api/logs:/logs
+    profiles: [ dev ]
+    # command: prefect server start --host 0.0.0.0
+    healthcheck:
+      test: "curl -f https://storeapi.ikewai.org:8443/health"
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+  postgres:
+    image: postgres:17
+    container_name: api-db
+    env_file: db.env
+    volumes:
+      - /media/volume/HCDP-API-ManagementDB/postgres/data:/var/lib/postgresql/data
+    profiles: [ db ]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
