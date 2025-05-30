@@ -16,26 +16,26 @@ async function checkHealth() {
     await apiDB.queryNoRes("SELECT 1", []);
     health.apiDB = true;
   }
-  catch(e) {}
+  catch(e) {console.log(e)}
   try {
     await mesonetDBUser.queryNoRes("SELECT 1", []);
     health.mesonetDBUser = true;
   }
-  catch(e) {}
+  catch(e) {console.log(e)}
   try {
     await mesonetDBAdmin.queryNoRes("SELECT 1", []);
     health.mesonetDBAdmin = true;
   }
-  catch(e) {}
+  catch(e) {console.log(e)}
   try {
     const { file, content } = fsHealthData;
-    let data = readFileSync(file);
+    let data = readFileSync(file).toString();
     if(data !== content) {
       throw new Error();
     }
     health.fs = true;
   }
-  catch(e) {}
+  catch(e) {console.log(e)}
   return health;
 }
 
