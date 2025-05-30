@@ -30,8 +30,10 @@ async function checkHealth() {
   try {
     const { file, content } = fsHealthData;
     let data = readFileSync(file).toString();
-    console.log(data, content);
-    if(data !== content) {
+    console.log(data.trim(), content.trim());
+    console.log(typeof data.trim(), typeof content.trim());
+    console.log(data.trim() != content.trim());
+    if(data.trim() != content.trim()) {
       throw new Error("Content mismatch");
     }
     health.fs = true;
