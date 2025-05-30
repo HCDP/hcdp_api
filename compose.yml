@@ -46,7 +46,6 @@ services:
     env_file: db.env
     volumes:
       - /media/volume/HCDP-API-ManagementDB/postgres/data:/var/lib/postgresql/data
-    profiles: [ db ]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
