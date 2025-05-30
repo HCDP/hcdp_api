@@ -13,7 +13,6 @@ COPY package*.json ./
 COPY tsconfig.json ./
 COPY tiffextract ./tiffextract
 COPY src ./src
-COPY certs/live/**/*.pem ./src/assets/
 
 # RUN npm install
 # If you are building your code for production

@@ -9,6 +9,7 @@ services:
     volumes:
       - /mnt/lustre/annotated/HCDP:/data
       - /home/hcdp/hcdp-api/logs:/logs
+      - /home/hcdp/hcdp-api/certs:/certs
     profiles: [ prod ]
     healthcheck:
       test: "curl -f https://storeapi.ikewai.org/health"
