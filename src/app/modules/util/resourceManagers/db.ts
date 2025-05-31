@@ -1,11 +1,27 @@
 import { databaseConnections } from "../../util/config.js";
 import { PostgresDBManager } from "../../postgresDBManager.js";
+import { PostgresStore } from "@acpr/rate-limit-postgresql";
 
 const dbManagers: {[key: string]: PostgresDBManager} = {};
+const postgresStores: {[key: string]: PostgresStore} = {};
 
 for(let key in databaseConnections) {
-  const { host, port, db, username, password, connections } = databaseConnections[key];
-  dbManagers[key] = new PostgresDBManager(host, port, db, username, password, connections);
+  const { host, port, db, user, password, connections } = databaseConnections[key];
+  dbManagers[key] = new PostgresDBManager(host, port, db, user, password, connections);
+
+  if(key == "apiDB") {
+    let dbConfig = {
+      user,
+      password,
+      host,
+      database: "rate_limit",
+      port
+    }
+    postgresStores.pgStoreAll = new PostgresStore(dbConfig, "all");
+    postgresStores.pgStoreMesonetMeasurements = new PostgresStore(dbConfig, "meso_measurements");
+    postgresStores.pgStoreMesonetEmail = new PostgresStore(dbConfig, "meso_email");
+  }
 }
 
 export const { mesonetDBUser, mesonetDBAdmin, apiDB } = dbManagers;
+export const { pgStoreAll, pgStoreMesonetMeasurements, pgStoreMesonetEmail } = postgresStores;

@@ -1,7 +1,5 @@
 import express from "express";
-import cluster from "cluster";
 import { rateLimit } from "express-rate-limit";
-import { ClusterMemoryStoreWorker } from "@express-rate-limit/cluster-memory-store";
 import compression from "compression";
 import cors from "cors";
 import * as https from "https";
@@ -18,6 +16,7 @@ import { router as r7 } from "./endpoints/mesonet/raw/raw.js";
 import { router as r8 } from "./endpoints/hcdp/packageGen/packageGen.js";
 import { router as r9 } from "./endpoints/hcdp/datasets/dates/dates.js";
 import { router as r10 } from "./endpoints/util/health.js";
+import { pgStoreAll } from "./modules/util/resourceManagers/db.js";
 
 //add timestamps to output
 import consoleStamp from 'console-stamp';
@@ -34,19 +33,17 @@ process.env["NODE_ENV"] = "production";
 
 const app = express();
 
-if(cluster.isWorker) {
-  const limiter = rateLimit({
-    windowMs: 60 * 1000, // 1 minute window
-    limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
-    standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
-    message: "Too many requests from this IP. Requests are limited to 100 per minute.",
-    store: new ClusterMemoryStoreWorker()
-  });
+const limiter = rateLimit({
+	windowMs: 60 * 1000, // 1 minute window
+	limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
+	standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
+	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
+  message: "Too many requests from this IP. Requests are limited to 100 per minute.",
+  store: pgStoreAll
+});
 
-  // Apply the rate limiting middleware to all requests.
-  app.use(limiter);
-}
+// Apply the rate limiting middleware to all requests.
+app.use(limiter);
 
 app.options('*', cors());
 sslRootCAs.inject();

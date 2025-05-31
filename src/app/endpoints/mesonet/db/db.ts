@@ -1,8 +1,7 @@
 import express from "express";
 import { rateLimit } from "express-rate-limit";
-import { ClusterMemoryStoreWorker } from "@express-rate-limit/cluster-memory-store";
 import moment, { DurationInputArg1, DurationInputArg2, Moment } from "moment-timezone";
-import { mesonetDBAdmin, mesonetDBUser } from "../../../modules/util/resourceManagers/db.js";
+import { mesonetDBAdmin, mesonetDBUser, pgStoreMesonetEmail, pgStoreMesonetMeasurements } from "../../../modules/util/resourceManagers/db.js";
 import * as fs from "fs";
 import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
@@ -26,7 +25,7 @@ const mesonetMeasurementsLimiter = rateLimit({
 	standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
 	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
   message: "Too many requests from this IP. Requests for this endpoint are limited to 20 per minute.",
-  store: new ClusterMemoryStoreWorker()
+  store: pgStoreMesonetMeasurements
 });
 
 const mesonetEmailLimiter = rateLimit({
@@ -35,7 +34,7 @@ const mesonetEmailLimiter = rateLimit({
 	standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
 	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
   message: "Too many requests from this IP. Requests for this endpoint are limited to 5 per 15 minutes.",
-  store: new ClusterMemoryStoreWorker()
+  store: pgStoreMesonetEmail
 });
 
 function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string, endDate: string, varIDs: string[], intervals: string[], flags: string[], location: string, limit: number, offset: number, reverse: boolean, joinMetadata: boolean, selectFlag: boolean = true): QueryData {
