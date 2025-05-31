@@ -1,4 +1,5 @@
 import express from "express";
+import cluster from "cluster";
 import { rateLimit } from "express-rate-limit";
 import { ClusterMemoryStoreWorker } from "@express-rate-limit/cluster-memory-store";
 import compression from "compression";
@@ -32,17 +33,20 @@ process.env["NODE_ENV"] = "production";
 ////////////////////////////////
 
 const app = express();
-// const limiter = rateLimit({
-// 	windowMs: 60 * 1000, // 1 minute window
-// 	limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
-// 	standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
-// 	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
-//   message: "Too many requests from this IP. Requests are limited to 100 per minute.",
-//   store: new ClusterMemoryStoreWorker()
-// });
 
-// // Apply the rate limiting middleware to all requests.
-// app.use(limiter);
+if(cluster.isWorker) {
+  const limiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute window
+    limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
+    standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
+    message: "Too many requests from this IP. Requests are limited to 100 per minute.",
+    store: new ClusterMemoryStoreWorker()
+  });
+
+  // Apply the rate limiting middleware to all requests.
+  app.use(limiter);
+}
 
 app.options('*', cors());
 sslRootCAs.inject();
