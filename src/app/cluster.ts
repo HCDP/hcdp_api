@@ -4,8 +4,10 @@ import { dirname } from "path";
 import { fileURLToPath } from "url";
 import { ClusterMemoryStorePrimary } from '@express-rate-limit/cluster-memory-store'
 
-const rateLimiterStore = new ClusterMemoryStorePrimary();
-rateLimiterStore.init();
+if(cluster.isPrimary) {
+  const rateLimiterStore = new ClusterMemoryStorePrimary();
+  rateLimiterStore.init();
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

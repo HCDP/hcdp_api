@@ -16,29 +16,26 @@ async function checkHealth() {
     await apiDB.queryNoRes("SELECT 1", []);
     health.apiDB = true;
   }
-  catch(e) {console.log(e)}
+  catch(e) {}
   try {
     await mesonetDBUser.queryNoRes("SELECT 1", []);
     health.mesonetDBUser = true;
   }
-  catch(e) {console.log(e)}
+  catch(e) {}
   try {
     await mesonetDBAdmin.queryNoRes("SELECT 1", []);
     health.mesonetDBAdmin = true;
   }
-  catch(e) {console.log(e)}
+  catch(e) {}
   try {
     const { file, content } = fsHealthData;
     let data = readFileSync(file).toString();
-    console.log(data.trim(), content.trim());
-    console.log(typeof data.trim(), typeof content.trim());
-    console.log(data.trim() != content.trim());
     if(data.trim() != content.trim()) {
       throw new Error("Content mismatch");
     }
     health.fs = true;
   }
-  catch(e) {console.log(e)}
+  catch(e) {}
   return health;
 }
 
