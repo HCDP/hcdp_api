@@ -3,15 +3,9 @@ import { administrators } from "./config.js";
 import { validateToken } from "./auth.js";
 import { apiDB } from "./resourceManagers/db.js";
 
-async function sendErrorMessage(reqData, res, errorMsg: string) {
+async function sendErrorMessage(errorMsg: string) {
   let htmlErrorMsg = errorMsg.replace(/\n/g, "<br>");
-  console.error(`An unexpected error occured:\n${errorMsg}`);
-  //if request code not set by handler set to 500 and send response (otherwise response already sent and error was in post-processing)
-  if(reqData.code == 0) {
-    reqData.code = 500;
-    res.status(500)
-    .send("An unexpected error occurred");
-  }
+  
   //send the administrators an email logging the error
   if(administrators.length > 0) {
     let mailOptions = {
@@ -35,7 +29,7 @@ async function sendErrorMessage(reqData, res, errorMsg: string) {
   }
 }
 
-async function checkSendErrorMessage(reqData, res, errorMsg: string) {
+async function checkSendErrorMessage(errorMsg: string) {
   let query = `
     UPDATE error_throttle
     SET count = count - 1
@@ -43,8 +37,10 @@ async function checkSendErrorMessage(reqData, res, errorMsg: string) {
   `;
 
   let updated = await apiDB.queryNoRes(query, []);
+  console.log("update throttle");
+  console.log(updated);
   if(updated) {
-    sendErrorMessage(reqData, res, errorMsg);
+    sendErrorMessage(errorMsg);
   }
 }
 
@@ -72,7 +68,14 @@ export async function handleReqNoAuth(req, res, handler) {
       endpoint: ${reqData.endpoint}\n\
       error: ${e}`;
       
-    checkSendErrorMessage(reqData, res, errorMsg);
+    checkSendErrorMessage(errorMsg);
+    console.error(`An unexpected error occured:\n${errorMsg}`);
+    //if request code not set by handler set to 500 and send response (otherwise response already sent and error was in post-processing)
+    if(reqData.code == 0) {
+      reqData.code = 500;
+      res.status(500)
+      .send("An unexpected error occurred");
+    }
   }
   logReq(reqData);
 }
@@ -122,7 +125,14 @@ export async function handleReq(req, res, permission, handler) {
       error: ${e}\n\
       trace: ${e.stack}`;
 
-    checkSendErrorMessage(reqData, res, errorMsg);
+    checkSendErrorMessage(errorMsg);
+    console.error(`An unexpected error occured:\n${errorMsg}`);
+    //if request code not set by handler set to 500 and send response (otherwise response already sent and error was in post-processing)
+    if(reqData.code == 0) {
+      reqData.code = 500;
+      res.status(500)
+      .send("An unexpected error occurred");
+    }
   }
   logReq(reqData);
 }
