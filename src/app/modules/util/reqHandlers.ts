@@ -19,6 +19,7 @@ async function sendErrorMessage(errorMsg: string) {
     try {
       //attempt to send email to the administrators
       let emailStatus = await sendEmail(mailOptions);
+      console.log(emailStatus);
       //if email send failed throw error for logging
       if(!emailStatus.success) {
         throw emailStatus.error;
