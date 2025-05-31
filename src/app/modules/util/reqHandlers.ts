@@ -4,10 +4,12 @@ import { validateToken } from "./auth.js";
 import { apiDB } from "./resourceManagers/db.js";
 
 async function sendErrorMessage(errorMsg: string) {
+  console.log("send")
   let htmlErrorMsg = errorMsg.replace(/\n/g, "<br>");
   
   //send the administrators an email logging the error
   if(administrators.length > 0) {
+    console.log(administrators);
     let mailOptions = {
       to: administrators,
       subject: "HCDP API error",
@@ -40,6 +42,7 @@ async function checkSendErrorMessage(errorMsg: string) {
   console.log("update throttle");
   console.log(updated);
   if(updated) {
+    console.log("con met");
     sendErrorMessage(errorMsg);
   }
 }
