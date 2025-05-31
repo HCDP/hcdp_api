@@ -260,3 +260,10 @@ router.post("/notify", async (req, res) => {
     .send("Success! A notification has been sent to the requested recepients.");
   });
 });
+
+router.get("/error", async (req, res) => {
+  const permission = "admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    throw new Error("This is a test error.");
+  });
+});
