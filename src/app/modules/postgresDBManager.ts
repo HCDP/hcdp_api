@@ -39,6 +39,8 @@ export class PostgresDBManager {
     constructor(host: string, port: number, database: string, user: string, password: string, connections: number) {
         this.pgp = pgPromise();
 
+        console.log(host, port, database, user, password, connections);
+
         this.dbHandler = this.pgp({
             host,
             port,
