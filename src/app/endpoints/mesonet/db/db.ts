@@ -1,7 +1,7 @@
 import express from "express";
 import { rateLimit } from "express-rate-limit";
 import moment, { DurationInputArg1, DurationInputArg2, Moment } from "moment-timezone";
-import { mesonetDBAdmin, mesonetDBUser, pgStoreMesonetEmail } from "../../../modules/util/resourceManagers/db.js";
+import { mesonetDBAdmin, mesonetDBUser, pgStoreMesonetEmail, pgStoreSlowMesonetMeasurements } from "../../../modules/util/resourceManagers/db.js";
 import * as fs from "fs";
 import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
@@ -10,6 +10,7 @@ import { sendEmail } from "../../../modules/util/util.js";
 import { stringify } from "csv-stringify/sync";
 import * as crypto from "crypto";
 import { parseListParam, parseParams } from "../../../modules/util/dbUtil.js";
+import { slowDown } from "express-slow-down";
 
 export const router = express.Router();
 
@@ -18,6 +19,13 @@ interface QueryData {
   params: any[],
   index: string[]
 }
+
+const mesonetMeasurementSlow = slowDown({
+	windowMs: 60 * 1000, // 1 minute window
+	delayAfter: 50, // Dalay after 50 requests.
+  delayMs: (hits) => 1000 * (hits - 50), // delay by 1 second * number of hits over 50
+  store: pgStoreSlowMesonetMeasurements
+});
 
 const mesonetEmailLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000, // 1 minute window
@@ -218,7 +226,7 @@ async function sanitizeExpandVarIDs(varIDs: string[]) {
   return data;
 }
 
-router.get("/mesonet/db/measurements", async (req, res) => {
+router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, row_mode }: any = req.query;
