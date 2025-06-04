@@ -17,11 +17,12 @@ for(let key in databaseConnections) {
       database: "rate_limit",
       port
     }
-    postgresStores.pgStoreAll = new PostgresStore(dbConfig, "all");
-    postgresStores.pgStoreMesonetMeasurements = new PostgresStore(dbConfig, "meso_measurements");
+    postgresStores.pgStoreSlowAll = new PostgresStore(dbConfig, "all");
+    postgresStores.pgStoreLimitAll = new PostgresStore(dbConfig, "all");
+    //postgresStores.pgStoreMesonetMeasurements = new PostgresStore(dbConfig, "meso_measurements");
     postgresStores.pgStoreMesonetEmail = new PostgresStore(dbConfig, "meso_email");
   }
 }
 
 export const { mesonetDBUser, mesonetDBAdmin, apiDB } = dbManagers;
-export const { pgStoreAll, pgStoreMesonetMeasurements, pgStoreMesonetEmail } = postgresStores;
+export const { pgStoreSlowAll, pgStoreLimitAll, pgStoreMesonetEmail } = postgresStores;

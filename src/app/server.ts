@@ -17,7 +17,7 @@ import { router as r7 } from "./endpoints/mesonet/raw/raw.js";
 import { router as r8 } from "./endpoints/hcdp/packageGen/packageGen.js";
 import { router as r9 } from "./endpoints/hcdp/datasets/dates/dates.js";
 import { router as r10 } from "./endpoints/util/health.js";
-import { pgStoreAll } from "./modules/util/resourceManagers/db.js";
+import { pgStoreSlowAll, pgStoreLimitAll } from "./modules/util/resourceManagers/db.js";
 
 //add timestamps to output
 import consoleStamp from 'console-stamp';
@@ -53,7 +53,7 @@ const slowLimit = slowDown({
 	windowMs: 60 * 1000, // 1 minute window
 	delayAfter: 100, // Dalay after 100 requests.
   delayMs: (hits) => 1000 * (hits - 100), // delay by 1 second * number of hits over 100
-  store: pgStoreAll
+  store: pgStoreSlowAll
 });
 
 app.use(slowLimit);
@@ -64,7 +64,7 @@ const cutoffLimit = rateLimit({
 	standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
 	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
   message: "Too many requests from this IP. Requests are limited to 100 per minute.",
-  store: pgStoreAll
+  store: pgStoreLimitAll
 });
 
 // Apply the rate limiting middleware to all requests.

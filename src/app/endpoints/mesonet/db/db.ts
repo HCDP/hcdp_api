@@ -1,7 +1,7 @@
 import express from "express";
 import { rateLimit } from "express-rate-limit";
 import moment, { DurationInputArg1, DurationInputArg2, Moment } from "moment-timezone";
-import { mesonetDBAdmin, mesonetDBUser, pgStoreMesonetEmail, pgStoreMesonetMeasurements } from "../../../modules/util/resourceManagers/db.js";
+import { mesonetDBAdmin, mesonetDBUser, pgStoreMesonetEmail } from "../../../modules/util/resourceManagers/db.js";
 import * as fs from "fs";
 import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
