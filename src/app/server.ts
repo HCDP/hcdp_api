@@ -1,5 +1,6 @@
 import express from "express";
 import { rateLimit } from "express-rate-limit";
+import { slowDown } from "express-slow-down";
 import compression from "compression";
 import cors from "cors";
 import * as https from "https";
@@ -48,9 +49,18 @@ app.use((req, res, next) => {
   next();
 });
 
-const limiter = rateLimit({
+const slowLimit = slowDown({
 	windowMs: 60 * 1000, // 1 minute window
-	limit: 100, // Limit each IP to 100 requests per `window`.
+	delayAfter: 100, // Dalay after 100 requests.
+  delayMs: (hits) => 1000 * (hits - 100), // delay by 1 second * number of hits over 100
+  store: pgStoreAll
+});
+
+app.use(slowLimit);
+
+const cutoffLimit = rateLimit({
+	windowMs: 60 * 1000, // 1 minute window
+	limit: 1000, // Limit each IP to 1000 requests per `window`.
 	standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
 	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
   message: "Too many requests from this IP. Requests are limited to 100 per minute.",
@@ -58,7 +68,7 @@ const limiter = rateLimit({
 });
 
 // Apply the rate limiting middleware to all requests.
-app.use(limiter);
+app.use(cutoffLimit);
 
 app.use(express.json());
 

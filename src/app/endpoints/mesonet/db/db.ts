@@ -19,15 +19,6 @@ interface QueryData {
   index: string[]
 }
 
-const mesonetMeasurementsLimiter = rateLimit({
-	windowMs: 60 * 1000, // 1 minute window
-	limit: 20, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
-	standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
-	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
-  message: "Too many requests from this IP. Requests for this endpoint are limited to 20 per minute.",
-  store: pgStoreMesonetMeasurements
-});
-
 const mesonetEmailLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000, // 1 minute window
 	limit: 5, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
@@ -227,7 +218,7 @@ async function sanitizeExpandVarIDs(varIDs: string[]) {
   return data;
 }
 
-router.get("/mesonet/db/measurements", mesonetMeasurementsLimiter, async (req, res) => {
+router.get("/mesonet/db/measurements", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, row_mode }: any = req.query;

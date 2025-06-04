@@ -27,6 +27,7 @@
     "express": "^4.17.1",
     "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^7.5.0",
+    "express-slow-down": "^2.1.0",
     "generic-pool": "^3.9.0",
     "github-webhook-middleware": "^0.0.2",
     "moment": "^2.29.4",
