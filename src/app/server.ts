@@ -37,6 +37,17 @@ app.options('*', cors());
 sslRootCAs.inject();
 app.set("trust proxy", true);
 
+//compress all HTTP responses
+app.use(compression());
+
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST");
+  res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range, Content-Range, Cache-Control");
+  //pass to next layer
+  next();
+});
+
 const limiter = rateLimit({
 	windowMs: 60 * 1000, // 1 minute window
 	limit: 100, // Limit each IP to 100 requests per `window`.
@@ -49,6 +60,8 @@ const limiter = rateLimit({
 // Apply the rate limiting middleware to all requests.
 app.use(limiter);
 
+app.use(express.json());
+
 let options = {
     key: hskey,
     cert: hscert
@@ -59,17 +72,8 @@ const server = https.createServer(options, app)
   console.log("Server listening at port " + port);
 });
 
-app.use(express.json());
-//compress all HTTP responses
-app.use(compression());
 
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST");
-  res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range, Content-Range, Cache-Control");
-  //pass to next layer
-  next();
-});
+
 
 ////////////////////////////////
 ////////////////////////////////
