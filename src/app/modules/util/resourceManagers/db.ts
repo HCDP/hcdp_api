@@ -17,8 +17,8 @@ for(let key in databaseConnections) {
       database: "rate_limit",
       port
     }
-    postgresStores.pgStoreSlowAll = new PostgresStore(dbConfig, "all");
-    postgresStores.pgStoreLimitAll = new PostgresStore(dbConfig, "all");
+    postgresStores.pgStoreSlowAll = new PostgresStore(dbConfig, "slow_all");
+    postgresStores.pgStoreLimitAll = new PostgresStore(dbConfig, "limit_all");
     //postgresStores.pgStoreMesonetMeasurements = new PostgresStore(dbConfig, "meso_measurements");
     postgresStores.pgStoreMesonetEmail = new PostgresStore(dbConfig, "meso_email");
   }
