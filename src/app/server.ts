@@ -51,8 +51,8 @@ app.use((req, res, next) => {
 
 const slowLimit = slowDown({
 	windowMs: 60 * 1000, // 1 minute window
-	delayAfter: 100, // Dalay after 100 requests.
-  delayMs: (hits) => 1000 * (hits - 100), // delay by 1 second * number of hits over 100
+	delayAfter: 300, // Dalay after 300 requests.
+  delayMs: (hits) => 1000 * (hits - 300), // delay by 1 second * number of hits over 300
   store: pgStoreSlowAll
 });
 
