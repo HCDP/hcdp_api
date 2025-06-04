@@ -32,11 +32,14 @@ process.env["NODE_ENV"] = "production";
 ////////////////////////////////
 
 const app = express();
+
+app.options('*', cors());
+sslRootCAs.inject();
 app.set("trust proxy", true);
 
 const limiter = rateLimit({
 	windowMs: 60 * 1000, // 1 minute window
-	limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
+	limit: 100, // Limit each IP to 100 requests per `window`.
 	standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
 	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
   message: "Too many requests from this IP. Requests are limited to 100 per minute.",
@@ -45,9 +48,6 @@ const limiter = rateLimit({
 
 // Apply the rate limiting middleware to all requests.
 app.use(limiter);
-
-app.options('*', cors());
-sslRootCAs.inject();
 
 let options = {
     key: hskey,
