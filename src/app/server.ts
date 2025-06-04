@@ -35,7 +35,7 @@ const app = express();
 
 app.options('*', cors());
 sslRootCAs.inject();
-app.set("trust proxy", true);
+app.set("trust proxy", 1);
 
 //compress all HTTP responses
 app.use(compression());
