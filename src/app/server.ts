@@ -32,6 +32,7 @@ process.env["NODE_ENV"] = "production";
 ////////////////////////////////
 
 const app = express();
+app.set("trust proxy", true);
 
 const limiter = rateLimit({
 	windowMs: 60 * 1000, // 1 minute window
