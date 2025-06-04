@@ -36,7 +36,6 @@ export async function handleSubprocess(subprocess, dataHandler, errHandler?) {
 export async function sendEmail(mailOptions): Promise<MailRes> {
   let combinedMailOptions = Object.assign({}, mailConfig, mailOptions);
   let transporter = nodemailer.createTransport(transporterOptions);
-  console.log(combinedMailOptions);
   //have to be on uh netork
   return transporter.sendMail(combinedMailOptions)
   .then((info) => {

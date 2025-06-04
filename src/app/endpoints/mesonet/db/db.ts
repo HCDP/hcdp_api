@@ -232,8 +232,6 @@ router.get("/mesonet/db/measurements", mesonetMeasurementsLimiter, async (req, r
   await handleReq(req, res, permission, async (reqData) => {
     let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, row_mode }: any = req.query;
 
-    console.log(station_ids, start_date, end_date, var_ids, intervals, flags, location, limit, offset, reverse, join_metadata, local_tz, row_mode);
-
     let varIDs = parseListParam(var_ids);
     let stationIDs = parseListParam(station_ids);
     let flagArr = parseListParam(flags);
