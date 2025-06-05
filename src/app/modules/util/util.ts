@@ -5,7 +5,8 @@ import { userLog, mailConfig, smtp, smtpPort } from "./config.js";
 const transporterOptions = {
   host: smtp,
   port: smtpPort,
-  secure: false
+  secure: false,
+  ignoreTLS: true
 };
 
 export async function readdir(dir): Promise<{err, files}> {
