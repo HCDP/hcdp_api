@@ -49,26 +49,26 @@ app.use((req, res, next) => {
   next();
 });
 
-const slowLimit = slowDown({
-	windowMs: 60 * 1000, // 1 minute window
-	delayAfter: 300, // Dalay after 300 requests.
-  delayMs: (hits) => 1000 * (hits - 300), // delay by 1 second * number of hits over 300
-  store: pgStoreSlowAll
-});
+// const slowLimit = slowDown({
+// 	windowMs: 60 * 1000, // 1 minute window
+// 	delayAfter: 300, // Dalay after 300 requests.
+//   delayMs: (hits) => 1000 * (hits - 300), // delay by 1 second * number of hits over 300
+//   store: pgStoreSlowAll
+// });
 
-app.use(slowLimit);
+// app.use(slowLimit);
 
-const cutoffLimit = rateLimit({
-	windowMs: 60 * 1000, // 1 minute window
-	limit: 1000, // Limit each IP to 1000 requests per `window`.
-	standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
-	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
-  message: "Too many requests from this IP. Requests are limited to 100 per minute.",
-  store: pgStoreLimitAll
-});
+// const cutoffLimit = rateLimit({
+// 	windowMs: 60 * 1000, // 1 minute window
+// 	limit: 1000, // Limit each IP to 1000 requests per `window`.
+// 	standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
+// 	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
+//   message: "Too many requests from this IP. Requests are limited to 100 per minute.",
+//   store: pgStoreLimitAll
+// });
 
-// Apply the rate limiting middleware to all requests.
-app.use(cutoffLimit);
+// // Apply the rate limiting middleware to all requests.
+// app.use(cutoffLimit);
 
 app.use(express.json());
 
