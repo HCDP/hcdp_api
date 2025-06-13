@@ -110,7 +110,7 @@ router.get("/raster/timeseries", async (req, res) => {
                   //get parts
                   const [year, month, day, hour, minute, second] = dateParts;
                   //construct ISO date string from parts with defaults for missing values
-                  const isoDateStr = `${year}-${month || "01"}-${day || "01"}T${hour || "00"}:${minute || "00"}:${second || "00"}`;
+                  const isoDateStr = `${year}-${month || "01"}-${day || "01"}T${hour || "00"}:${minute || "00"}:${second || "00"}-10:00`;
                   timeseries[isoDateStr] = parseFloat(valArr[i]);
               }
           }
