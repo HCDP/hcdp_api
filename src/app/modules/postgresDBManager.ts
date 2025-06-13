@@ -8,13 +8,8 @@ pgTypes.setTypeParser(1114, function(timestamp: string) {
     return moment.tz(timestamp, "UTC").toISOString();
 });
 
-export interface Credentials {
-    username: string,
-    password: string
-}
 
 export interface QueryOptions {
-    privileged?: boolean,
     rowMode?: "array" | undefined
 }
 
@@ -38,37 +33,27 @@ class QueryHandler {
 }
 
 export class PostgresDBManager {
-    userDBHandler: any;
-    adminDBHandler: any;
-    pgp: any;
+    private dbHandler: any;
+    private pgp: any;
 
-    constructor(host: string, port: number, database: string, userCredentials: Credentials, adminCredentials: Credentials, userCons: number, adminCons: number) {
+    constructor(host: string, port: number, database: string, user: string, password: string, connections: number) {
         this.pgp = pgPromise();
-
-        this.userDBHandler = this.pgp({
-            host: host,
-            port: port,
-            database: database,
-            user: userCredentials.username,
-            password: userCredentials.password,
-            max: userCons
-        });
-
-        this.adminDBHandler = this.pgp({
-            host: host,
-            port: port,
-            database: database,
-            user: adminCredentials.username,
-            password: adminCredentials.password,
-            max: adminCons
+        
+        this.dbHandler = this.pgp({
+            host,
+            port,
+            database,
+            user,
+            password,
+            max: connections
         });
     }
 
-    async query(query: string, params: string[], options: QueryOptions = { privileged: false }): Promise<QueryHandler> {
+    async query(query: string, params: string[], options: QueryOptions = {}): Promise<QueryHandler> {
         let conn: any = null;
         let cursor: any = null;
         try {
-            conn = await (options.privileged ? this.adminDBHandler : this.userDBHandler).connect();
+            conn = await this.dbHandler.connect();
             cursor = conn.client.query(new Cursor(query, params, {
                 rowMode: options.rowMode
             }));
@@ -85,11 +70,11 @@ export class PostgresDBManager {
         return new QueryHandler(conn, cursor);
     }
 
-    async queryNoRes(query: string, params: string[], options: QueryOptions = { privileged: false }): Promise<number> {
-        return (options.privileged ? this.adminDBHandler : this.userDBHandler).result(query, params, (r: any) => { return r.rowCount; });
+    async queryNoRes(query: string, params: string[]): Promise<number> {
+        return this.dbHandler.result(query, params, (r: any) => { return r.rowCount; });
     }
 
-    mogrify(query, params): string {
+    mogrify(query: string, params: string[]): string {
         return this.pgp.as.format(query, params);
     }
 }

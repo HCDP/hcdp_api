@@ -6,3 +6,4 @@ server.csr
 test/
 dist
 **/config.json
+db.env

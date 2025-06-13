@@ -14,6 +14,7 @@
   "author": "Jared McLean",
   "license": "ISC",
   "dependencies": {
+    "@acpr/rate-limit-postgresql": "^1.4.1",
     "@types/node": "^20.12.13",
     "autodetect-decoder-stream": "^2.0.2",
     "body-parser": "^1.19.0",
@@ -25,6 +26,8 @@
     "csv-stringify": "^6.5.2",
     "express": "^4.17.1",
     "express-mongo-sanitize": "^2.2.0",
+    "express-rate-limit": "^7.5.0",
+    "express-slow-down": "^2.1.0",
     "generic-pool": "^3.9.0",
     "github-webhook-middleware": "^0.0.2",
     "moment": "^2.29.4",

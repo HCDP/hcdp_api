@@ -1,4 +1,4 @@
-import { HCDPDBManager } from "./resourceManagers/db.js";
+import { apiDB } from "./resourceManagers/db.js";
 
 async function validateTokenAccess(token, permission) {
   let valid = false;
@@ -11,7 +11,7 @@ async function validateTokenAccess(token, permission) {
     WHERE token = $1;
   `;
   
-  let queryHandler = await HCDPDBManager.query(query, [token], {privileged: true});
+  let queryHandler = await apiDB.query(query, [token]);
   let queryRes = await queryHandler.read(1);
   queryHandler.close();
   if(queryRes.length > 0) {

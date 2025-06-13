@@ -1,6 +1,6 @@
 import express from "express";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
-import { HCDPDBManager } from "../../../modules/util/resourceManagers/db.js";
+import { apiDB } from "../../../modules/util/resourceManagers/db.js";
 import { sendEmail } from "../../../modules/util/util.js";
 import * as crypto from "crypto";
 
@@ -33,7 +33,7 @@ router.post("/registerTokenRequest", async (req, res) => {
     
     const timestamp = new Date().toISOString();
     let query = "INSERT INTO token_requests VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);";
-    await HCDPDBManager.queryNoRes(query, [requestID, timestamp, null, null, name, email, organization, position, reason], {privileged: true})
+    await apiDB.queryNoRes(query, [requestID, timestamp, null, null, name, email, organization, position, reason])
 
     reqData.code = 201;
     return res.status(201)
@@ -66,7 +66,7 @@ router.get("/respondTokenRequest", async (req, res) => {
       FROM token_requests
       WHERE requestID = $1;
     `;
-    let queryHandler = await HCDPDBManager.query(query, [requestID], {privileged: true});
+    let queryHandler = await apiDB.query(query, [requestID]);
     let requestData = await queryHandler.read(1);
     queryHandler.close();
     const timestamp = new Date().toISOString();
@@ -78,7 +78,7 @@ router.get("/respondTokenRequest", async (req, res) => {
         WHERE requestID = $3;
       `;
 
-      await HCDPDBManager.queryNoRes(query, [accept, timestamp, requestID], {privileged: true});
+      await apiDB.queryNoRes(query, [accept, timestamp, requestID]);
     };
 
     if(requestData.length > 0) {
@@ -97,7 +97,7 @@ router.get("/respondTokenRequest", async (req, res) => {
         query = `
           INSERT INTO auth_token_store VALUES ($1, $2, $3, $4, $5);
         `;
-        await HCDPDBManager.queryNoRes(query, [apiToken, timestamp, "basic", userLabel, requestID], {privileged: true});
+        await apiDB.queryNoRes(query, [apiToken, timestamp, "basic", userLabel, requestID]);
         const emailContent = `Dear ${name},
   
           Thank you for your interest in using the HCDP API! Here is your HCDP API token:
@@ -183,7 +183,7 @@ router.put("/updateTokenPermissions", async (req, res) => {
       SET permissions = $1 
       WHERE token = $2;
     `;
-    await HCDPDBManager.queryNoRes(query, [permString, token], {privileged: true});
+    await apiDB.queryNoRes(query, [permString, token]);
     reqData.code = 204;
     return res.status(204).end();
   });
@@ -214,7 +214,7 @@ router.patch("/deprecateToken", async (req, res) => {
       SET token = $1 
       WHERE token = $2;
     `;
-    await HCDPDBManager.queryNoRes(query, [newToken, token], {privileged: true});
+    await apiDB.queryNoRes(query, [newToken, token]);
     let message = `Your HCDP API token ${token} has been deprecated. Your new token is ${newToken}. Please email hcdp@hawaii.edu if you have any questions.`;
     let mailOptions = {
       to: email,

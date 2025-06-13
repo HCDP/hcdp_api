@@ -1,6 +1,46 @@
 import { logReq, sendEmail } from "./util.js";
 import { administrators } from "./config.js";
 import { validateToken } from "./auth.js";
+import { apiDB } from "./resourceManagers/db.js";
+
+async function sendErrorMessage(errorMsg: string) {
+  let htmlErrorMsg = errorMsg.replace(/\n/g, "<br>");
+  
+  //send the administrators an email logging the error
+  if(administrators.length > 0) {
+    let mailOptions = {
+      to: administrators,
+      subject: "HCDP API error",
+      text: `An unexpected error occured in the HCDP API:\n${errorMsg}`,
+      html: `<p>An error occured in the HCDP API:<br>${htmlErrorMsg}</p>`
+    };
+    try {
+      //attempt to send email to the administrators
+      let emailStatus = await sendEmail(mailOptions);
+      //if email send failed throw error for logging
+      if(!emailStatus.success) {
+        throw emailStatus.error;
+      }
+    }
+    //if error while sending admin email write to stderr
+    catch(e) {
+      console.error(`Failed to send administrator notification email: ${e}`);
+    }
+  }
+}
+
+async function checkSendErrorMessage(errorMsg: string) {
+  let query = `
+    UPDATE error_throttle
+    SET count = count - 1
+    WHERE count > 0;
+  `;
+
+  let updated = await apiDB.queryNoRes(query, []);
+  if(updated) {
+    sendErrorMessage(errorMsg);
+  }
+}
 
 export async function handleReqNoAuth(req, res, handler) {
   //note include success since 202 status might not indicate success in generating download package
@@ -25,7 +65,8 @@ export async function handleReqNoAuth(req, res, handler) {
     let errorMsg = `method: ${reqData.method}\n\
       endpoint: ${reqData.endpoint}\n\
       error: ${e}`;
-    let htmlErrorMsg = errorMsg.replace(/\n/g, "<br>");
+      
+    checkSendErrorMessage(errorMsg);
     console.error(`An unexpected error occured:\n${errorMsg}`);
     //if request code not set by handler set to 500 and send response (otherwise response already sent and error was in post-processing)
     if(reqData.code == 0) {
@@ -33,46 +74,8 @@ export async function handleReqNoAuth(req, res, handler) {
       res.status(500)
       .send("An unexpected error occurred");
     }
-    //send the administrators an email logging the error
-    if(administrators.length > 0) {
-      let mailOptions = {
-        to: administrators,
-        subject: "HCDP API error",
-        text: `An unexpected error occured in the HCDP API:\n${errorMsg}`,
-        html: `<p>An error occured in the HCDP API:<br>${htmlErrorMsg}</p>`
-      };
-      try {
-        //attempt to send email to the administrators
-        let emailStatus = await sendEmail(mailOptions);
-        //if email send failed throw error for logging
-        if(!emailStatus.success) {
-          throw emailStatus.error;
-        }
-      }
-      //if error while sending admin email write to stderr
-      catch(e) {
-        console.error(`Failed to send administrator notification email: ${e}`);
-      }
-    }
   }
   logReq(reqData);
-}
-
-let rpm = 2;
-let throttleTimer = null;
-function throttleRequest() {
-  let throttle = true;
-  if(rpm > 0) {
-    rpm--;
-    if(throttleTimer === null) {
-      throttleTimer = setTimeout(() => {
-        throttleTimer = null;
-        rpm = 2;
-      }, 60000);
-    }
-    throttle = false;
-  }
-  return throttle;
 }
 
 export async function handleReq(req, res, permission, handler) {
@@ -92,12 +95,6 @@ export async function handleReq(req, res, permission, handler) {
   try {
     const tokenData = await validateToken(req, permission);
     const { valid, allowed, token, user } = tokenData;
-
-    if(user == "cherryle_heu" && throttleRequest()) {
-      reqData.code = 429;
-      return res.status(429)
-      .send("Too many requests.");
-    }
 
     reqData.token = token;
     reqData.tokenUser = user;
@@ -125,34 +122,14 @@ export async function handleReq(req, res, permission, handler) {
       endpoint: ${reqData.endpoint}\n\
       error: ${e}\n\
       trace: ${e.stack}`;
-    let htmlErrorMsg = errorMsg.replace(/\n/g, "<br>");
+
+    checkSendErrorMessage(errorMsg);
     console.error(`An unexpected error occured:\n${errorMsg}`);
     //if request code not set by handler set to 500 and send response (otherwise response already sent and error was in post-processing)
     if(reqData.code == 0) {
       reqData.code = 500;
       res.status(500)
       .send("An unexpected error occurred");
-    }
-    //send the administrators an email logging the error
-    if(administrators.length > 0) {
-      let mailOptions = {
-        to: administrators,
-        subject: "HCDP API error",
-        text: `An unexpected error occured in the HCDP API:\n${errorMsg}`,
-        html: `<p>An error occured in the HCDP API:<br>${htmlErrorMsg}</p>`
-      };
-      try {
-        //attempt to send email to the administrators
-        let emailStatus = await sendEmail(mailOptions);
-        //if email send failed throw error for logging
-        if(!emailStatus.success) {
-          throw emailStatus.error;
-        }
-      }
-      //if error while sending admin email write to stderr
-      catch(e) {
-        console.error(`Failed to send administrator notification email: ${e}`);
-      }
     }
   }
   logReq(reqData);
