@@ -30,7 +30,6 @@ export const administrators = config.administrators;
 export const tapisDBConfig = config.tapisDBConfig;
 export const databaseConnections = config.databaseConnections;
 export const tapisConfig = config.tapisConfig;
-export const tapisV3Config = config.tapisV3Config;
 export const githubWebhookSecret = config.githubWebhookSecret;
 
 export const mesonetLocations = ["american_samoa", "hawaii"];
