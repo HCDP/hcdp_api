@@ -37,22 +37,5 @@
         "tenantURL": "https://agaveauth.its.hawaii",
         "token": "token"
     },
-    "tapisV3Config": {
-        "username": "username",
-        "password": "password",
-        "tenantURL": "https://dev.develop.tapis.io",
-        "streams": {
-            "projects": {
-                "hawaii": {
-                    "project": "hawaii_mesonet",
-                    "timezone": "Pacific/Honolulu"
-                },
-                "american_samoa": {
-                    "project": "american_samoa_mesonet",
-                    "timezone": "Pacific/Pago_Pago"
-                }
-            }
-        }
-    },
     "githubWebhookSecret": "secret"
 }

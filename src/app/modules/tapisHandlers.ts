@@ -3,11 +3,6 @@ const { MongoClient } = pkg;
 import * as querystring from "querystring";
 import * as https from "https";
 
-import { TapisV3Auth } from "./tapis/auth.js";
-import { TapisV3Streams, ProjectHandler } from "./tapis/streams.js";
-
-export { ProjectHandler };
-
 export class DBManager {
     dbName: string;
     collectionName: string;
@@ -317,29 +312,5 @@ export class TapisManager {
                 await this.create(doc);
             }
         }
-    }
-}
-
-
-
-
-
-
-export class TapisV3Manager {
-    private auth: TapisV3Auth;
-    private _streams: TapisV3Streams;
-
-    constructor(username: string, password: string, tenantURL: string, retryLimit: number, v2Manager: TapisManager) {
-        this.auth = new TapisV3Auth(username, password, tenantURL);
-        this._streams = new TapisV3Streams(tenantURL, retryLimit, v2Manager, this.auth);
-    }
-
-    get streams(): TapisV3Streams {
-        return this._streams;
-    }
-
-    
-    close() {
-        this.auth.close();
     }
 }
