@@ -110,7 +110,7 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
       variable_data.standard_name as variable,
       value
       ${selectFlag ? ", flag" : ""}
-      ${joinMetadata ? ", units, units_short, display_name AS variable_display_name, interval_seconds, name AS station_name, lat, lng, elevation" : ""}
+      ${joinMetadata ? ", units, units_plain, units_expanded, display_name AS variable_display_name, interval_seconds, name AS station_name, lat, lng, elevation" : ""}
     FROM ${measurementsTable}
     JOIN (
       SELECT alias, standard_name, interval_seconds, program
@@ -129,7 +129,7 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
     index.push("flag");
   }
   if(joinMetadata) {
-    index = index.concat(["units", "units_short", "variable_display_name", "interval_seconds", "station_name", "lat", "lng", "elevation"]);
+    index = index.concat(["units", "units_plain", "units_expanded", "variable_display_name", "interval_seconds", "station_name", "lat", "lng", "elevation"]);
   }
 
   return {
@@ -439,7 +439,7 @@ function constructMeasurementsQueryEmail(stationIDs: string[], startDate: string
     params.push(offset.toString());
     limitOffsetClause += ` OFFSET $${params.length}`;
   }
-
+  
   let query = `
     SELECT
       timestamp,
@@ -447,7 +447,7 @@ function constructMeasurementsQueryEmail(stationIDs: string[], startDate: string
       variable_data.standard_name as variable,
       value,
 			flag
-      ${joinMetadata ? ", units, units_short, display_name AS variable_display_name, interval_seconds, name AS station_name, lat, lng, elevation" : ""}
+      ${joinMetadata ? ", units, units_plain, units_expanded, display_name AS variable_display_name, interval_seconds, name AS station_name, lat, lng, elevation" : ""}
     FROM ${measurementsTable}
     JOIN (
       SELECT alias, standard_name, interval_seconds, program
@@ -463,7 +463,7 @@ function constructMeasurementsQueryEmail(stationIDs: string[], startDate: string
 
   let index = ["station_id", "timestamp", "variable", "value", "flag"];
   if(joinMetadata) {
-    index = index.concat(["units", "units_short", "variable_display_name", "interval_seconds", "station_name", "lat", "lng", "elevation"]);
+    index = index.concat(["units", "units_plain", "units_expanded", "variable_display_name", "interval_seconds", "station_name", "lat", "lng", "elevation"]);
   }
 
   return {
@@ -506,13 +506,13 @@ function constructVariablesQuery(varIDs: string[], limit?: number, offset?: numb
   }
 
   let query = `
-    SELECT standard_name, units, units_short, display_name
+    SELECT standard_name, display_name, units, units_plain, units_expanded
     FROM variable_metadata
     ${whereClause}
     ${limitOffsetClause};
   `;
 
-  let index = ["standard_name", "units", "units_short", "display_name"];
+  let index = ["standard_name", "display_name", "units", "units_plain", "units_expanded"];
 
   return {
     query,
@@ -624,7 +624,7 @@ router.get("/mesonet/db/variables", async (req, res) => {
       row_mode = undefined;
     }
 
-    let { query, params } = constructVariablesQuery(varIDs, limit, offset);
+    let { query, params, index } = constructVariablesQuery(varIDs, limit, offset);
 
     let data: any = [];
     try {
@@ -648,8 +648,6 @@ router.get("/mesonet/db/variables", async (req, res) => {
     }
 
     if(row_mode === "array") {
-      let index = ["standard_name", "units", "units_short", "display_name"];
-
       data = {
         index,
         data
@@ -1522,10 +1520,10 @@ class MesonetCSVWriter {
       this.state.index = {};
       this.state.header = ["Timestamp", "Station ID"];
       for(let item of this.varMetadata) {
-        let {display_name, units_short, standard_name} = item;
+        let {display_name, units, standard_name} = item;
         let headerVar = display_name;
-        if(units_short) {
-          headerVar += ` (${units_short})`;
+        if(units) {
+          headerVar += ` (${units})`;
         }
         this.state.index[standard_name] = this.state.header.length;
         this.state.header.push(headerVar);
@@ -1762,7 +1760,9 @@ interface WriteStateConfig {
 
 interface VariableMetadata {
 	display_name: string,
-	units_short: string,
+	units: string,
+  units_plain: string,
+  units_expanded: string,
 	standard_name: string
 }
 
@@ -1785,7 +1785,8 @@ interface MesonetMeasurementValue {
   value: string,
 	flag: number,
 	units?: string,
-	units_short?: string,
+	units_plain?: string,
+  units_expanded: string,
 	variable_display_name?: string
 	interval_seconds?: string,
 	station_name?: string,
