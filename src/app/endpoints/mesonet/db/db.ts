@@ -666,7 +666,7 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
   await handleReqNoAuth(req, res, async (reqData) => {
     //synoptic data
     let query = `
-      SELECT program, alias, synoptic_translations.standard_name, synoptic_name, unit_conversion_coeficient
+      SELECT program, alias, synoptic_translations.standard_name, synoptic_name, unit_conversion_coefficient
       FROM synoptic_translations
       JOIN version_translations ON version_translations.standard_name = synoptic_translations.standard_name;
     `;
