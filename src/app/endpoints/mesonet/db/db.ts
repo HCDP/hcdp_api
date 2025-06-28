@@ -661,6 +661,110 @@ router.get("/mesonet/db/variables", async (req, res) => {
   });
 });
 
+
+router.get("/mesonet/db/synopticData", async (req, res) => {
+  await handleReqNoAuth(req, res, async (reqData) => {
+    //synoptic data
+    let query = `
+      SELECT program, alias, synoptic_translations.standard_name, synoptic_name, unit_conversion_coeficient
+      FROM synoptic_translations
+      JOIN version_translations ON version_translations.standard_name = synoptic_translations.standard_name;
+    `;
+    let queryHandler = await mesonetDBUser.query(query, []);
+    let data = await queryHandler.read(100000);
+    queryHandler.close();
+    let synopticData = {};
+    for(let row of data) {
+      const { program, alias, standard_name, synoptic_name, unit_conversion_coeficient } = row;
+      let programData = synopticData[program];
+      if(!programData) {
+        programData = {};
+        synopticData[program] = programData;
+      }
+      programData[alias] = {
+        standard_name,
+        synoptic_name,
+        unit_conversion_coeficient
+      }
+    }
+
+    //station metadata
+    query = `
+      SELECT location, station_id, lat, lng, elevation
+      FROM station_metadata;
+    `;
+    queryHandler = await mesonetDBUser.query(query, []);
+    data = await queryHandler.read(100000);
+    queryHandler.close();
+    let stationMetadata = {};
+    for(let row of data) {
+      let { location, station_id, lat, lng, elevation } = row;
+      let locationData = stationMetadata[location];
+      if(!locationData) {
+        locationData = {};
+        stationMetadata[location] = locationData;
+      }
+      locationData[station_id] = {
+        lat,
+        lng,
+        elevation
+      };
+    }
+
+    //sensor metadata
+    query = `
+      SELECT station_id, standard_name, sensor_number, sensor_height
+      FROM sensor_positions;
+    `;
+    queryHandler = await mesonetDBUser.query(query, []);
+    data = await queryHandler.read(100000);
+    queryHandler.close();
+    let sensorMetadata = {};
+    for(let row of data) {
+      let { station_id, standard_name, sensor_number, sensor_height } = row;
+      let stationData = sensorMetadata[station_id];
+      if(!stationData) {
+        stationData = {};
+        sensorMetadata[station_id] = stationData;
+      }
+      stationData[standard_name] = {
+        sensor_number,
+        sensor_height
+      };
+    }
+
+    //exclusion data
+    query = `
+      SELECT station_id, standard_name
+      FROM synoptic_exclude
+      ORDER BY station_id;
+    `;
+    queryHandler = await mesonetDBUser.query(query, []);
+    data = await queryHandler.read(100000);
+    queryHandler.close();
+    let exclusionData = {};
+    for(let row of data) {
+      let { station_id, standard_name } = row;
+      let stationData = exclusionData[station_id];
+      if(!stationData) {
+        stationData = {};
+        exclusionData[station_id] = stationData;
+      }
+      stationData[standard_name] = true;
+    }
+
+    reqData.code = 200;
+    return res.status(200)
+    .json({
+      synopticData,
+      stationMetadata,
+      sensorMetadata,
+      exclusionData
+    });
+  });
+});
+
+
 router.get("/mesonet/db/sff", async (req, res) => {
   await handleReqNoAuth(req, res, async (reqData) => {
     let { location }: any = req.query;
