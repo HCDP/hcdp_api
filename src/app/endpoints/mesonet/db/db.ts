@@ -664,6 +664,11 @@ router.get("/mesonet/db/variables", async (req, res) => {
 
 router.get("/mesonet/db/synopticData", async (req, res) => {
   await handleReqNoAuth(req, res, async (reqData) => {
+    let synopticData = {
+      synoptic: {},
+      locationData: {}
+    };
+
     //synoptic data
     let query = `
       SELECT program, alias, synoptic_translations.standard_name, synoptic_name, unit_conversion_coefficient
@@ -673,13 +678,12 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
     let queryHandler = await mesonetDBUser.query(query, []);
     let data = await queryHandler.read(100000);
     queryHandler.close();
-    let synopticData = {};
     for(let row of data) {
       const { program, alias, standard_name, synoptic_name, unit_conversion_coeficient } = row;
-      let programData = synopticData[program];
+      let programData = synopticData.synoptic[program];
       if(!programData) {
         programData = {};
-        synopticData[program] = programData;
+        synopticData.synoptic[program] = programData;
       }
       programData[alias] = {
         standard_name,
@@ -696,15 +700,21 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
     queryHandler = await mesonetDBUser.query(query, []);
     data = await queryHandler.read(100000);
     queryHandler.close();
-    let stationMetadata = {};
     for(let row of data) {
       let { location, station_id, lat, lng, elevation } = row;
-      let locationData = stationMetadata[location];
+
+      //set up locations if first time seen, only needs to be done for this query since this is the source of the location field for all queries
+      let locationData = synopticData.locationData[location];
       if(!locationData) {
-        locationData = {};
-        stationMetadata[location] = locationData;
+        locationData = {
+          stationMetadata: {},
+          sensorMetadata: {},
+          exclusionData: {}
+        };
+        synopticData.locationData[location] = locationData;
       }
-      locationData[station_id] = {
+
+      locationData.stationMetadata[station_id] = {
         lat,
         lng,
         elevation
@@ -713,15 +723,16 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
 
     //sensor metadata
     query = `
-      SELECT station_id, standard_name, sensor_number, sensor_height
-      FROM sensor_positions;
+      SELECT station_metadata.location, sensor_positions.station_id, standard_name, sensor_number, sensor_height
+      FROM sensor_positions
+      JOIN station_metadata ON station_metadata.station_id = sensor_positions.station_id;
     `;
     queryHandler = await mesonetDBUser.query(query, []);
     data = await queryHandler.read(100000);
     queryHandler.close();
-    let sensorMetadata = {};
     for(let row of data) {
-      let { station_id, standard_name, sensor_number, sensor_height } = row;
+      let { location, station_id, standard_name, sensor_number, sensor_height } = row;
+      let sensorMetadata = synopticData.locationData[location].sensorMetadata;
       let stationData = sensorMetadata[station_id];
       if(!stationData) {
         stationData = {};
@@ -735,16 +746,16 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
 
     //exclusion data
     query = `
-      SELECT station_id, standard_name
+      SELECT station_metadata.location, synoptic_exclude.station_id, standard_name
       FROM synoptic_exclude
-      ORDER BY station_id;
+      JOIN station_metadata ON station_metadata.station_id = synoptic_exclude.station_id;
     `;
     queryHandler = await mesonetDBUser.query(query, []);
     data = await queryHandler.read(100000);
     queryHandler.close();
-    let exclusionData = {};
     for(let row of data) {
-      let { station_id, standard_name } = row;
+      let { location, station_id, standard_name } = row;
+      let exclusionData = synopticData.locationData[location].exclusionData;
       let stationData = exclusionData[station_id];
       if(!stationData) {
         stationData = {};
@@ -755,12 +766,7 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
 
     reqData.code = 200;
     return res.status(200)
-    .json({
-      synopticData,
-      stationMetadata,
-      sensorMetadata,
-      exclusionData
-    });
+    .json(synopticData);
   });
 });
 
