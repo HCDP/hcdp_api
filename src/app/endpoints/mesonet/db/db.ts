@@ -679,7 +679,9 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
     let data = await queryHandler.read(100000);
     queryHandler.close();
     for(let row of data) {
-      const { program, alias, standard_name, synoptic_name, unit_conversion_coeficient } = row;
+      const { program, alias, standard_name, synoptic_name, unit_conversion_coefficient } = row;
+      console.log(row);
+      console.log(unit_conversion_coefficient);
       let programData = synopticData.synoptic[program];
       if(!programData) {
         programData = {};
@@ -688,7 +690,7 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
       programData[alias] = {
         standard_name,
         synoptic_name,
-        unit_conversion_coeficient
+        unit_conversion_coefficient
       }
     }
 
