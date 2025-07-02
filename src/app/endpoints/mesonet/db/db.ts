@@ -709,7 +709,7 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
         locationData = {
           stationMetadata: {},
           sensorMetadata: {},
-          exclusionData: {}
+          exclusions: {}
         };
         synopticData.locationData[location] = locationData;
       }
@@ -755,11 +755,11 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
     queryHandler.close();
     for(let row of data) {
       let { location, station_id, standard_name } = row;
-      let exclusionData = synopticData.locationData[location].exclusionData;
-      let stationData = exclusionData[station_id];
+      let exclusions = synopticData.locationData[location].exclusions;
+      let stationData = exclusions[station_id];
       if(!stationData) {
         stationData = {};
-        exclusionData[station_id] = stationData;
+        exclusions[station_id] = stationData;
       }
       stationData[standard_name] = true;
     }
