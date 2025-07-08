@@ -86,6 +86,8 @@ router.get("/raster/timeseries", async (req, res) => {
           let code = await handleSubprocess(proc, (data) => {
             values += data.toString();
           });
+          console.log(code);
+          console.log(values);
       
           if(code !== 0) {
           //if extractor process failed throw error for handling by main error handler
