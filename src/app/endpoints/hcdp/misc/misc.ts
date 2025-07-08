@@ -66,6 +66,7 @@ router.get("/raster/timeseries", async (req, res) => {
           // getconf ARG_MAX = 2097152
           //should be alright if less than 10k paths
           if(paths.length < 10000) {
+            console.log("../assets/tiffextract.out", [...posParams, ...paths]);
             proc = child_process.spawn("../assets/tiffextract.out", [...posParams, ...paths]);
           }
           //otherwise write paths to a file and use that

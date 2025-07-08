@@ -5,8 +5,6 @@ import { join } from "path";
 const config = JSON.parse(fs.readFileSync("../assets/config.json", "utf8"));
 
 export const dataRoot = config.dataRoot;
-
-//LICENSE FILE NEEDS TO BE MODIFIED IN USAGE
 const { rawDataDir, downloadDir, productionData } = config;
 
 export const productionLocations = Object.keys(productionData);
