@@ -6,31 +6,22 @@ const config = JSON.parse(fs.readFileSync("../assets/config.json", "utf8"));
 
 export const dataRoot = config.dataRoot;
 
-const rawDataDir = config.rawDataDir;
-const downloadDir = config.downloadDir;
-const productionDir = config.productionDir;
-const licensePath = config.licenseFile;
+//LICENSE FILE NEEDS TO BE MODIFIED IN USAGE
+const { rawDataDir, downloadDir, productionData } = config;
+
+export const productionLocations = Object.keys(productionData);
+export const productionDirs = {};
+for(let location in productionData) {
+  productionDirs[location] = join(dataRoot, productionData[location])
+}
 
 export const rawDataRoot = join(dataRoot, rawDataDir);
 export const downloadRoot = join(dataRoot, downloadDir);
-export const productionRoot = join(dataRoot, productionDir);
-export const licenseFile = join(dataRoot, licensePath);
 
 export const fsHealthData = config.fsHealth;
 fsHealthData.file = join(dataRoot, fsHealthData.file);
 
-export const port = config.port;
-export const smtp = config.smtp;
-export const smtpPort = config.smtpPort;
-export const mailConfig = config.email;
-export const defaultZipName = config.defaultZipName;
-export const urlRoot = config.urlRoot;
-export const userLog = config.userLog;
-export const administrators = config.administrators;
-export const tapisDBConfig = config.tapisDBConfig;
-export const databaseConnections = config.databaseConnections;
-export const tapisConfig = config.tapisConfig;
-export const githubWebhookSecret = config.githubWebhookSecret;
+export const { port, smtp, smtpPort, emailConfig, defaultZipName, urlRoot, userLog, administrators, tapisDBConfig, databaseConnections, tapisConfig, githubWebhookSecret, licenseFile } = config.port;
 
 export const mesonetLocations = ["american_samoa", "hawaii"];
 

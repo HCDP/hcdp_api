@@ -2,7 +2,7 @@ import express from "express";
 import * as fs from "fs";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
 import { sendEmail, handleSubprocess } from "../../../modules/util/util.js";
-import { ATTACHMENT_MAX_MB, defaultZipName, downloadRoot, productionRoot, apiURL, licenseFile } from "../../../modules/util/config.js";
+import { ATTACHMENT_MAX_MB, defaultZipName, downloadRoot, apiURL, licenseFile } from "../../../modules/util/config.js";
 import { getPaths } from "../../../modules/fileIndexer.js";
 import * as child_process from "child_process";
 import * as path from "path";
@@ -119,20 +119,21 @@ router.post("/genzip/email", async (req, res) => {
         /////////////////////////////////////
         
         //get paths
-        let { paths, numFiles } = await getPaths(data);
+        let { root, paths, numFiles } = await getPaths(data);
         //add license file
-        paths.push(licenseFile);
+        let licensePath = path.join(root, licenseFile);
+        paths.push(licensePath);
         numFiles += 1;
 
         //make relative so zip doesn't include production path
         paths = paths.map((file) => {
-          return path.relative(productionRoot, file);
+          return path.relative(root, file);
         });
 
         reqData.sizeF = numFiles;
         let zipPath = "";
         let zipProc;
-        zipProc = child_process.spawn("sh", ["../assets/scripts/zipgen.sh", downloadRoot, productionRoot, zipName, ...paths]);
+        zipProc = child_process.spawn("sh", ["../assets/scripts/zipgen.sh", downloadRoot, root, zipName, ...paths]);
 
         let code = await handleSubprocess(zipProc, (data) => {
           zipPath += data.toString();
@@ -301,20 +302,21 @@ router.post("/genzip/instant/link", async (req, res) => {
       );
     }
     else {
-      let { paths, numFiles } = await getPaths(data);
+      let { root, paths, numFiles } = await getPaths(data);
       //add license file
-      paths.push(licenseFile);
+      let licensePath = path.join(root, licenseFile);
+      paths.push(licensePath);
       numFiles += 1;
 
       //make relative so zip doesn't include production path
       paths = paths.map((file) => {
-        return path.relative(productionRoot, file);
+        return path.relative(root, file);
       });
 
       reqData.sizeF = numFiles;
       res.contentType("application/zip");
 
-      let zipProc = child_process.spawn("sh", ["../assets/scripts/zipgen.sh", downloadRoot, productionRoot, zipName, ...paths]);
+      let zipProc = child_process.spawn("sh", ["../assets/scripts/zipgen.sh", downloadRoot, root, zipName, ...paths]);
       let zipPath = "";
 
       //write stdout (should be file name) to output accumulator
@@ -371,19 +373,20 @@ router.post("/genzip/instant/splitlink", async (req, res) => {
       );
     }
     else {
-      let { paths, numFiles } = await getPaths(data);
+      let { root, paths, numFiles } = await getPaths(data);
       //add license file
-      paths.push(licenseFile);
+      let licensePath = path.join(root, licenseFile);
+      paths.push(licensePath);
       numFiles += 1;
 
       //make relative so zip doesn't include production path
       paths = paths.map((file) => {
-        return path.relative(productionRoot, file);
+        return path.relative(root, file);
       });
 
       reqData.sizeF = numFiles;
       res.contentType("application/zip");
-      let zipProc = child_process.spawn("sh", ["../assets/scripts/zipgen_parts.sh", downloadRoot, productionRoot, ...paths]);
+      let zipProc = child_process.spawn("sh", ["../assets/scripts/zipgen_parts.sh", downloadRoot, root, ...paths]);
       let zipOutput = "";
 
       //write stdout (should be file name) to output accumulator

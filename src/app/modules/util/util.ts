@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as nodemailer from "nodemailer";
-import { userLog, mailConfig, smtp, smtpPort } from "./config.js";
+import { userLog, emailConfig, smtp, smtpPort } from "./config.js";
 
 const transporterOptions = {
   host: smtp,
@@ -35,7 +35,7 @@ export async function handleSubprocess(subprocess, dataHandler, errHandler?) {
 }
 
 export async function sendEmail(mailOptions): Promise<MailRes> {
-  let combinedMailOptions = Object.assign({}, mailConfig, mailOptions);
+  let combinedMailOptions = Object.assign({}, emailConfig, mailOptions);
   let transporter = nodemailer.createTransport(transporterOptions);
   //have to be on uh netork
   return transporter.sendMail(combinedMailOptions)
