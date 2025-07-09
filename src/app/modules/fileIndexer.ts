@@ -1,5 +1,5 @@
 import moment, { Moment } from "moment-timezone";
-import { productionRoot } from "./util/config.js";
+import { productionDirs, productionLocations } from "./util/config.js";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -21,7 +21,7 @@ const hierarchies = {
 
 export const fnamePattern = /^.+?([0-9]{4}(?:(?:_[0-9]{2}){0,5}|(?:_[0-9]{2}){5}\.[0-9]+))\.[a-zA-Z0-9]+$/;
 
-function getDatasetPath(dataset: any): string{
+function getDatasetPath(productionRoot: string, dataset: any): string {
     let datasetPath = productionRoot;
     //add properties to path in order of hierarchy
     for(let property of hierarchy) {
@@ -34,14 +34,19 @@ function getDatasetPath(dataset: any): string{
 }
 
 function fillDefaults(dataset: any) {
-    if(dataset.datatype == "ignition_probability" && dataset.lead === undefined) {
+    let  { location, datatype, lead } = dataset;
+    if(!productionLocations.includes(location)) {
+        dataset.location = "hawaii";
+    }
+    if(datatype == "ignition_probability" && lead === undefined) {
         dataset.lead = "lead00";
     }
 }
 
 export async function getDatasetDateRange(dataset: any): Promise<[string, string] | null> {
     fillDefaults(dataset);
-    let datasetPath = getDatasetPath(dataset);
+    let productionRoot = productionDirs[dataset.location];
+    let datasetPath = getDatasetPath(productionRoot, dataset);
     datasetPath = path.join(datasetPath, "statewide/data_map");
     const descend = (root: string, direction: number): string | null => {
         let dirents = fs.readdirSync(root, {withFileTypes: true}).sort((a, b) => direction * a.name.localeCompare(b.name));
@@ -87,14 +92,18 @@ export async function getDatasetDateRange(dataset: any): Promise<[string, string
 
 //should change to import roots
 export async function getDatasetNextDate(dataset: any, date: string, direction: number) {
-    let datasetPath = getDatasetPath(dataset);
+    fillDefaults(dataset);
+    let productionRoot = productionDirs[dataset.location];
+    let datasetPath = getDatasetPath(productionRoot, dataset);
     datasetPath = path.join(datasetPath, "data_map");
 }
 
 export async function getDatasetNearestDate(dataset: any, date: string, direction: number) {
+    fillDefaults(dataset);
+    let productionRoot = productionDirs[dataset.location];
     direction = Math.sign(direction);
     let dateMoment = moment(date);
-    let datasetPath = getDatasetPath(dataset);
+    let datasetPath = getDatasetPath(productionRoot, dataset);
     datasetPath = path.join(datasetPath, "data_map");
     let period = dataset.period;
     let parts = periodOrder.indexOf(period);
@@ -211,6 +220,7 @@ export async function getDatasetNearestDate(dataset: any, date: string, directio
 export async function getPaths(data: any, collapse: boolean = true) {
     let paths: string[] = [];
     let totalFiles = 0;
+    let productionRoot = "";
  
     //maintain compatibility, only convert if new style TEMP
     if(data[0]?.fileData) {
@@ -220,14 +230,15 @@ export async function getPaths(data: any, collapse: boolean = true) {
         //at least for now just catchall and return files found before failure, maybe add more catching/skipping later, or 400?
         try {
             fillDefaults(item);
+            productionRoot = productionDirs[item.location];
             //use simplified version for getting ds data
             if(item.datatype == "downscaling_temperature" || item.datatype == "downscaling_rainfall") {
-                let files = await getDSFiles(item);
+                let files = await getDSFiles(productionRoot, item);
                 paths = paths.concat(files);
                 totalFiles += files.length;
             }
             else if(item.datatype == "contemporary_climatology" || item.datatype == "legacy_climatology") {
-                let files = await getClimatologyFiles(item);
+                let files = await getClimatologyFiles(productionRoot, item);
                 paths = paths.concat(files);
                 totalFiles += files.length;
             }
@@ -264,6 +275,7 @@ export async function getPaths(data: any, collapse: boolean = true) {
     }
 
     return {
+        root: productionRoot,
         numFiles: totalFiles,
         paths
     };
@@ -330,7 +342,7 @@ async function validate(file) {
 }
 
 
-async function getClimatologyFiles(properties: {[tag: string]: string}) {
+async function getClimatologyFiles(productionRoot: string, properties: {[tag: string]: string}) {
     let result: string[] = [];
     let {datatype, variable, aggregation, extent, mean_type, period, date, files} = properties;
     for(let file of files) {
@@ -380,7 +392,7 @@ async function getClimatologyFiles(properties: {[tag: string]: string}) {
 
 
 //expand to allow different units to be grabbed, for now just mm and celcius
-async function getDSFiles(properties: any) {
+async function getDSFiles(productionRoot: string, properties: any) {
     let files: string[] = [];
     let fileTags = properties.files;
     let file_suffix: string;
