@@ -268,6 +268,7 @@ export async function getPaths(data: any, collapse: boolean = true) {
                         let start = moment(range.start);
                         let end = moment(range.end);
                         let pathData = await getPathsBetweenDates(fdirType, start, end, collapse);
+                        console.log(pathData);
                         totalFiles += pathData.numFiles;
                         paths = paths.concat(pathData.paths);
                     }
