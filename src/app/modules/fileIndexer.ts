@@ -34,9 +34,12 @@ function getDatasetPath(productionRoot: string, dataset: any): string {
 }
 
 function fillDefaults(dataset: any) {
-    let  { location, datatype, lead } = dataset;
+    let  { location, datatype, lead, extent } = dataset;
     if(!productionLocations.includes(location)) {
         dataset.location = "hawaii";
+    }
+    if(dataset.location == "hawaii" && extent === undefined) {
+        dataset.extent = "statewide"
     }
     if(datatype == "ignition_probability" && lead === undefined) {
         dataset.lead = "lead00";
@@ -47,7 +50,8 @@ export async function getDatasetDateRange(dataset: any): Promise<[string, string
     fillDefaults(dataset);
     let productionRoot = productionDirs[dataset.location];
     let datasetPath = getDatasetPath(productionRoot, dataset);
-    datasetPath = path.join(datasetPath, "statewide/data_map");
+    //use data maps as baseline, might have to modify if dataset with no maps
+    datasetPath = path.join(datasetPath, "data_map");
     const descend = (root: string, direction: number): string | null => {
         let dirents = fs.readdirSync(root, {withFileTypes: true}).sort((a, b) => direction * a.name.localeCompare(b.name));
         let dirs = dirents.filter((dirent) => dirent.isDirectory());
