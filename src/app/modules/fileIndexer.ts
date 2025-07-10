@@ -229,8 +229,11 @@ export async function getPaths(data: any, collapse: boolean = true) {
     for(let item of data) {
         //at least for now just catchall and return files found before failure, maybe add more catching/skipping later, or 400?
         try {
+            console.log("pre: ", item);
             fillDefaults(item);
+            console.log("filled: ", item);
             productionRoot = productionDirs[item.location];
+            console.log(productionRoot);
             //use simplified version for getting ds data
             if(item.datatype == "downscaling_temperature" || item.datatype == "downscaling_rainfall") {
                 let files = await getDSFiles(productionRoot, item);
