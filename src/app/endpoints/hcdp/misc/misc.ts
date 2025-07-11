@@ -137,7 +137,7 @@ router.get("/raster", async (req, res) => {
       type = "data_map";
     }
 
-    let data = [{
+    let data: any[] = [{
       files: [type],
       range: {
           start: date,
@@ -150,7 +150,8 @@ router.get("/raster", async (req, res) => {
     let file = "";
     //should only be exactly one file
     if(files.numFiles == 0 && returnEmptyNotFound) {
-      file = getEmpty(properties.extent);
+      let { location, extent } = data[0];
+      file = getEmpty(location, extent);
     }
     else {
       file = files.paths[0];

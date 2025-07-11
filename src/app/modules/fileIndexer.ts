@@ -8,11 +8,6 @@ const hierarchy = ["datatype", "production", "aggregation", "period", "lead", "e
 const periodOrder: moment.unitOfTime.StartOf[] = ["year", "month", "day", "hour", "minute", "second"];
 const periodFormats = ["YYYY", "MM", "DD", "HH", "mm", "ss"];
 
-//empty file index
-const emptyIndex = {
-    statewide: "/data/empty/statewide_hi_NA.tif"
-};
-
 //should update everything to use this, for now just use for ds data
 const hierarchies = {
     downscaling_rainfall: ["dsm", "season", "period"],
@@ -288,8 +283,8 @@ export async function getPaths(data: any, collapse: boolean = true) {
 
 
 //add folder with empty geotiffs for extents
-export function getEmpty(extent) {
-    let emptyFile = emptyIndex[extent] || null;
+export function getEmpty(location: string, extent?: string) {
+    let emptyFile = path.join("/data/empty/", location, `${extent ? extent + "_" : ""}empty.tif`)
     return emptyFile;
 }
 
