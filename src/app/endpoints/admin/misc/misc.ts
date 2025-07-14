@@ -5,7 +5,7 @@ import { tapisManager } from "../../../modules/util/resourceManagers/tapis.js";
 import { githubWebhookSecret } from "../../../modules/util/config.js";
 import CsvReadableStream from "csv-reader";
 import * as detectDecodeStream from "autodetect-decoder-stream";
-import * as safeCompare from "safe-compare";
+import { safeCompare } from "safe-compare";
 import * as crypto from "crypto";
 import * as child_process from "child_process";
 import * as https from "https";
