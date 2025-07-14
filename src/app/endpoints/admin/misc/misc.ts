@@ -5,7 +5,7 @@ import { tapisManager } from "../../../modules/util/resourceManagers/tapis.js";
 import { githubWebhookSecret } from "../../../modules/util/config.js";
 import CsvReadableStream from "csv-reader";
 import * as detectDecodeStream from "autodetect-decoder-stream";
-import { safeCompare } from "safe-compare";
+import * as safeCompare from "safe-compare";
 import * as crypto from "crypto";
 import * as child_process from "child_process";
 import * as https from "https";
@@ -131,7 +131,7 @@ router.post("/addmetadata", express.raw({ limit: "50mb", type: () => true }), as
     //ensure this is coming from github by hashing with the webhook secret
     const receivedSig = req.headers['x-hub-signature'];
     const computedSig = signBlob(githubWebhookSecret, req.body);
-    if(!safeCompare(receivedSig, computedSig)) {
+    if(!safeCompare.safeCompare(receivedSig, computedSig)) {
       return res.status(401).end();
     }
     //only process github push events
