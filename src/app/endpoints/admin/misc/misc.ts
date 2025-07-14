@@ -4,7 +4,7 @@ import { handleSubprocess, sendEmail } from "../../../modules/util/util.js";
 import { tapisManager } from "../../../modules/util/resourceManagers/tapis.js";
 import { githubWebhookSecret } from "../../../modules/util/config.js";
 import CsvReadableStream from "csv-reader";
-import * as detectDecodeStream from "autodetect-decoder-stream";
+import detectDecodeStream from "autodetect-decoder-stream";
 import safeCompare from "safe-compare";
 import * as crypto from "crypto";
 import * as child_process from "child_process";
