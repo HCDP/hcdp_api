@@ -246,7 +246,8 @@ router.get("/users/emails", async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     let query = `
       SELECT DISTINCT(email)
-      FROM token_requests;
+      FROM token_requests
+      WHERE approved;
     `;
     let queryHandler = await apiDB.query(query, [], { rowMode: "array" });
     let data = await queryHandler.read(10000);
