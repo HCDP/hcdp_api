@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 //property hierarchy (followed by file and date parts)
-const hierarchy = ["datatype", "production", "aggregation", "period", "lead", "extent", "fill"];
+const hierarchy = ["datatype", "production", "aggregation", "period", "lead", "timescale",  "extent", "fill"];
 const periodOrder: moment.unitOfTime.StartOf[] = ["year", "month", "day", "hour", "minute", "second"];
 const periodFormats = ["YYYY", "MM", "DD", "HH", "mm", "ss"];
 
