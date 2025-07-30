@@ -236,7 +236,7 @@ export async function getPaths(data: any, collapse: boolean = true) {
                 paths = paths.concat(files);
                 totalFiles += files.length;
             }
-            else if(item.datatype == "contemporary_climatology" || item.datatype == "legacy_climatology") {
+            else if(item.datatype.endsWith("_climatology")) {
                 let files = await getClimatologyFiles(productionRoot, item);
                 paths = paths.concat(files);
                 totalFiles += files.length;
@@ -372,11 +372,17 @@ async function getClimatologyFiles(productionRoot: string, properties: {[tag: st
                     }
                 }
             }
+            let extentPathPart = "";
+            let extentFilePart = "";
+            if(extent) {
+                extentPathPart = `${extent}/`;
+                extentFilePart = `${extent}_`;
+            }
             if(variable == "air_temperature") {
-                fpath = `${datatype}/${variable}/${aggregation}/${mean_type}/${extent}/${datatype}_${aggregation}_${variable}_${mean_type}_${extent}_${period}.tif`;
+                fpath = `${datatype}/${variable}/${aggregation}/${mean_type}/${extentPathPart}${datatype}_${aggregation}_${variable}_${mean_type}_${extentFilePart}${period}.tif`;
             }
             else {
-                fpath = `${datatype}/${variable}/${mean_type}/${extent}/${datatype}_${variable}_${mean_type}_${extent}_${period}.tif`;
+                fpath = `${datatype}/${variable}/${mean_type}/${extentPathPart}${datatype}_${variable}_${mean_type}_${extentFilePart}${period}.tif`;
             }
         }
         fpath = path.join(productionRoot, fpath); 
