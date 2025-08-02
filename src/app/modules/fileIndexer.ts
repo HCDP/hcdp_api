@@ -402,7 +402,7 @@ async function getDSFiles(productionRoot: string, properties: any) {
     let files: string[] = [];
     let fileTags = properties.files;
     let file_suffix: string;
-    let hierarchy = hierarchies[properties.datatype];
+    let hierarchy = hierarchies[properties.location == "hawaii" ? properties.datatype : "downscaling_rainfall"];
     let values = [properties.datatype];
     let period = properties.period;
     for(let property of hierarchy) {
