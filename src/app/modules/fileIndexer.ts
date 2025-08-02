@@ -398,6 +398,7 @@ async function getClimatologyFiles(productionRoot: string, properties: {[tag: st
 
 //expand to allow different units to be grabbed, for now just mm and celcius
 async function getDSFiles(productionRoot: string, properties: any) {
+    console.log(properties);
     let files: string[] = [];
     let fileTags = properties.files;
     let file_suffix: string;
@@ -437,6 +438,7 @@ async function getDSFiles(productionRoot: string, properties: any) {
         values.push(file_suffix);
         let fname = values.join("_");
         let fpath = path.join(productionRoot, subpath, fname);
+        console.log(fpath);
         if(await validate(fpath)) {
             files.push(fpath);
         }
