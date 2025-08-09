@@ -12,6 +12,7 @@ services:
       - /mnt/lustre/annotated/HCDP:/data
       - /home/hcdp/hcdp-api/logs:/logs
       - /home/hcdp/hcdp-api/certs:/certs
+      - /home/hcdp/hcdp-api/intercom:/intercom
     profiles: [ prod ]
     healthcheck:
       test: "curl -f https://storeapi.ikewai.org/health"
@@ -32,6 +33,7 @@ services:
       - /mnt/lustre/annotated/HCDP:/data
       - /home/hcdp/hcdp-api/logs:/logs
       - /home/hcdp/hcdp-api/certs:/certs
+      - /home/hcdp/hcdp-api/intercom:/intercom
     profiles: [ dev ]
     healthcheck:
       test: "curl -f https://storeapi.ikewai.org:8443/health"
