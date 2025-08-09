@@ -275,6 +275,6 @@ router.post("/restart", async (req, res) => {
     reqData.code = 202;
     res.status(202)
     .send("Request received. API will attempt to restart");
-    child_process.spawn("bash echo test; bash echo a");
+    child_process.spawn("bash", ["echo test; echo a"]);
   });
 });
