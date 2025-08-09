@@ -267,3 +267,11 @@ router.get("/error", async (req, res) => {
     throw new Error("This is a test error.");
   });
 });
+
+
+router.post("/error", async (req, res) => {
+  const permission = "admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    throw new Error("This is a test error.");
+  });
+});

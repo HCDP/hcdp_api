@@ -9,6 +9,7 @@ import * as path from "path";
 import * as fs from "fs";
 import * as crypto from "crypto";
 import * as url from "url";
+import { createTZDateFromParts, DPLocation } from "../../../modules/util/dates.js";
 
 export const router = express.Router();
 
@@ -109,8 +110,7 @@ router.get("/raster/timeseries", async (req, res) => {
                   let dateParts = match[1].split("_");
                   //get parts
                   const [year, month, day, hour, minute, second] = dateParts;
-                  //construct ISO date string from parts with defaults for missing values
-                  const isoDateStr = `${year}-${month || "01"}-${day || "01"}T${hour || "00"}:${minute || "00"}:${second || "00"}-10:00`;
+                  const isoDateStr = createTZDateFromParts(<DPLocation>properties.location || "hawaii", {year, month, day, hour, minute, second}, true).toISOString();
                   timeseries[isoDateStr] = parseFloat(valArr[i]);
               }
           }

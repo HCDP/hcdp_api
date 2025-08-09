@@ -2,6 +2,7 @@ import moment, { Moment } from "moment-timezone";
 import { productionDirs, productionLocations } from "./util/config.js";
 import * as fs from "fs";
 import * as path from "path";
+import { createTZDateFromString } from "./util/dates.js";
 
 //property hierarchy (followed by file and date parts)
 const hierarchy = ["datatype", "production", "aggregation", "period", "lead", "timescale",  "extent", "fill"];
@@ -82,10 +83,9 @@ export async function getDatasetDateRange(dataset: any): Promise<[string, string
     }
     let firstDate = firstFile.split("_").slice(-parts).join("-");
     let lastDate = lastFile.split("_").slice(-parts).join("-");
-    let dateFormat = periodFormats.slice(0, parts).join("-");
     
-    firstDate = moment(firstDate, dateFormat).tz("Pacific/Honolulu", true).toISOString();
-    lastDate = moment(lastDate, dateFormat).tz("Pacific/Honolulu", true).toISOString();
+    firstDate = createTZDateFromString(dataset.location, firstDate, true).toISOString();
+    lastDate = createTZDateFromString(dataset.location, lastDate, true).toISOString();
     return [firstDate, lastDate];
 }
 
@@ -206,7 +206,7 @@ export async function getDatasetNearestDate(dataset: any, date: string, directio
             //extract date from the file name
             let fname = path.parse(leaf).name;
             let dateString = fname.split("_").slice(-parts).join("_");
-            let date = moment(dateString, format).tz("Pacific/Honolulu");
+            let date = createTZDateFromString(dataset.location, dateString);
             return date;
         }
     }
