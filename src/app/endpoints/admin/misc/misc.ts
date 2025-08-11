@@ -275,6 +275,6 @@ router.post("/restart", async (req, res) => {
     reqData.code = 202;
     res.status(202)
     .send("Request received. API will attempt to restart");
-    child_process.spawn("bash", ["echo \"docker stop api-dev; cd /home/hcdp/hcdp-api/api_staging; util/deploy_test.sh\" > /intercom/api-intercom"]);
+    child_process.spawn("bash", ["echo 'docker stop api-dev; cd /home/hcdp/hcdp-api/api_staging; util/deploy_test.sh' > /intercom/api-intercom"]);
   });
 });
