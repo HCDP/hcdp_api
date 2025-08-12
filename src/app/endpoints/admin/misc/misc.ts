@@ -267,14 +267,3 @@ router.get("/error", async (req, res) => {
     throw new Error("This is a test error.");
   });
 });
-
-
-router.post("/restart", async (req, res) => {
-  const permission = "admin";
-  await handleReq(req, res, permission, async (reqData) => {
-    reqData.code = 202;
-    res.status(202)
-    .send("Request received. API will attempt to restart");
-    child_process.spawn("bash", ["echo 'docker stop api-dev; cd /home/hcdp/hcdp-api/api_staging; util/deploy_test.sh' > /intercom/api-intercom"]);
-  });
-});
