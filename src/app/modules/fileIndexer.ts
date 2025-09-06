@@ -44,7 +44,7 @@ function fillDefaults(dataset: any) {
         if(variable == "rainfall") {
             dataset.units = "mm"
         }
-        else if(variable =="air_temeprature") {
+        else if(variable =="air_temperature") {
             dataset.units = "celcius"
         }
     }
