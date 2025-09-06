@@ -392,7 +392,6 @@ async function getClimatologyFiles(productionRoot: string, properties: {[tag: st
             let fname = fileParts.join("_") + ".tif";
             let pathParts = [productionRoot, datatype, variable, aggregation, mean_type, extent, fname].filter(part => part);
             fpath = path.join(...pathParts);
-            console.log(fpath);
         }
 
         if(await validate(fpath)) {
@@ -445,8 +444,6 @@ async function getDSFiles(productionRoot: string, properties: any) {
         values.push(file_suffix);
         let fname = values.join("_");
         let fpath = path.join(productionRoot, subpath, fname);
-
-        console.log(fpath);
 
         if(await validate(fpath)) {
             files.push(fpath);
