@@ -30,7 +30,7 @@ function getDatasetPath(productionRoot: string, dataset: any): string {
 }
 
 function fillDefaults(dataset: any) {
-    let  { location, datatype, lead, extent } = dataset;
+    let  { location, datatype, lead, extent, units, variable } = dataset;
     if(!productionLocations.includes(location)) {
         dataset.location = "hawaii";
     }
@@ -39,6 +39,14 @@ function fillDefaults(dataset: any) {
     }
     if(datatype == "ignition_probability" && lead === undefined) {
         dataset.lead = "lead00";
+    }
+    if(location == "american_samoa" && datatype == "prism_climatology" && units === undefined) {
+        if(variable == "rainfall") {
+            dataset.units = "mm"
+        }
+        else if(variable =="air_temeprature") {
+            dataset.units = "celcius"
+        }
     }
 }
 
@@ -332,22 +340,29 @@ function convert(data) {
 
 
 //validate file or dir exists
-async function validate(file) {
+async function validate(file: string) {
     return new Promise((resolve, reject) => {
-        fs.access(file, fs.constants.F_OK, (e) => {
-            e ? resolve(false) : resolve(true);
-        });
+        if(file) {
+            fs.access(file, fs.constants.F_OK, (e) => {
+                e ? resolve(false) : resolve(true);
+            });
+        }
+        else {
+            resolve(false);
+        }
     });
 }
 
 
 async function getClimatologyFiles(productionRoot: string, properties: {[tag: string]: string}) {
     let result: string[] = [];
-    let {datatype, variable, aggregation, extent, mean_type, period, date, files} = properties;
+    let {location, datatype, variable, aggregation, extent, mean_type, period, units, date, files} = properties;
     for(let file of files) {
-        let fpath = "";
+        let fpath: string;
         if(file == "metadata") {
-            fpath = `${datatype}/${variable}/${datatype}_${variable}_metadata.pdf`;
+            let fext = location == "hawaii" ? "pdf" : "txt";
+            let fname = `${datatype}_${variable}_metadata.${fext}`;
+            fpath = path.join(productionRoot, datatype, variable, fname); 
         }
         else if(file == "data_map") {
             if(period === undefined) {
@@ -372,20 +387,12 @@ async function getClimatologyFiles(productionRoot: string, properties: {[tag: st
                     }
                 }
             }
-            let extentPathPart = "";
-            let extentFilePart = "";
-            if(extent) {
-                extentPathPart = `${extent}/`;
-                extentFilePart = `${extent}_`;
-            }
-            if(variable == "air_temperature") {
-                fpath = `${datatype}/${variable}/${aggregation}/${mean_type}/${extentPathPart}${datatype}_${aggregation}_${variable}_${mean_type}_${extentFilePart}${period}.tif`;
-            }
-            else {
-                fpath = `${datatype}/${variable}/${mean_type}/${extentPathPart}${datatype}_${variable}_${mean_type}_${extentFilePart}${period}.tif`;
-            }
+            
+            let fileParts = [datatype, aggregation, variable, mean_type, extent, period, units].filter(part => part);
+            let fname = fileParts.join("_");
+            let pathParts = [productionRoot, datatype, variable, aggregation, mean_type, extent, fname].filter(part => part);
+            fpath = path.join(...pathParts);
         }
-        fpath = path.join(productionRoot, fpath); 
 
         if(await validate(fpath)) {
             result.push(fpath);
