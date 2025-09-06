@@ -392,6 +392,7 @@ async function getClimatologyFiles(productionRoot: string, properties: {[tag: st
             let fname = fileParts.join("_");
             let pathParts = [productionRoot, datatype, variable, aggregation, mean_type, extent, fname].filter(part => part);
             fpath = path.join(...pathParts);
+            console.log(fpath);
         }
 
         if(await validate(fpath)) {
