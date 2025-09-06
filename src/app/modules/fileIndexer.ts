@@ -445,6 +445,9 @@ async function getDSFiles(productionRoot: string, properties: any) {
         values.push(file_suffix);
         let fname = values.join("_");
         let fpath = path.join(productionRoot, subpath, fname);
+
+        console.log(fpath);
+
         if(await validate(fpath)) {
             files.push(fpath);
         }
