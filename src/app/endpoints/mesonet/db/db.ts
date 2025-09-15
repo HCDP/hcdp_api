@@ -37,7 +37,7 @@ const mesonetEmailLimiter = rateLimit({
 });
 
 function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string, endDate: string, varIDs: string[], intervals: string[], flags: string[], location: string, limit: number, offset: number, reverse: boolean, joinMetadata: boolean, selectFlag: boolean = true): QueryData {
-  let measurementsTable = `${location}_measurements`;
+  let measurementsTable = `${location}_measurements_tsdb`;
 
   let params: string[] = [];
 
@@ -372,7 +372,7 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
 function constructMeasurementsQueryEmail(stationIDs: string[], startDate: string, endDate: string, varIDs: string[], intervals: string[], flags: string[], location: string, limit: number, offset: number, reverse: boolean, joinMetadata: boolean): QueryData {
 	// varIDs = varIDs.map((id: string) => id.toLowerCase());
 
-	let measurementsTable = `${location}_measurements`;
+	let measurementsTable = `${location}_measurements_tsdb`;
 
   let params: string[] = [];
 
@@ -779,7 +779,7 @@ router.get("/mesonet/db/sff", async (req, res) => {
     	location = "hawaii";
     }
 
-    const table_name = `${location}_measurements`;
+    const table_name = `${location}_measurements_tsdb`;
 
     res.set("Content-Type", "text/csv");
     res.set("Content-Disposition", `attachment; filename="sff_data.csv"`);
@@ -1008,7 +1008,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
     let valueClause = `(${valueClauseParts.join("),(")})`;
 
     let query = `
-      INSERT INTO ${location}_measurements
+      INSERT INTO ${location}_measurements_tsdb
       VALUES ${valueClause}
       ON CONFLICT (timestamp, station_id, variable)
       ${onConflict}
@@ -1465,7 +1465,7 @@ async function getLocationTimezone(location: string) {
 
 
 async function getStartDate(location: string, stationIDs: string[]): Promise<string> {
-  let measurementsTable = `${location}_measurements`;
+  let measurementsTable = `${location}_measurements_tsdb`;
   let mainWhereClauses: string[] = [];
   let params: string[] = [];
   if(stationIDs.length > 0) {
