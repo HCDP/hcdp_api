@@ -1016,6 +1016,8 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
       ON CONFLICT (timestamp, station_id, variable)
       ${onConflict}
     `;
+    console.log(query);
+    console.log(params);
     try {
       let modified = await mesonetDBAdmin.queryNoRes(query, params);
       reqData.code = 200;
