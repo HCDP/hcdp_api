@@ -1029,6 +1029,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
         reqData.success = false;
         reqData.code = 400;
         console.log("invalid query syntax");
+        console.log(e);
   
         return res.status(400)
         .send(`Invalid query syntax. Please validate the data provided is correctly formatted.`);
