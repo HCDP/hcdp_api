@@ -961,7 +961,6 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
     if(!Array.isArray(data)) {
       reqData.success = false;
       reqData.code = 400;
-      console.log("data not array");
 
       return res.status(400)
       .send(`Invalid data provided. Data must be a 2D array with 7 element rows.`);
@@ -976,7 +975,6 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
     if(!mesonetLocations.includes(location)) {
       reqData.success = false;
       reqData.code = 400;
-      console.log("location not recognized");
 
       return res.status(400)
       .send(`Invalid location provided.`);
@@ -995,7 +993,6 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
       if(!Array.isArray(row) || row.length != 7) {
         reqData.success = false;
         reqData.code = 400;
-        console.log("invalid row, row length: " + row.length);
 
         return res.status(400)
         .send(`Invalid data provided. Data must be a 2D array with 7 element rows.`);
@@ -1016,8 +1013,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
       ON CONFLICT (timestamp, station_id, variable)
       ${onConflict}
     `;
-    console.log(query);
-    console.log(params);
+    
     try {
       let modified = await mesonetDBAdmin.queryNoRes(query, params);
       reqData.code = 200;
@@ -1028,8 +1024,6 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
       if(e.code.startsWith("42")) {
         reqData.success = false;
         reqData.code = 400;
-        console.log("invalid query syntax");
-        console.log(e);
   
         return res.status(400)
         .send(`Invalid query syntax. Please validate the data provided is correctly formatted.`);
