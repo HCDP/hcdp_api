@@ -990,7 +990,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
     let params: string[] = [];
     let valueClauseParts: string[] = [];
     for(let row of data) {
-      if(!Array.isArray(row) || row.length != 6) {
+      if(!Array.isArray(row) || row.length != 7) {
         reqData.success = false;
         reqData.code = 400;
 
