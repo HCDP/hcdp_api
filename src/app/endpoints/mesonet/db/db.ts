@@ -1499,7 +1499,7 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
         )
         
         (
-            SELECT station_id, standard_name, '_24hr_min', MIN(value_d), NULL::timestamp with time zone
+            SELECT station_id, standard_name, '24hr_min', MIN(value_d), NULL::timestamp with time zone
             FROM day_vars
             WHERE standard_name IN ('BattVolt', 'CellQlt', 'CellStr')
             GROUP BY station_id, standard_name
