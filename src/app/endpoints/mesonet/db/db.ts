@@ -1467,12 +1467,12 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
     let latestVarsInline = [];
     let params = [];
     for(let variable of varSet) {
-      allVarsInline.push(`$${params.length}`);
       params.push(variable);
+      allVarsInline.push(`$${params.length}`);
     }
     for(let variable of latestVars) {
-      latestVarsInline.push(`$${params.length}`);
       params.push(variable);
+      latestVarsInline.push(`$${params.length}`);
     }
         
     let query = `
