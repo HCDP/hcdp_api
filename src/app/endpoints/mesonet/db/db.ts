@@ -5,7 +5,7 @@ import { mesonetDBAdmin, mesonetDBUser, pgStoreMesonetEmail, pgStoreSlowMesonetM
 import * as fs from "fs";
 import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
-import { administrators, apiURL, downloadRoot, mesonetLocations, rawDataRoot } from "../../../modules/util/config.js";
+import { apiURL, downloadRoot, mesonetLocations } from "../../../modules/util/config.js";
 import { sendEmail } from "../../../modules/util/util.js";
 import { stringify } from "csv-stringify/sync";
 import * as crypto from "crypto";
@@ -1013,7 +1013,7 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
       ON CONFLICT (timestamp, station_id, variable)
       ${onConflict}
     `;
-    
+
     try {
       let modified = await mesonetDBAdmin.queryNoRes(query, params);
       reqData.code = 200;
@@ -1449,10 +1449,160 @@ router.post("/mesonet/db/measurements/email", mesonetEmailLimiter, async (req, r
       catch(err) {}
       //rethrow to be handled by main error handler
       throw e;
-    } 
+    }
   });
 });
 
+
+router.get("/mesonet/db/stationMonitor", async (req, res) => {
+  const permission = "basic";
+  await handleReq(req, res, permission, async (reqData) => {
+    let { var_ids }: any = req.query;
+
+    let latestVars = parseListParam(var_ids);
+
+    let varSet = new Set(["BattVolt", "CellQlt", "CellStr", "RHenc", "Tair_1_Avg", "Tair_2_Avg", "RH_1_Avg", "RH_2_Avg", ...latestVars])
+
+    let allVarsInline = [];
+    let latestVarsInline = [];
+    let params = [];
+    for(let variable of varSet) {
+      allVarsInline.push(`$${params.length}`);
+      params.push(variable);
+    }
+    for(let variable of latestVars) {
+      latestVarsInline.push(`$${params.length}`);
+      params.push(variable);
+    }
+        
+    let query = `
+        WITH day_vars AS (
+            SELECT station_id, standard_name, value_d, timestamp
+            FROM hawaii_measurements_tsdb
+            JOIN (
+                SELECT alias, standard_name, interval_seconds, program
+                FROM version_translations
+                WHERE standard_name IN (${allVarsInline.join(",")})
+            ) as variable_data ON variable_data.program = hawaii_measurements_tsdb.version AND variable_data.alias = hawaii_measurements_tsdb.variable
+            WHERE timestamp > (SELECT MAX(timestamp) FROM hawaii_measurements_tsdb) - INTERVAL '24 hours'
+        ),
+        diff_pivot AS (
+            SELECT
+                station_id,
+                MAX(value_d) FILTER (WHERE standard_name = 'Tair_1_Avg') AS Tair_1_Avg,
+                MAX(value_d) FILTER (WHERE standard_name = 'Tair_2_Avg') AS Tair_2_Avg,
+                MAX(value_d) FILTER (WHERE standard_name = 'RH_1_Avg') AS RH_1_Avg,
+                MAX(value_d) FILTER (WHERE standard_name = 'RH_2_Avg') AS RH_2_Avg
+            FROM day_vars
+            WHERE standard_name IN ('Tair_1_Avg', 'Tair_2_Avg', 'RH_1_Avg', 'RH_2_Avg')
+            GROUP BY timestamp, station_id
+        )
+        
+        (
+            SELECT station_id, standard_name, '_24hr_min', MIN(value_d), NULL::timestamp with time zone
+            FROM day_vars
+            WHERE standard_name IN ('BattVolt', 'CellQlt', 'CellStr')
+            GROUP BY station_id, standard_name
+        )
+        UNION ALL
+        (
+            SELECT station_id, standard_name, '24hr_max', MAX(value_d), NULL::timestamp with time zone
+            FROM day_vars
+            WHERE standard_name IN ('RHenc')
+            GROUP BY station_id, standard_name
+        )
+        UNION ALL
+        (
+            SELECT station_id, standard_name, '24hr_>50', SUM(CASE WHEN value_d > 50 then 1 ELSE 0 END) / CAST(COUNT(value_d) AS FLOAT) * 100, NULL
+            FROM day_vars
+            WHERE standard_name IN ('RHenc')
+            GROUP BY station_id, standard_name
+        )
+        UNION ALL
+        (
+            SELECT station_id, 'Tair_Avg', '24hr_avg_diff', AVG(Tair_1_Avg - Tair_2_Avg), NULL::timestamp with time zone
+            FROM diff_pivot
+            GROUP BY station_id
+        )
+        UNION ALL
+        (
+            SELECT station_id, 'RH_Avg', '24hr_avg_diff', AVG(RH_1_Avg - RH_2_Avg), NULL::timestamp with time zone
+            FROM diff_pivot
+            GROUP BY station_id
+        )
+    `;
+    if(latestVarsInline.length > 0) {
+      query += `
+        UNION ALL
+        (
+            SELECT DISTINCT ON (station_id, standard_name)
+                station_id,
+                standard_name,
+                '24hr_latest',
+                value_d,
+                timestamp
+            FROM day_vars
+            WHERE standard_name IN (${latestVarsInline.join(",")})
+            ORDER BY station_id, standard_name, timestamp DESC
+        );
+      `;
+    }
+    else {
+      query += ";";
+    }
+
+
+    let data: any = [];
+    try {
+      let queryHandler = await mesonetDBUser.query(query, params);
+
+      const chunkSize = 10000;
+      let chunk: any[];
+      do {
+        chunk = await queryHandler.read(chunkSize);
+        data = data.concat(chunk);
+      }
+      while(chunk.length > 0)
+      queryHandler.close();
+    }
+    catch(e) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
+    }
+
+    let results = {};
+    for(let row of data) {
+      let [ stationID, variable, type, value, timestamp ] = row;
+      let stationData = results[stationID];
+      if(!stationData) {
+        stationData = {};
+        results[stationID] = stationData;
+      }
+      let typeData = stationData[type];
+      if(!typeData) {
+        typeData = {};
+        stationData[type] = typeData;
+      }
+      if(type == "24hr_latest") {
+        typeData[variable] = {
+          value,
+          timestamp
+        };
+      }
+      else {
+        typeData[variable] = value;
+      }
+    }
+
+    reqData.code = 200;
+    return res.status(200)
+    .json(results);
+
+  });
+});
 
 
 
