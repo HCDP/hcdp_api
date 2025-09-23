@@ -1554,7 +1554,7 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
 
     let data: any = [];
     try {
-      let queryHandler = await mesonetDBUser.query(query, params);
+      let queryHandler = await mesonetDBUser.query(query, params, { rowMode: "array" });
 
       const chunkSize = 10000;
       let chunk: any[];
