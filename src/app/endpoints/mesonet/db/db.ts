@@ -1550,7 +1550,7 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
     else {
       query += ";";
     }
-
+    console.log(query);
 
     let data: any = [];
     try {
