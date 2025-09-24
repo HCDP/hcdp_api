@@ -1457,7 +1457,13 @@ router.post("/mesonet/db/measurements/email", mesonetEmailLimiter, async (req, r
 router.get("/mesonet/db/stationMonitor", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
-    let { var_ids }: any = req.query;
+    let { var_ids, location }: any = req.query;
+
+    if(!mesonetLocations.includes(location)) {
+    	location = "hawaii";
+    }
+
+    const tableName = `${location}_measurements_tsdb`;
 
     let latestVars = parseListParam(var_ids);
 
@@ -1478,13 +1484,13 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
     let query = `
         WITH day_vars AS (
             SELECT station_id, standard_name, value_d, timestamp
-            FROM hawaii_measurements_tsdb
+            FROM ${tableName}
             JOIN (
                 SELECT alias, standard_name, interval_seconds, program
                 FROM version_translations
                 WHERE standard_name IN (${allVarsInline.join(",")})
-            ) as variable_data ON variable_data.program = hawaii_measurements_tsdb.version AND variable_data.alias = hawaii_measurements_tsdb.variable
-            WHERE timestamp > (SELECT MAX(timestamp) FROM hawaii_measurements_tsdb) - INTERVAL '24 hours'
+            ) as variable_data ON variable_data.program = ${tableName}.version AND variable_data.alias = ${tableName}.variable
+            WHERE timestamp > (SELECT MAX(timestamp) FROM ${tableName}) - INTERVAL '24 hours'
         ),
         diff_pivot AS (
             SELECT
