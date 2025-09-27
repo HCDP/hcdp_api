@@ -1467,7 +1467,7 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
 
     let params = parseListParam(var_ids);
 
-    let inlineParams = params.map((value, index) => { return `$${index}`});
+    let inlineParams = params.map((value, index) => { return `$${index + 1}`});
 
     let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
     let queryHandler = await mesonetDBUser.query(query, [location]);
