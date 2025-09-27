@@ -1465,21 +1465,9 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
 
     const tableName = `${location}_measurements_24hr`;
 
-    let latestVars = parseListParam(var_ids);
+    let params = parseListParam(var_ids);
 
-    let varSet = new Set(["BattVolt", "CellQlt", "CellStr", "RHenc", "Tair_1_Avg", "Tair_2_Avg", "RH_1_Avg", "RH_2_Avg", ...latestVars])
-
-    let allVarsInline = [];
-    let latestVarsInline = [];
-    let params = [];
-    for(let variable of varSet) {
-      params.push(variable);
-      allVarsInline.push(`$${params.length}`);
-    }
-    for(let variable of latestVars) {
-      params.push(variable);
-      latestVarsInline.push(`$${params.length}`);
-    }
+    let inlineParams = params.map((value, index) => { return `$${index}`});
 
     let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
     let queryHandler = await mesonetDBUser.query(query, [location]);
@@ -1551,7 +1539,7 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
       )
     `;
 
-    if(latestVarsInline.length > 0) {
+    if(params.length > 0) {
       query += `
         UNION ALL
         (
@@ -1562,7 +1550,7 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
                 value_d,
                 timestamp
             FROM ${tableName}
-            WHERE standard_name IN (${latestVarsInline.join(",")})
+            WHERE standard_name IN (${inlineParams.join(",")})
         );
       `;
     }
