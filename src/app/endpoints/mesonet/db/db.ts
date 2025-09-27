@@ -1480,63 +1480,78 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
       params.push(variable);
       latestVarsInline.push(`$${params.length}`);
     }
-        
-    let query = `
-        WITH day_vars AS (
-            SELECT station_id, standard_name, value_d, timestamp
-            FROM ${tableName}
-            JOIN (
-                SELECT alias, standard_name, interval_seconds, program
-                FROM version_translations
-                WHERE standard_name IN (${allVarsInline.join(",")})
-            ) as variable_data ON variable_data.program = ${tableName}.version AND variable_data.alias = ${tableName}.variable
-            WHERE timestamp > (SELECT MAX(timestamp) FROM ${tableName}) - INTERVAL '24 hours'
-        ),
-        diff_pivot AS (
-            SELECT
-                station_id,
-                MAX(value_d) FILTER (WHERE standard_name = 'Tair_1_Avg') AS Tair_1_Avg,
-                MAX(value_d) FILTER (WHERE standard_name = 'Tair_2_Avg') AS Tair_2_Avg,
-                MAX(value_d) FILTER (WHERE standard_name = 'RH_1_Avg') AS RH_1_Avg,
-                MAX(value_d) FILTER (WHERE standard_name = 'RH_2_Avg') AS RH_2_Avg
-            FROM day_vars
-            WHERE standard_name IN ('Tair_1_Avg', 'Tair_2_Avg', 'RH_1_Avg', 'RH_2_Avg')
-            GROUP BY timestamp, station_id
-        )
-        
-        (
-            SELECT station_id, standard_name, '24hr_min', MIN(value_d), NULL::timestamp with time zone
-            FROM day_vars
-            WHERE standard_name IN ('BattVolt', 'CellQlt', 'CellStr')
-            GROUP BY station_id, standard_name
-        )
-        UNION ALL
-        (
-            SELECT station_id, standard_name, '24hr_max', MAX(value_d), NULL::timestamp with time zone
-            FROM day_vars
-            WHERE standard_name IN ('RHenc')
-            GROUP BY station_id, standard_name
-        )
-        UNION ALL
-        (
-            SELECT station_id, standard_name, '24hr_>50', SUM(CASE WHEN value_d > 50 then 1 ELSE 0 END) / CAST(COUNT(value_d) AS FLOAT) * 100, NULL
-            FROM day_vars
-            WHERE standard_name IN ('RHenc')
-            GROUP BY station_id, standard_name
-        )
-        UNION ALL
-        (
-            SELECT station_id, 'Tair_Avg', '24hr_avg_diff', AVG(Tair_1_Avg - Tair_2_Avg), NULL::timestamp with time zone
-            FROM diff_pivot
-            GROUP BY station_id
-        )
-        UNION ALL
-        (
-            SELECT station_id, 'RH_Avg', '24hr_avg_diff', AVG(RH_1_Avg - RH_2_Avg), NULL::timestamp with time zone
-            FROM diff_pivot
-            GROUP BY station_id
-        )
+
+    let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
+    let queryHandler = await mesonetDBUser.query(query, [location]);
+    let { timezone } = (await queryHandler.read(1))[0];
+    
+    query = `
+      SELECT MIN(timestamp), MAX(timestamp)
+      FROM hawaii_measurements_24hr;
     `;
+
+    queryHandler = await mesonetDBUser.query(query, params, { rowMode: "array" });
+    queryHandler.close();
+    let data: any[];
+
+    data = await queryHandler.read(1);
+
+    queryHandler.close();
+
+    let [ startDate, endDate ] = data[0];
+
+    let converted = moment(startDate).tz(timezone);
+    let startDateString = converted.format();
+    converted = moment(endDate).tz(timezone);
+    let endDateString = converted.format();
+
+    query = `
+      WITH diff_pivot AS (
+          SELECT
+              station_id,
+              MAX(value_d) FILTER (WHERE standard_name = 'Tair_1_Avg') AS Tair_1_Avg,
+              MAX(value_d) FILTER (WHERE standard_name = 'Tair_2_Avg') AS Tair_2_Avg,
+              MAX(value_d) FILTER (WHERE standard_name = 'RH_1_Avg') AS RH_1_Avg,
+              MAX(value_d) FILTER (WHERE standard_name = 'RH_2_Avg') AS RH_2_Avg
+          FROM hawaii_measurements_24hr
+          WHERE standard_name IN ('Tair_1_Avg', 'Tair_2_Avg', 'RH_1_Avg', 'RH_2_Avg')
+          GROUP BY station_id, timestamp
+      )
+      
+      (
+          SELECT station_id, standard_name, '24hr_min', MIN(value_d), NULL::timestamp with time zone
+          FROM hawaii_measurements_24hr
+          WHERE standard_name IN ('BattVolt', 'CellQlt', 'CellStr')
+          GROUP BY station_id, standard_name
+      )
+      UNION ALL
+      (
+          SELECT station_id, standard_name, '24hr_max', MAX(value_d), NULL::timestamp with time zone
+          FROM hawaii_measurements_24hr
+          WHERE standard_name IN ('RHenc')
+          GROUP BY station_id, standard_name
+      )
+      UNION ALL
+      (
+          SELECT station_id, standard_name, '24hr_>50', SUM(CASE WHEN value_d > 50 then 1 ELSE 0 END) / CAST(COUNT(value_d) AS FLOAT) * 100, NULL
+          FROM hawaii_measurements_24hr
+          WHERE standard_name IN ('RHenc')
+          GROUP BY station_id, standard_name
+      )
+      UNION ALL
+      (
+          SELECT station_id, 'Tair_Avg', '24hr_avg_diff', AVG(Tair_1_Avg - Tair_2_Avg), NULL::timestamp with time zone
+          FROM diff_pivot
+          GROUP BY station_id
+      )
+      UNION ALL
+      (
+          SELECT station_id, 'RH_Avg', '24hr_avg_diff', AVG(RH_1_Avg - RH_2_Avg), NULL::timestamp with time zone
+          FROM diff_pivot
+          GROUP BY station_id
+      )
+    `;
+
     if(latestVarsInline.length > 0) {
       query += `
         UNION ALL
@@ -1547,9 +1562,8 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
                 '24hr_latest',
                 value_d,
                 timestamp
-            FROM day_vars
+            FROM hawaii_measurements_24hr
             WHERE standard_name IN (${latestVarsInline.join(",")})
-            ORDER BY station_id, standard_name, timestamp DESC
         );
       `;
     }
@@ -1557,9 +1571,9 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
       query += ";";
     }
 
-    let data: any = [];
+    data = [];
     try {
-      let queryHandler = await mesonetDBUser.query(query, params, { rowMode: "array" });
+      queryHandler = await mesonetDBUser.query(query, params, { rowMode: "array" });
 
       const chunkSize = 10000;
       let chunk: any[];
@@ -1600,6 +1614,11 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
       else {
         typeData[variable] = value;
       }
+    }
+
+    results = {
+      coverage: [startDateString, endDateString],
+      data: results
     }
 
     reqData.code = 200;
