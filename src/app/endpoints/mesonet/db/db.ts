@@ -1490,7 +1490,7 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
       FROM ${tableName};
     `;
 
-    queryHandler = await mesonetDBUser.query(query, params, { rowMode: "array" });
+    queryHandler = await mesonetDBUser.query(query, [], { rowMode: "array" });
     let data: any[];
 
     data = await queryHandler.read(1);
