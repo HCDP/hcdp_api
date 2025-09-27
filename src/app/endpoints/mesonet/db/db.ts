@@ -1463,7 +1463,7 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
     	location = "hawaii";
     }
 
-    const tableName = `${location}_measurements_tsdb`;
+    const tableName = `${location}_measurements_24hr`;
 
     let latestVars = parseListParam(var_ids);
 
@@ -1487,11 +1487,10 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
     
     query = `
       SELECT MIN(timestamp), MAX(timestamp)
-      FROM hawaii_measurements_24hr;
+      FROM ${tableName};
     `;
 
     queryHandler = await mesonetDBUser.query(query, params, { rowMode: "array" });
-    queryHandler.close();
     let data: any[];
 
     data = await queryHandler.read(1);
@@ -1513,28 +1512,28 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
               MAX(value_d) FILTER (WHERE standard_name = 'Tair_2_Avg') AS Tair_2_Avg,
               MAX(value_d) FILTER (WHERE standard_name = 'RH_1_Avg') AS RH_1_Avg,
               MAX(value_d) FILTER (WHERE standard_name = 'RH_2_Avg') AS RH_2_Avg
-          FROM hawaii_measurements_24hr
+          FROM ${tableName}
           WHERE standard_name IN ('Tair_1_Avg', 'Tair_2_Avg', 'RH_1_Avg', 'RH_2_Avg')
           GROUP BY station_id, timestamp
       )
       
       (
           SELECT station_id, standard_name, '24hr_min', MIN(value_d), NULL::timestamp with time zone
-          FROM hawaii_measurements_24hr
+          FROM ${tableName}
           WHERE standard_name IN ('BattVolt', 'CellQlt', 'CellStr')
           GROUP BY station_id, standard_name
       )
       UNION ALL
       (
           SELECT station_id, standard_name, '24hr_max', MAX(value_d), NULL::timestamp with time zone
-          FROM hawaii_measurements_24hr
+          FROM ${tableName}
           WHERE standard_name IN ('RHenc')
           GROUP BY station_id, standard_name
       )
       UNION ALL
       (
           SELECT station_id, standard_name, '24hr_>50', SUM(CASE WHEN value_d > 50 then 1 ELSE 0 END) / CAST(COUNT(value_d) AS FLOAT) * 100, NULL
-          FROM hawaii_measurements_24hr
+          FROM ${tableName}
           WHERE standard_name IN ('RHenc')
           GROUP BY station_id, standard_name
       )
@@ -1562,7 +1561,7 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
                 '24hr_latest',
                 value_d,
                 timestamp
-            FROM hawaii_measurements_24hr
+            FROM ${tableName}
             WHERE standard_name IN (${latestVarsInline.join(",")})
         );
       `;
