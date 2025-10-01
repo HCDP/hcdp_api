@@ -1527,6 +1527,13 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
       )
       UNION ALL
       (
+          SELECT station_id, standard_name, '24hr_>75', SUM(CASE WHEN value_d > 75 then 1 ELSE 0 END) / CAST(COUNT(value_d) AS FLOAT) * 100, NULL
+          FROM ${tableName}
+          WHERE standard_name IN ('RHenc')
+          GROUP BY station_id, standard_name
+      )
+      UNION ALL
+      (
           SELECT station_id, 'Tair_Avg', '24hr_avg_diff', AVG(Tair_1_Avg - Tair_2_Avg), NULL::timestamp with time zone
           FROM diff_pivot
           GROUP BY station_id
