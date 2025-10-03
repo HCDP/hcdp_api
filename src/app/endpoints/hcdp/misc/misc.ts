@@ -175,37 +175,6 @@ router.get("/raster", async (req, res) => {
 });
 
 
-router.get("/production/list", async (req, res) => {
-  const permission = "basic";
-  await handleReq(req, res, permission, async (reqData) => {
-      let data: any = req.query.data;
-      data = JSON.parse(data);
-      if(!Array.isArray(data)) {
-      //set failure and code in status
-      reqData.success = false;
-      reqData.code = 400;
-
-      res.status(400)
-      .send(
-          "Request must include the following parameters: \n\
-          data: A JSON object representing the dataset to be listed."
-      );
-      }
-      else {
-      let files = await getPaths(data, false);
-      reqData.sizeF = files.numFiles;
-      let fileLinks = files.paths.map((file) => {
-          file = path.relative(dataRoot, file);
-          let fileLink = `${urlRoot}${file}`;
-          return fileLink;
-      });
-      reqData.code = 200;
-      res.status(200)
-      .json(fileLinks);
-      }
-  });
-  });
-
 router.get("/stations", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
@@ -241,40 +210,40 @@ router.get("/stations", async (req, res) => {
 });
 
 
-router.get("/production/list", async (req, res) => {
+router.get("/files/production/list", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
-      let data: any = req.query.data;
-      data = JSON.parse(data);
-      if(!Array.isArray(data)) {
-        //set failure and code in status
-        reqData.success = false;
-        reqData.code = 400;
+    let data: any = req.query.data;
+    data = JSON.parse(data);
+    if(!Array.isArray(data)) {
+      //set failure and code in status
+      reqData.success = false;
+      reqData.code = 400;
 
-        res.status(400)
-        .send(
-            "Request must include the following parameters: \n\
-            data: A JSON object representing the dataset to be listed."
-        );
-      }
-      else {
+      res.status(400)
+      .send(
+        "Request must include the following parameters: \n\
+        data: A JSON object representing the dataset to be listed."
+      );
+    }
+    else {
       let files = await getPaths(data, false);
       reqData.sizeF = files.numFiles;
       let fileLinks = files.paths.map((file) => {
-          file = path.relative(dataRoot, file);
-          let fileLink = `${urlRoot}${file}`;
-          return fileLink;
+        file = path.relative(dataRoot, file);
+        let fileLink = `${urlRoot}${file}`;
+        return fileLink;
       });
       reqData.code = 200;
       res.status(200)
       .json(fileLinks);
-      }
+    }
   });
 });
 
 
 
-router.get("/files/retrieve/production", async (req, res) => {
+router.get("/files/production/retrieve", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     //destructure query
