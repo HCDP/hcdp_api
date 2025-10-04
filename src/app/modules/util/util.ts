@@ -82,8 +82,15 @@ export function processTapisError(res, reqData, e) {
 }
 
 export function parseBoolParam(param: any, defaultValue: boolean = false): boolean {
-  let nonDefaultParamString = defaultValue ? "false": "true"
-  return param.toString().toLowerCase() === nonDefaultParamString;
+  let nonDefaultParamString = (!defaultValue).toString();
+  let value = defaultValue;
+  if(typeof param === "boolean") {
+    value = param;
+  }
+  else if(typeof param === "string" && param.toLowerCase() === nonDefaultParamString) {
+    value = !defaultValue;
+  }
+  return value;
 }
 
 export interface MailRes {
