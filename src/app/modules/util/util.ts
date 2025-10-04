@@ -81,6 +81,11 @@ export function processTapisError(res, reqData, e) {
   .send(reason);
 }
 
+export function parseBoolParam(param: any, defaultValue: boolean = false): boolean {
+  let nonDefaultParamString = defaultValue ? "false": "true"
+  return param.toString().toLowerCase() === nonDefaultParamString;
+}
+
 export interface MailRes {
   success: boolean,
   result: any,

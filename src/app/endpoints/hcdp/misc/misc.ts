@@ -1,7 +1,7 @@
 import express from "express";
 import { handleReq } from "../../../modules/util/reqHandlers.js";
 import { tapisManager } from "../../../modules/util/resourceManagers/tapis.js";
-import { processTapisError, handleSubprocess } from "../../../modules/util/util.js";
+import { processTapisError, handleSubprocess, parseBoolParam } from "../../../modules/util/util.js";
 import { getPaths, fnamePattern, getEmpty } from "../../../modules/fileIndexer.js";
 import { urlRoot, dataRoot, apiURL } from "../../../modules/util/config.js";
 import * as child_process from "child_process";
@@ -133,6 +133,8 @@ router.get("/raster", async (req, res) => {
     //destructure query
     let {date, type, returnEmptyNotFound, ...properties} = req.query;
 
+    let returnEmptyNotFoundBool = parseBoolParam(returnEmptyNotFound)
+
     if(!type) {
       type = "data_map";
     }
@@ -149,7 +151,7 @@ router.get("/raster", async (req, res) => {
     reqData.sizeF = files.numFiles;
     let file = "";
     //should only be exactly one file
-    if(files.numFiles == 0 && returnEmptyNotFound) {
+    if(files.numFiles == 0 && returnEmptyNotFoundBool) {
       let { location, extent } = data[0];
       file = getEmpty(location, extent);
     }
