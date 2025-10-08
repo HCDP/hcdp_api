@@ -214,7 +214,15 @@ router.patch("/deprecateToken", async (req, res) => {
       SET token = $1 
       WHERE token = $2;
     `;
-    await apiDB.queryNoRes(query, [newToken, token]);
+    let updated = await apiDB.queryNoRes(query, [newToken, token]);
+    if(!updated) {
+      reqData.success = false;
+      reqData.code = 400;
+      
+      return res.status(400)
+      .send(`The token provided could not be found. No changes have been made. Please verify the token to be updated is correct.`);
+    }
+    
     let message = `Your HCDP API token ${token} has been deprecated. Your new token is ${newToken}. Please email hcdp@hawaii.edu if you have any questions.`;
     let mailOptions = {
       to: email,

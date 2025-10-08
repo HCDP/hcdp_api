@@ -216,7 +216,12 @@ router.get("/files/production/list", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     let data: any = req.query.data;
-    data = JSON.parse(data);
+    try {
+      data = JSON.parse(data);
+    }
+    catch {
+      data = null;
+    }
     if(!Array.isArray(data)) {
       //set failure and code in status
       reqData.success = false;
