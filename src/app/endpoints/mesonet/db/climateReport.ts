@@ -139,19 +139,42 @@ router.patch("/mesonet/climate_report/:id", async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     const { id } = req.params;
 
-    const ahupuaa = req.body.ahupuaa || [];
-    const county = req.body.county || [];
-    const watershed = req.body.watershed || [];
-    const moku = req.body.moku || [];
+    let updateParams = [];
+    let setParts = [];
+    let i = 1;
+    for(let type of ["ahupuaa", "county", "watershed", "moku"]) {
+      if(req.body[type] !== undefined) {
+        updateParams.push(req.body[type]);
+        setParts.push(`${type} = $${i++}`);
+      }
+    }
+    if(setParts.length < 1) {
+      reqData.success = false;
+      reqData.code = 400;
 
+      return res.status(400)
+      .send(
+        `Request body must include at least one of the following fields to update: \n\
+        ahupuaʻa: An array of the names of ahupuaa to include in the climate report \n\
+        county: An array of the names of counties to include in the climate report \n\
+        watershed: An array of the names of watershed to include in the climate report \n\
+        moku: An array of the names of moku to include in the climate report`
+      );
+    }
+    // update time record was modified
     const timestamp = new Date().toISOString();
+    setParts.push(`modified = $${i++}`);
+
+    // create list string for set clause
+    let setString = setParts.join(", ");
+    
     let query = `
       UPDATE climate_report_register
-      SET ahupuaa = $1, county = $2, watershed = $3, moku = $4, modified = $5
-      WHERE id = $6 AND active = TRUE;
+      SET ${setString}
+      WHERE id = ${i} AND active = TRUE;
     `;
 
-    let modified = await mesonetDBUser.queryNoRes(query, [ahupuaa, county, watershed, moku, timestamp, id]);
+    let modified = await mesonetDBUser.queryNoRes(query, [...updateParams, timestamp, id]);
 
     if(!modified) {
       reqData.success = false;
