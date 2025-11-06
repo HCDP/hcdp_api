@@ -13,12 +13,13 @@ import { router as r7 } from "./endpoints/mesonet/raw/raw.js";
 import { router as r8 } from "./endpoints/hcdp/packageGen/packageGen.js";
 import { router as r9 } from "./endpoints/hcdp/datasets/dates/dates.js";
 import { router as r10 } from "./endpoints/util/health.js";
+import { router as r11 } from "./endpoints/mesonet/db/climateReport.js";
 
 //add timestamps to output
 import consoleStamp from 'console-stamp';
 consoleStamp(console);
 
-const routers = [r1, r2, r4, r5, r6, r7, r8, r9, r10];
+const routers = [r1, r2, r4, r5, r6, r7, r8, r9, r10, r11];
 
 //process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
 process.env["NODE_ENV"] = "production";

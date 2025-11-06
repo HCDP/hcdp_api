@@ -330,7 +330,7 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
         reqData.code = 400;
   
         return res.status(400)
-        .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
+        .send(`An error occured while handling your query. Please validate the parameters used. Error: ${e}`);
       }
     }
 
@@ -594,7 +594,7 @@ router.get("/mesonet/db/stations", async (req, res) => {
       reqData.code = 400;
 
       return res.status(400)
-      .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
+      .send(`An error occured while handling your query. Please validate the parameters used. Error: ${e}`);
     }
 
     if(row_mode === "array") {
@@ -644,7 +644,7 @@ router.get("/mesonet/db/variables", async (req, res) => {
       reqData.code = 400;
 
       return res.status(400)
-      .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
+      .send(`An error occured while handling your query. Please validate the parameters used. Error: ${e}`);
     }
 
     if(row_mode === "array") {
@@ -902,7 +902,7 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
       reqData.code = 400;
 
       return res.status(400)
-      .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
+      .send(`An error occured while handling your query. Please validate the parameters used. Error: ${e}`);
     }
 
     if(data.length < 1) {
@@ -943,7 +943,7 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
       reqData.code = 400;
 
       return res.status(400)
-      .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
+      .send(`An error occured while handling your query. Please validate the parameters used. Error: ${e}`);
     }
 
     reqData.code = 200;
@@ -1036,190 +1036,6 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
 });
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// async function convertTZJSON(data: MesonetMeasurementValue[], location: string) {
-//   let timezone = await getLocationTimezone(location);
-//   for(let item of data) {
-//     let converted = moment(item.timestamp).tz(timezone);
-//     item.timestamp = converted.toISOString();
-//   }
-// }
-// async function convertTZArray(data: (string | number)[], index: string[], location: string) {
-//   let timezone = await getLocationTimezone(location);
-
-// }
-
-// router.get("/mesonet/db/measurements", async (req, res) => {
-//   const permission = "basic";
-//   await handleReq(req, res, permission, async (reqData) => {
-//     let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, row_mode }: any = req.query;
-
-//     let varIDs = var_ids?.split(",") || [];
-//     let stationIDs = station_ids?.split(",") || [];
-//     let flagArr = flags?.split(",") || [];
-//     let intervalArr = intervals?.split(",") || [];
-
-//     const MAX_QUERY = 1000000;
-
-//     //validate location, can use direct in query
-//     //default to hawaii
-//     if(!mesonetLocations.includes(location)) {
-//       location = "hawaii";
-//     }
-
-//     if(offset) {
-//       offset = parseInt(offset, 10);
-//       if(isNaN(offset)) {
-//         offset = undefined;
-//       }
-//     }
-//     if(typeof limit === "string") {
-//       limit = parseInt(limit, 10)
-//       if(isNaN(limit)) {
-//         limit = 10000;
-//       }
-//     }
-//     //limit must be less than max, translate 0 or negative numbers as max
-//     if(limit < 1 || limit > MAX_QUERY) {
-//       limit = MAX_QUERY;
-//     }
-
-//     if(start_date) {
-//       try {
-//         let date = new Date(start_date);
-//         start_date = date.toISOString();
-//       }
-//       catch(e) {
-//         reqData.success = false;
-//         reqData.code = 400;
-  
-//         return res.status(400)
-//         .send("Invalid start date format. Dates must be ISO 8601 compliant.");
-//       }
-//     }
-  
-//     if(end_date) {
-//       try {
-//         let date = new Date(end_date);
-//         end_date = date.toISOString();
-//       }
-//       catch(e) {
-//         reqData.success = false;
-//         reqData.code = 400;
-  
-//         return res.status(400)
-//         .send("Invalid end date format. Dates must be ISO 8601 compliant.");
-//       }
-//     }
-
-//     let data: MesonetMeasurementValue[] | { index: string[], data: (string | number)[] }
-//     switch(row_mode) {
-//       case "json": {
-//         data = handleMeasurementsJSON(stationIDs, start_date, end_date, varIDs, intervals, flags, location, limit, offset, reverse, join_metadata, local_tz);
-//         break;
-//       }
-//       case "wide_json": {
-//         data = handleMeasurementsWideJSON(stationIDs, start_date, end_date, varIDs, intervals, flags, location, limit, offset, reverse, join_metadata, local_tz);
-//         break;
-//       }
-//       case "array": {
-//         data = handleMeasurementsArray(stationIDs, start_date, end_date, varIDs, intervals, flags, location, limit, offset, reverse, join_metadata, local_tz);
-//         break;
-//       }
-//       case "wide_array": {
-//         data = handleMeasurementsWideArray(stationIDs, start_date, end_date, varIDs, intervals, flags, location, limit, offset, reverse, join_metadata, local_tz);
-//         break;
-//       }
-//       default: {
-//         data = handleMeasurementsJSON(stationIDs, start_date, end_date, varIDs, intervals, flags, location, limit, offset, reverse, join_metadata, local_tz);
-//       }
-//     }
-
-//     reqData.code = 200;
-//     return res.status(200)
-//     .json(data);
-
-
-//     let values: any[] = [];
-//     let index: string[];
-//     ({ query, params, index } = constructMeasurementsQuery(stationIDs, start_date, end_date, varIDs, intervalArr, flagArr, location, limit, offset, reverse, join_metadata));
-
-//     //check if should crosstab the query (wide mode) and if query should return results as array or JSON
-//     let wide = row_mode.startsWith("wide_");
-//     let queryStyle: "array" | undefined = row_mode.startsWith("wide_") || row_mode.endsWith("json") ? undefined : "array";
-//     let returnArray = row_mode.endsWith("array");
-
-//     try {
-//       let queryHandler = await mesonetDBUser.query(query, params, {rowMode: queryStyle});
-//       const chunkSize = 10000;
-//       let chunk: any[];
-//       do {
-//         chunk = await queryHandler.read(chunkSize);
-//         values = values.concat(chunk);
-//       }
-//       while(chunk.length > 0)
-//       queryHandler.close();
-//     }
-//     catch(e) {
-//       reqData.success = false;
-//       reqData.code = 400;
-
-//       return res.status(400)
-//       .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
-//     }
-
-//     let timezone = local_tz ? await getLocationTimezone(location) : "UTC";
-
-//     if(wide) {
-//       let wideData = convertWide(values, varMetadata, limit, offset, timezone)
-//       if(returnArray) {
-        
-//       }
-//     }
-
-//     if(data.length > 0 && local_tz) {
-//       let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
-//       let queryHandler = await mesonetDBUser.query(query, [location]);
-//       let { timezone } = (await queryHandler.read(1))[0];
-//       queryHandler.close();
-//       if(row_mode === "array") {
-//         let tsIndex = index.indexOf("timestamp");
-//         for(let row of data) {
-//           let converted = moment(row[tsIndex]).tz(timezone);
-//           row[tsIndex] = converted.format();
-//         }
-//       }
-//       else {
-//         for(let row of data) {
-//           let converted = moment(row.timestamp).tz(timezone);
-//           row.timestamp = converted.format();
-//         }
-//       }
-//     }
-//     //if array form wrap with index
-//     if(row_mode === "array" || row_mode == "wide_array") {
-//       data = {
-//         index,
-//         data
-//       };
-//     }
-
-    
-//   });
-// });
 
 router.post("/mesonet/db/measurements/email", mesonetEmailLimiter, async (req, res) => {
   const permission = "basic";
@@ -1583,7 +1399,7 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
       reqData.code = 400;
 
       return res.status(400)
-      .send(`An error occured while handling your query. Please validate the prameters used. Error: ${e}`);
+      .send(`An error occured while handling your query. Please validate the parameters used. Error: ${e}`);
     }
 
     let results = {};
