@@ -15,7 +15,7 @@ async function getUserID(email: string): Promise<string> {
   let queryHandler = await mesonetDBUser.query(query, [email], { rowMode: "array" });
   let data = await queryHandler.read(1);
   queryHandler.close();
-
+  console.log(data);
   let id = null;
   if(data.length > 0) {
     id = data[0][0]
@@ -52,8 +52,9 @@ router.post("/mesonet/climate_report/subscribe", async (req, res) => {
     let query = `
       INSERT INTO climate_report_register
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)
-      ON CONFLICT (email) WHERE active = FALSE DO UPDATE
-      SET ahupuaa = $3, county = $4, watershed = $5, moku = $6, modified = $8, active = TRUE;
+      ON CONFLICT (email) DO UPDATE
+      SET ahupuaa = $3, county = $4, watershed = $5, moku = $6, modified = $8, active = TRUE
+      WHERE climate_report_register.active = FALSE;
     `;
 
     let modified = await mesonetDBUser.queryNoRes(query, [id, email, ahupuaa, county, watershed, moku, timestamp, timestamp]);
