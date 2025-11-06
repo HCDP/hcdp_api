@@ -2,6 +2,7 @@ import express from "express";
 import { mesonetDBUser } from "../../../modules/util/resourceManagers/db.js";
 import { handleReq } from "../../../modules/util/reqHandlers.js";
 import { v4 as uuidv4 } from "uuid";
+import { checkEmail } from "../../../modules/util/util.js";
 
 export const router = express.Router();
 
@@ -26,14 +27,14 @@ router.post("/mesonet/climate_report/subscribe", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     const { email } = req.body;
-    if(typeof email !== "string") {
+    if(typeof email !== "string" || !checkEmail(email)) {
       reqData.success = false;
       reqData.code = 400;
 
       return res.status(400)
       .send(
         `Request body must be a JSON object including the following parameters: \n\
-        email: A string representing the email to lookup. \n\
+        email: A valid email string to receive climate reports at. \n\
         ahupuaʻa (optional): An array of the names of ahupuaa to include in the climate report \n\
         county (optional): An array of the names of counties to include in the climate report \n\
         watershed (optional): An array of the names of watershed to include in the climate report \n\
@@ -133,26 +134,10 @@ router.get("/mesonet/climate_report/:id", async (req, res) => {
 });
 
 
-router.put("/mesonet/climate_report/:id", async (req, res) => {
+router.patch("/mesonet/climate_report/:id", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
-    const { email } = req.body;
     const { id } = req.params;
-
-    if(typeof email !== "string") {
-      reqData.success = false;
-      reqData.code = 400;
-
-      return res.status(400)
-      .send(
-        `Request body must be a JSON object including the following parameters: \n\
-        email: A string representing the email to lookup. \n\
-        ahupuaʻa (optional): An array of the names of ahupuaa to include in the climate report \n\
-        county (optional): An array of the names of counties to include in the climate report \n\
-        watershed (optional): An array of the names of watershed to include in the climate report \n\
-        moku (optional): An array of the names of moku to include in the climate report`
-      );
-    }
 
     const ahupuaa = req.body.ahupuaa || [];
     const county = req.body.county || [];
