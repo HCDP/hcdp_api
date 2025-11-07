@@ -15,7 +15,6 @@ async function getUserID(email: string): Promise<string> {
   let queryHandler = await mesonetDBUser.query(query, [email], { rowMode: "array" });
   let data = await queryHandler.read(1);
   queryHandler.close();
-  console.log(data);
   let id = null;
   if(data.length > 0) {
     id = data[0][0]
@@ -67,7 +66,7 @@ router.post("/mesonet/climate_report/subscribe", async (req, res) => {
       .send("A user with this email address is already subscribed.");
     }
 
-    id = getUserID(email);
+    id = await getUserID(email);
     reqData.code = 200;
     return res.status(200)
     .json({userID: id});
@@ -89,7 +88,7 @@ router.get("/mesonet/climate_report/email_lookup", async (req, res) => {
       );
     }
 
-    const id = getUserID(email);
+    const id = await getUserID(email);
     reqData.code = 200;
     return res.status(200)
     .json({userID: id});
