@@ -193,7 +193,7 @@ router.patch("/mesonet/climate_report/subscription/:id", async (req, res) => {
       .send("User not found or is inactive. No changes have been made.");
     }
     reqData.code = 204;
-    return res.status(204);
+    return res.status(204).end();
   });
 });
 
@@ -212,7 +212,7 @@ router.patch("/mesonet/climate_report/subscription/:id/unsubscribe", async (req,
         `Invalid UUID provided in url`
       );
     }
-    
+
     let query = `
       UPDATE climate_report_register
       SET active = FALSE
@@ -227,7 +227,7 @@ router.patch("/mesonet/climate_report/subscription/:id/unsubscribe", async (req,
       .send("User not found or is inactive. no changes have been made");
     }
     reqData.code = 204;
-    return res.status(204);
+    return res.status(204).end();
   });
 });
 
