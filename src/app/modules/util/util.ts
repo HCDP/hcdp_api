@@ -99,6 +99,23 @@ export function checkEmail(email: string) {
   return valid;
 }
 
+export function validateType(value: any, types: string[]) {
+  return types.includes(typeof value);
+}
+
+export function validateArray(param: any, elementValidator?: (value: any, index?: number, array?: any[]) => boolean) {
+  let valid = false;
+  if(Array.isArray(param)) {
+    if(elementValidator) {
+      valid = param.every(elementValidator)
+    }
+    else {
+      valid = true;
+    }
+  }
+  return valid;
+}
+
 export interface MailRes {
   success: boolean,
   result: any,

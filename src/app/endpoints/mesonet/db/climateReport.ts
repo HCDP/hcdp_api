@@ -2,9 +2,11 @@ import express from "express";
 import { mesonetDBUser } from "../../../modules/util/resourceManagers/db.js";
 import { handleReq } from "../../../modules/util/reqHandlers.js";
 import { v4 as uuidv4, validate as isValidUUID } from "uuid";
-import { checkEmail } from "../../../modules/util/util.js";
+import { checkEmail, validateArray } from "../../../modules/util/util.js";
 
 export const router = express.Router();
+
+const REPORT_TYPES = ["ahupuaa", "county", "watershed", "moku"];
 
 async function getUserID(email: string): Promise<string> {
   let query = `
@@ -21,6 +23,8 @@ async function getUserID(email: string): Promise<string> {
   }
   return id;
 }
+
+
 
 router.post("/mesonet/climate_report/subscribe", async (req, res) => {
   const permission = "basic";
@@ -43,10 +47,23 @@ router.post("/mesonet/climate_report/subscribe", async (req, res) => {
     let id = uuidv4()
     const timestamp = new Date().toISOString();
 
-    const ahupuaa = req.body.ahupuaa || [];
-    const county = req.body.county || [];
-    const watershed = req.body.watershed || [];
-    const moku = req.body.moku || [];
+    for(let type of REPORT_TYPES) {
+      let value = req.body[type];
+      if(value === undefined) {
+        req.body[type] = [];
+      }
+      else if(!validateArray(value, (value) => typeof value === "string")) {
+        reqData.success = false;
+        reqData.code = 400;
+  
+        return res.status(400)
+        .send(
+          `Invalid value for ${type}, must be an array of strings.`
+        );
+      }
+    }
+    
+    const { ahupuaa, county, watershed, moku } = req.body;
     
     let query = `
       INSERT INTO climate_report_register
@@ -151,8 +168,17 @@ router.patch("/mesonet/climate_report/subscription/:id", async (req, res) => {
     let updateParams = [];
     let setParts = [];
     let i = 1;
-    for(let type of ["ahupuaa", "county", "watershed", "moku"]) {
+    for(let type of REPORT_TYPES) {
       if(req.body[type] !== undefined) {
+        if(!validateArray(req.body[type], (value) => typeof value === "string")) {
+          reqData.success = false;
+          reqData.code = 400;
+    
+          return res.status(400)
+          .send(
+            `Invalid value for ${type}, must be an array of strings.`
+          );
+        }
         updateParams.push(req.body[type]);
         setParts.push(`${type} = $${i++}`);
       }
