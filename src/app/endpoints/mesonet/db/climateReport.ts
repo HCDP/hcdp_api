@@ -1,7 +1,7 @@
 import express from "express";
 import { mesonetDBUser } from "../../../modules/util/resourceManagers/db.js";
 import { handleReq } from "../../../modules/util/reqHandlers.js";
-import { v4 as uuidv4 } from "uuid";
+import { v4 as uuidv4, validate as isValidUUID } from "uuid";
 import { checkEmail } from "../../../modules/util/util.js";
 
 export const router = express.Router();
@@ -95,28 +95,27 @@ router.get("/mesonet/climate_report/email_lookup", async (req, res) => {
   });
 });
 
-router.get("/mesonet/climate_report/:id", async (req, res) => {
+router.get("/mesonet/climate_report/subscription/:id", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
-    const { email } = req.query;
+    const { id } = req.params;
 
-    if(typeof email !== "string") {
+    if(!isValidUUID(id)) {
       reqData.success = false;
       reqData.code = 400;
 
       return res.status(400)
       .send(
-        `Request must include the following parameters: \n\
-        email: A string representing the email to lookup.`
+        `Invalid UUID provided in url`
       );
     }
 
     let query = `
       SELECT email, ahupuaa, county, watershed, moku, created, modified, active
       FROM climate_report_register
-      WHERE email = $1 AND active = TRUE;
+      WHERE id = $1 AND active = TRUE;
     `;
-    let queryHandler = await mesonetDBUser.query(query, [email]);
+    let queryHandler = await mesonetDBUser.query(query, [id]);
     let data = await queryHandler.read(1);
     queryHandler.close();
 
@@ -134,10 +133,20 @@ router.get("/mesonet/climate_report/:id", async (req, res) => {
 });
 
 
-router.patch("/mesonet/climate_report/:id", async (req, res) => {
+router.patch("/mesonet/climate_report/subscription/:id", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     const { id } = req.params;
+
+    if(!isValidUUID(id)) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Invalid UUID provided in url`
+      );
+    }
 
     let updateParams = [];
     let setParts = [];
@@ -171,7 +180,7 @@ router.patch("/mesonet/climate_report/:id", async (req, res) => {
     let query = `
       UPDATE climate_report_register
       SET ${setString}
-      WHERE id = ${i} AND active = TRUE;
+      WHERE id = $${i} AND active = TRUE;
     `;
 
     let modified = await mesonetDBUser.queryNoRes(query, [...updateParams, timestamp, id]);
@@ -189,10 +198,21 @@ router.patch("/mesonet/climate_report/:id", async (req, res) => {
 });
 
 
-router.patch("/mesonet/climate_report/:id/unsubscribe", async (req, res) => {
+router.patch("/mesonet/climate_report/subscription/:id/unsubscribe", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     const { id } = req.params;
+
+    if(!isValidUUID(id)) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Invalid UUID provided in url`
+      );
+    }
+    
     let query = `
       UPDATE climate_report_register
       SET active = FALSE
