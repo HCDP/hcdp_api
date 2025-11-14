@@ -287,7 +287,7 @@ router.get("/mesonet/climate_report/subscriptions", async (req, res) => {
 
 
 
-router.post("/mesonet/climate_report/:id/email", async (req, res) => {
+router.post("/mesonet/climate_report/subscription/:id/email", async (req, res) => {
   const permission = "meso_admin";
   await handleReq(req, res, permission, async (reqData) => {
     const { id } = req.params;
