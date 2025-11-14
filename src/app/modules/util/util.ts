@@ -34,7 +34,7 @@ export async function handleSubprocess(subprocess, dataHandler, errHandler?) {
   });
 }
 
-export async function sendEmail(mailOptions): Promise<MailRes> {
+export async function sendEmail(mailOptions: MailOptions): Promise<MailRes> {
   let combinedMailOptions = Object.assign({}, emailConfig, mailOptions);
   let transporter = nodemailer.createTransport(transporterOptions);
   //have to be on uh netork
@@ -120,4 +120,16 @@ export interface MailRes {
   success: boolean,
   result: any,
   error: Error
+}
+
+export interface MailOptions {
+  to: string,
+  text: string,
+  html: string,
+  from?: string,
+  subject?: string,
+  attachments?: {
+    filename: string,
+    content: fs.ReadStream
+  }[]
 }

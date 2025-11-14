@@ -2,7 +2,7 @@ import express from "express";
 import { mesonetDBUser } from "../../../modules/util/resourceManagers/db.js";
 import { handleReq } from "../../../modules/util/reqHandlers.js";
 import { v4 as uuidv4, validate as isValidUUID } from "uuid";
-import { checkEmail, validateArray } from "../../../modules/util/util.js";
+import { checkEmail, MailOptions, sendEmail, validateArray, validateType } from "../../../modules/util/util.js";
 
 export const router = express.Router();
 
@@ -250,7 +250,7 @@ router.patch("/mesonet/climate_report/subscription/:id/unsubscribe", async (req,
       reqData.code = 404;
 
       return res.status(404)
-      .send("User not found or is inactive. no changes have been made");
+      .send("User not found. No changes have been made");
     }
     reqData.code = 204;
     return res.status(204).end();
@@ -278,6 +278,95 @@ router.get("/mesonet/climate_report/subscriptions", async (req, res) => {
     }
     while(chunk.length > 0)
     queryHandler.close();
+    
+    reqData.code = 200;
+    return res.status(200)
+    .json(data);
+  });
+});
+
+
+
+router.post("/mesonet/climate_report/:id/email", async (req, res) => {
+  const permission = "meso_admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    const { id } = req.params;
+    let { text, html } = req.body;
+
+    if(!validateType(text, ["string"])) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Request body must include the content you would like to send to the user: \n\
+        text: A string containing the email content you would like to send. \n\
+        html (optional): An HTML string containing the email content you would like to send. This will default to the text data provided wrapped in a paragraph block if not provided.`
+      ); 
+    }
+    if(!validateType(html, ["string"])) {
+      html = `<p>${text.replace("\n", "</br>")}</p>`;
+    }
+
+    if(!isValidUUID(id)) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Invalid UUID provided in url`
+      );
+    }
+
+    let query = `
+      SELECT email
+      FROM climate_report_register
+      WHERE id = $1 AND active = TRUE;
+    `;
+    let queryHandler = await mesonetDBUser.query(query, [id], { rowMode: "array" });
+    let data = await queryHandler.read(1);
+    queryHandler.close();
+    if(data.length < 1) {
+      reqData.success = false;
+      reqData.code = 404;
+
+      return res.status(404)
+      .send("User not found. Email has not been sent.");
+    }
+
+    const subject = "Your Monthly Hawaiʻi Climate Report";
+
+    const socSite = "https://www.hawaii.edu/climate-data-portal/state-of-the-climate";
+    const unsubscribeLink = `${socSite}/#/unsubscribe?id=${id}`;
+
+    //text
+    const introText = "Here is your monthly climate report:";
+    const signoffText = "Thank you for subscribing! Sincerely,\nThe HCDP Team"
+    const unsubscribeMessageText = `Subscription preferences can be updated at ${socSite} No longer interested in receiving these emails? Visit ${unsubscribeLink} to unsubscribe.`;
+    let textParts = [introText, text, signoffText, unsubscribeMessageText];
+    text = textParts.join("\n");
+
+    //html
+    const introHTML = "<p>Here is your monthly climate report:</p>";
+    const signoffHTML = "<p>Thank you for subscribing! Sincerely,</br>The HCDP Team</p>"
+    const unsubscribeMessageHTML = `<p>Subscription preferences can be updated <a href="${socSite}">here</a>. No longer interested in receiving these emails? <a href="${unsubscribeLink}">Unsubscribe</a></p>`;
+    let htmlParts = [introHTML, html, signoffHTML, unsubscribeMessageHTML];
+    html = htmlParts.join("</br>");
+    
+    
+    let email = data[0][0];
+    let mailOptions: MailOptions = {
+      to: email,
+      subject,
+      text,
+      html
+    }
+
+    let mailRes = await sendEmail(mailOptions);
+    if(!mailRes.success) {
+      reqData.success = false;
+      throw new Error("Failed to email user " + email + ". Error: " + mailRes.error.toString());
+    }
     
     reqData.code = 200;
     return res.status(200)
