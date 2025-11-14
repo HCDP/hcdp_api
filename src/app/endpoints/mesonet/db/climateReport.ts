@@ -305,7 +305,7 @@ router.post("/mesonet/climate_report/subscription/:id/email", async (req, res) =
       ); 
     }
     if(!validateType(html, ["string"])) {
-      html = `<p>${text.replace("\n", "</br>")}</p>`;
+      html = `<p>${text.replace("\n", "<br/>")}</p>`;
     }
 
     if(!isValidUUID(id)) {
@@ -348,10 +348,10 @@ router.post("/mesonet/climate_report/subscription/:id/email", async (req, res) =
 
     //html
     const introHTML = "<p>Here is your monthly climate report:</p>";
-    const signoffHTML = "<p>Thank you for subscribing! Sincerely,</br>The HCDP Team</p>"
+    const signoffHTML = "<p>Thank you for subscribing! Sincerely,<br/>The HCDP Team</p>"
     const unsubscribeMessageHTML = `<p>Subscription preferences can be updated <a href="${socSite}">here</a>. No longer interested in receiving these emails? <a href="${unsubscribeLink}">Unsubscribe</a></p>`;
     let htmlParts = [introHTML, html, signoffHTML, unsubscribeMessageHTML];
-    html = htmlParts.join("</br>");
+    html = htmlParts.join("<br/>");
     
     
     let email = data[0][0];
