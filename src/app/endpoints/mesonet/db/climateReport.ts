@@ -347,11 +347,11 @@ router.post("/mesonet/climate_report/subscription/:id/email", async (req, res) =
     text = textParts.join("\n");
 
     //html
-    const introHTML = "<p>Here is your monthly climate report:</p>";
+    const introHTML = "<h3>Here is your monthly climate report:</h3>";
     const signoffHTML = "<p>Thank you for subscribing! Sincerely,<br/>The HCDP Team</p>"
     const unsubscribeMessageHTML = `<p>Subscription preferences can be updated <a href="${socSite}">here</a>. No longer interested in receiving these emails? <a href="${unsubscribeLink}">Unsubscribe</a></p>`;
-    let htmlParts = [introHTML, html, signoffHTML, unsubscribeMessageHTML];
-    html = htmlParts.join("<br/>");
+    let htmlParts = [html, signoffHTML, unsubscribeMessageHTML];
+    html = `${introHTML}${htmlParts.join("<br/>")}`;
     
     
     let email = data[0][0];
