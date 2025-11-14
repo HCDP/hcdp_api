@@ -123,7 +123,7 @@ export interface MailRes {
 }
 
 export interface MailOptions {
-  to: string,
+  to: string | string[],
   text: string,
   html: string,
   from?: string,
