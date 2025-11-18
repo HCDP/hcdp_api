@@ -3,6 +3,7 @@ import compression from "compression";
 import cors from "cors";
 import * as https from "https";
 import sslRootCAs from "ssl-root-cas";
+import timeout from "connect-timeout";
 import { hskey, hscert, port } from "./modules/util/config.js";
 import { router as r1 } from "./endpoints/admin/tapisDB/db.js";
 import { router as r2 } from "./endpoints/mesonet/db/db.js";
@@ -36,6 +37,8 @@ app.set("trust proxy", 1);
 
 //compress all HTTP responses
 app.use(compression());
+//timeout 5 minutes
+app.use(timeout("5m"));
 
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");

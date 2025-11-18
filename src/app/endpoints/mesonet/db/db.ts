@@ -226,10 +226,17 @@ async function sanitizeExpandVarIDs(varIDs: string[]) {
   return data;
 }
 
+
 router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, row_mode }: any = req.query;
+
+    reqData.success = false;
+    reqData.code = 503;
+
+    return res.status(503)
+    .send("This resource is temporarily unavailable.");
 
     let varIDs = parseListParam(var_ids);
     let stationIDs = parseListParam(station_ids);
