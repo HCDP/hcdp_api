@@ -238,139 +238,139 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
     return res.status(503)
     .send("This resource is temporarily unavailable.");
 
-    let varIDs = parseListParam(var_ids);
-    let stationIDs = parseListParam(station_ids);
-    let flagArr = parseListParam(flags);
-    let intervalArr = parseListParam(intervals);
+    // let varIDs = parseListParam(var_ids);
+    // let stationIDs = parseListParam(station_ids);
+    // let flagArr = parseListParam(flags);
+    // let intervalArr = parseListParam(intervals);
 
-    const MAX_QUERY = 1000000;
+    // const MAX_QUERY = 1000000;
 
-    //validate location, can use direct in query
-    //default to hawaii
-    if(!mesonetLocations.includes(location)) {
-      location = "hawaii";
-    }
+    // //validate location, can use direct in query
+    // //default to hawaii
+    // if(!mesonetLocations.includes(location)) {
+    //   location = "hawaii";
+    // }
 
-    //check if should crosstab the query (wide mode) and if query should return results as array or JSON
-    let crosstabQuery = false;
-    switch(row_mode) {
-      case "wide_array": {
-        row_mode = "array";
-        crosstabQuery = true;
-        break;
-      }
-      case "array": {
-        break;
-      }
-      case "wide_json": {
-        row_mode = undefined;
-        crosstabQuery = true;
-        break;
-      }
-      default: {
-        row_mode = undefined;
-      }
-    }
+    // //check if should crosstab the query (wide mode) and if query should return results as array or JSON
+    // let crosstabQuery = false;
+    // switch(row_mode) {
+    //   case "wide_array": {
+    //     row_mode = "array";
+    //     crosstabQuery = true;
+    //     break;
+    //   }
+    //   case "array": {
+    //     break;
+    //   }
+    //   case "wide_json": {
+    //     row_mode = undefined;
+    //     crosstabQuery = true;
+    //     break;
+    //   }
+    //   default: {
+    //     row_mode = undefined;
+    //   }
+    // }
 
-    if(offset) {
-      offset = parseInt(offset, 10);
-      if(isNaN(offset)) {
-        offset = undefined;
-      }
-    }
-    if(typeof limit === "string") {
-      limit = parseInt(limit, 10)
-      if(isNaN(limit)) {
-        limit = 10000;
-      }
-    }
-    //limit must be less than max, translate 0 or negative numbers as max
-    if(limit < 1 || limit > MAX_QUERY) {
-      limit = MAX_QUERY;
-    }
+    // if(offset) {
+    //   offset = parseInt(offset, 10);
+    //   if(isNaN(offset)) {
+    //     offset = undefined;
+    //   }
+    // }
+    // if(typeof limit === "string") {
+    //   limit = parseInt(limit, 10)
+    //   if(isNaN(limit)) {
+    //     limit = 10000;
+    //   }
+    // }
+    // //limit must be less than max, translate 0 or negative numbers as max
+    // if(limit < 1 || limit > MAX_QUERY) {
+    //   limit = MAX_QUERY;
+    // }
 
-    if(start_date) {
-      try {
-        let date = new Date(start_date);
-        start_date = date.toISOString();
-      }
-      catch(e) {
-        reqData.success = false;
-        reqData.code = 400;
+    // if(start_date) {
+    //   try {
+    //     let date = new Date(start_date);
+    //     start_date = date.toISOString();
+    //   }
+    //   catch(e) {
+    //     reqData.success = false;
+    //     reqData.code = 400;
   
-        return res.status(400)
-        .send("Invalid start date format. Dates must be ISO 8601 compliant.");
-      }
-    }
+    //     return res.status(400)
+    //     .send("Invalid start date format. Dates must be ISO 8601 compliant.");
+    //   }
+    // }
   
-    if(end_date) {
-      try {
-        let date = new Date(end_date);
-        end_date = date.toISOString();
-      }
-      catch(e) {
-        reqData.success = false;
-        reqData.code = 400;
+    // if(end_date) {
+    //   try {
+    //     let date = new Date(end_date);
+    //     end_date = date.toISOString();
+    //   }
+    //   catch(e) {
+    //     reqData.success = false;
+    //     reqData.code = 400;
   
-        return res.status(400)
-        .send("Invalid end date format. Dates must be ISO 8601 compliant.");
-      }
-    }
+    //     return res.status(400)
+    //     .send("Invalid end date format. Dates must be ISO 8601 compliant.");
+    //   }
+    // }
 
 
-    let data: any[] | { index: string[], data: any[] } = [];
-    let { query, params, index } = await constructMeasurementsQuery(crosstabQuery, stationIDs, start_date, end_date, varIDs, intervalArr, flagArr, location, limit, offset, reverse, join_metadata);
-    if(query) {
-      try {
-        let queryHandler = await mesonetDBUser.query(query, params, {rowMode: row_mode});
-        const chunkSize = 10000;
-        let chunk: any[];
-        do {
-          chunk = await queryHandler.read(chunkSize);
-          data = data.concat(chunk);
-        }
-        while(chunk.length > 0)
-        queryHandler.close();
-      }
-      catch(e) {
-        reqData.success = false;
-        reqData.code = 400;
+    // let data: any[] | { index: string[], data: any[] } = [];
+    // let { query, params, index } = await constructMeasurementsQuery(crosstabQuery, stationIDs, start_date, end_date, varIDs, intervalArr, flagArr, location, limit, offset, reverse, join_metadata);
+    // if(query) {
+    //   try {
+    //     let queryHandler = await mesonetDBUser.query(query, params, {rowMode: row_mode});
+    //     const chunkSize = 10000;
+    //     let chunk: any[];
+    //     do {
+    //       chunk = await queryHandler.read(chunkSize);
+    //       data = data.concat(chunk);
+    //     }
+    //     while(chunk.length > 0)
+    //     queryHandler.close();
+    //   }
+    //   catch(e) {
+    //     reqData.success = false;
+    //     reqData.code = 400;
   
-        return res.status(400)
-        .send(`An error occured while handling your query. Please validate the parameters used. Error: ${e}`);
-      }
-    }
+    //     return res.status(400)
+    //     .send(`An error occured while handling your query. Please validate the parameters used. Error: ${e}`);
+    //   }
+    // }
 
-    if(data.length > 0 && local_tz) {
-      let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
-      let queryHandler = await mesonetDBUser.query(query, [location]);
-      let { timezone } = (await queryHandler.read(1))[0];
-      queryHandler.close();
-      if(row_mode === "array") {
-        let tsIndex = index.indexOf("timestamp");
-        for(let row of data) {
-          let converted = moment(row[tsIndex]).tz(timezone);
-          row[tsIndex] = converted.format();
-        }
-      }
-      else {
-        for(let row of data) {
-          let converted = moment(row.timestamp).tz(timezone);
-          row.timestamp = converted.format();
-        }
-      }
-    }
-    //if array form wrap with index
-    if(row_mode === "array" || row_mode == "wide_array") {
-      data = {
-        index,
-        data
-      };
-    }
+    // if(data.length > 0 && local_tz) {
+    //   let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
+    //   let queryHandler = await mesonetDBUser.query(query, [location]);
+    //   let { timezone } = (await queryHandler.read(1))[0];
+    //   queryHandler.close();
+    //   if(row_mode === "array") {
+    //     let tsIndex = index.indexOf("timestamp");
+    //     for(let row of data) {
+    //       let converted = moment(row[tsIndex]).tz(timezone);
+    //       row[tsIndex] = converted.format();
+    //     }
+    //   }
+    //   else {
+    //     for(let row of data) {
+    //       let converted = moment(row.timestamp).tz(timezone);
+    //       row.timestamp = converted.format();
+    //     }
+    //   }
+    // }
+    // //if array form wrap with index
+    // if(row_mode === "array" || row_mode == "wide_array") {
+    //   data = {
+    //     index,
+    //     data
+    //   };
+    // }
 
-    reqData.code = 200;
-    return res.status(200)
-    .json(data);
+    // reqData.code = 200;
+    // return res.status(200)
+    // .json(data);
   });
 });
 
