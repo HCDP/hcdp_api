@@ -169,7 +169,7 @@ router.post("/addmetadata", express.raw({ limit: "50mb", type: () => true }), as
           }
         }
         else {
-          let data = {
+          let data: any = {
             station_group: "hawaii_climate_primary",
             id_field: "skn"
           };
@@ -180,11 +180,15 @@ router.post("/addmetadata", express.raw({ limit: "50mb", type: () => true }), as
               data[property] = value;
             }
           }
-          let doc = {
-            name: "hcdp_station_metadata",
-            value: data
-          };
-          docs.push(doc);
+          //validate
+          if(data.skn && typeof data.lat == "number" && typeof data.lng == "number") {
+            let doc = {
+              name: "hcdp_station_metadata",
+              value: data
+            };
+            docs.push(doc);
+          }
+          
         }
       })
       .on("end", () => {
