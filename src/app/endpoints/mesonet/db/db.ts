@@ -669,7 +669,8 @@ router.get("/mesonet/db/variables", async (req, res) => {
 });
 
 router.get("/mesonet/db/sensors", async (req, res) => {
-  await handleReqNoAuth(req, res, async (reqData) => {
+  const permission = "basic";
+  await handleReq(req, res, permission, async (reqData) => {
     let { location, station_ids, var_ids, row_mode } = req.query;
 
     let stationIDs = parseListParam(station_ids);
