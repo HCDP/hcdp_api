@@ -668,6 +668,81 @@ router.get("/mesonet/db/variables", async (req, res) => {
   });
 });
 
+router.get("/mesonet/db/sensors", async (req, res) => {
+  await handleReqNoAuth(req, res, async (reqData) => {
+    let { location, station_ids, var_ids, row_mode } = req.query;
+
+    let stationIDs = parseListParam(station_ids);
+    let varIDs = parseListParam(var_ids);
+    if(!(typeof location === "string" && mesonetLocations.includes(location))) {
+      location = undefined;
+    }
+    if(row_mode !== "array") {
+      row_mode = undefined;
+    }
+
+    let params: string[] = [];
+    let whereClauses: string[] = [];
+    
+    if(stationIDs.length > 0) {
+      parseParams(stationIDs, params, whereClauses, "station_id");
+    }
+    if(varIDs.length > 0) {
+      parseParams(varIDs, params, whereClauses, "standard_name");
+    }
+    if(location) {
+      params.push(<string>location)
+      whereClauses.push(`station_metadata.location = $${params.length}`);
+    }
+  
+    let whereClause = "";
+    if(whereClauses.length > 0) {
+      whereClause = `WHERE ${whereClauses.join(" AND ")}`;
+    }
+
+
+    //sensor metadata
+    let query = `
+      SELECT sensor_positions.station_id, standard_name, sensor_number, sensor_height
+      FROM sensor_positions
+      ${whereClause}
+    `;
+    if(location) {
+      query += "JOIN station_metadata ON station_metadata.station_id = sensor_positions.station_id;";
+    }
+    else {
+      query += ";";
+    }
+    let data: any;
+    try {
+      let queryHandler = await mesonetDBUser.query(query, []);
+      data = await queryHandler.read(100000);
+      queryHandler.close();
+    }
+    catch(e) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(`An error occured while handling your query. Please validate the parameters used. Error: ${e}`);
+    }
+
+    if(row_mode === "array") {
+      let index = ["station_id", "standard_name", "sensor_number", "sensor_height"];
+
+      data = {
+        index,
+        data
+      };
+    }
+    
+
+    reqData.code = 200;
+    return res.status(200)
+    .json(data);
+  });
+});
+
 
 router.get("/mesonet/db/synopticData", async (req, res) => {
   await handleReqNoAuth(req, res, async (reqData) => {
