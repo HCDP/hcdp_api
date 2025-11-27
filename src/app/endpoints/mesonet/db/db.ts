@@ -683,7 +683,7 @@ router.get("/mesonet/db/sensors", async (req, res) => {
 
     let params: string[] = [];
     let whereClauses: string[] = [];
-    
+    let joinClause = "";
     if(stationIDs.length > 0) {
       parseParams(stationIDs, params, whereClauses, "station_id");
     }
@@ -693,6 +693,7 @@ router.get("/mesonet/db/sensors", async (req, res) => {
     if(location) {
       params.push(<string>location)
       whereClauses.push(`station_metadata.location = $${params.length}`);
+      joinClause = "JOIN station_metadata ON station_metadata.station_id = sensor_positions.station_id";
     }
   
     let whereClause = "";
@@ -700,19 +701,13 @@ router.get("/mesonet/db/sensors", async (req, res) => {
       whereClause = `WHERE ${whereClauses.join(" AND ")}`;
     }
 
-
     //sensor metadata
     let query = `
       SELECT sensor_positions.station_id, standard_name, sensor_number, sensor_height
       FROM sensor_positions
-      ${whereClause}
+      ${joinClause}
+      ${whereClause};
     `;
-    if(location) {
-      query += "JOIN station_metadata ON station_metadata.station_id = sensor_positions.station_id;";
-    }
-    else {
-      query += ";";
-    }
     let data: any;
     try {
       let queryHandler = await mesonetDBUser.query(query, params);
