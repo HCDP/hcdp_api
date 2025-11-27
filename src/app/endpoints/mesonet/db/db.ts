@@ -715,7 +715,7 @@ router.get("/mesonet/db/sensors", async (req, res) => {
     }
     let data: any;
     try {
-      let queryHandler = await mesonetDBUser.query(query, []);
+      let queryHandler = await mesonetDBUser.query(query, params);
       data = await queryHandler.read(100000);
       queryHandler.close();
     }
