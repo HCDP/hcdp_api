@@ -63,7 +63,7 @@ export async function logReq(data) {
   const currentTime = moment().tz("Pacific/Honolulu");
   const timestamp = currentTime.format("YYYY-MM-DD HH:mm:ss");
   const fname = "requests.log";
-  const logDateDir = path.join(logDir, "dateLogs", currentTime.format("YYYY/MM/DD"));
+  const logDateDir = path.join(logDir, "data", currentTime.format("YYYY/MM/DD"));
   const logFile = path.join(logDateDir, fname);
   let dataString = `[${timestamp}] ${method}:${endpoint}:${user}:${tokenUser}:${token}:${code}:${success}:${sizeB}:${sizeF}\n`;
   try {
