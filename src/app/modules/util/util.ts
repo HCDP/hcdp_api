@@ -1,6 +1,8 @@
 import * as fs from "fs";
+import * as path from "path";
 import * as nodemailer from "nodemailer";
-import { userLog, emailConfig, smtp, smtpPort } from "./config.js";
+import moment from "moment-timezone";
+import { logDir, emailConfig, smtp, smtpPort } from "./config.js";
 
 const transporterOptions = {
   host: smtp,
@@ -56,15 +58,21 @@ export async function sendEmail(mailOptions: MailOptions): Promise<MailRes> {
   });
 }
 
-export function logReq(data) {
+export async function logReq(data) {
   const { user, code, success, sizeF, method, endpoint, token, sizeB, tokenUser } = data;
-  const timestamp = new Date().toLocaleString("sv-SE", {timeZone:"Pacific/Honolulu"});
+  const currentTime = moment().tz("Pacific/Honolulu");
+  const timestamp = currentTime.format("LLLL");
+  const fname = "requests.log";
+  const logDateDir = path.join(logDir, "dateLogs", currentTime.format("YYYY/MM/DD"));
+  const logFile = path.join(logDateDir, fname);
   let dataString = `[${timestamp}] ${method}:${endpoint}:${user}:${tokenUser}:${token}:${code}:${success}:${sizeB}:${sizeF}\n`;
-  fs.appendFile(userLog, dataString, (err) => {
-    if(err) {
-      console.error(`Failed to write userlog.\nError: ${err}`);
-    }
-  });
+  try {
+    await fs.promises.mkdir(logDateDir, { recursive: true });
+    await fs.promises.appendFile(logFile, dataString);
+  }
+  catch(err) {
+    console.error(`Failed to write userlog.\nError: ${err}`);
+  }
 }
 
 export function processTapisError(res, reqData, e) {
