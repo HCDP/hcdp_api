@@ -61,7 +61,7 @@ export async function sendEmail(mailOptions: MailOptions): Promise<MailRes> {
 export async function logReq(data) {
   const { user, code, success, sizeF, method, endpoint, token, sizeB, tokenUser } = data;
   const currentTime = moment().tz("Pacific/Honolulu");
-  const timestamp = currentTime.format("LLLL");
+  const timestamp = currentTime.format("YYYY-MM-DD HH:mm:ss");
   const fname = "requests.log";
   const logDateDir = path.join(logDir, "dateLogs", currentTime.format("YYYY/MM/DD"));
   const logFile = path.join(logDateDir, fname);
