@@ -66,7 +66,8 @@ router.get("/users/emails/apiqueries", async (req, res) => {
   const permission = "admin";
   await handleReq(req, res, permission, async (reqData) => {
     let dataFile = join(logDir, "email_log/emails.json");
-    let data = await fs.promises.readFile(dataFile);
+    let dataStr = await fs.promises.readFile(dataFile, "utf8");
+    let data = JSON.parse(dataStr);
     reqData.code = 200;
     return res.status(200)
     .json(data);
