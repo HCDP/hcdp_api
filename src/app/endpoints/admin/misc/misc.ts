@@ -1,6 +1,6 @@
 import express from "express";
 import { handleReq } from "../../../modules/util/reqHandlers.js";
-import { handleSubprocess, sendEmail } from "../../../modules/util/util.js";
+import { sendEmail } from "../../../modules/util/util.js";
 import { tapisManager } from "../../../modules/util/resourceManagers/tapis.js";
 import { githubWebhookSecret, logDir } from "../../../modules/util/config.js";
 import CsvReadableStream from "csv-reader";
@@ -20,7 +20,7 @@ function signBlob(key, blob) {
 }
 
 router.get("/users/emails/apitokens", async (req, res) => {
-  const permission = "admin";
+  const permission = "userdata";
   await handleReq(req, res, permission, async (reqData) => {
 
     let { status }: any = req.query;
@@ -63,7 +63,7 @@ router.get("/users/emails/apitokens", async (req, res) => {
 });
 
 router.get("/users/emails/apiqueries", async (req, res) => {
-  const permission = "admin";
+  const permission = "userdata";
   await handleReq(req, res, permission, async (reqData) => {
     let dataFile = join(logDir, "email_log/emails.json");
     let dataStr = await fs.promises.readFile(dataFile, "utf8");

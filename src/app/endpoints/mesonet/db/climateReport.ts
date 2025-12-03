@@ -259,7 +259,7 @@ router.patch("/mesonet/climate_report/subscription/:id/unsubscribe", async (req,
 
 
 router.get("/mesonet/climate_report/subscriptions", async (req, res) => {
-  const permission = "meso_admin";
+  const permission = "userdata";
   await handleReq(req, res, permission, async (reqData) => {
     let query = `
       SELECT id, email, ahupuaa, county, watershed, moku
@@ -288,7 +288,7 @@ router.get("/mesonet/climate_report/subscriptions", async (req, res) => {
 
 
 router.post("/mesonet/climate_report/subscription/:id/email", async (req, res) => {
-  const permission = "meso_admin";
+  const permission = "notify";
   await handleReq(req, res, permission, async (reqData) => {
     const { id } = req.params;
     let { text, html } = req.body;
