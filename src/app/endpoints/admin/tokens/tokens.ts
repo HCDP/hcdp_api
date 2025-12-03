@@ -249,20 +249,20 @@ router.patch("/deprecateToken", async (req, res) => {
 });
 
 
-router.get("/users/emails", async (req, res) => {
-  const permission = "admin";
-  await handleReq(req, res, permission, async (reqData) => {
-    let query = `
-      SELECT DISTINCT(email)
-      FROM token_requests
-      WHERE approved;
-    `;
-    let queryHandler = await apiDB.query(query, [], { rowMode: "array" });
-    let data = await queryHandler.read(10000);
-    queryHandler.close();
-    let emails = data.flat();
-    reqData.code = 200;
-    return res.status(200)
-    .json(emails);
-  });
-});
+// router.get("/users/emails", async (req, res) => {
+//   const permission = "admin";
+//   await handleReq(req, res, permission, async (reqData) => {
+//     let query = `
+//       SELECT DISTINCT(email)
+//       FROM token_requests
+//       WHERE approved;
+//     `;
+//     let queryHandler = await apiDB.query(query, [], { rowMode: "array" });
+//     let data = await queryHandler.read(10000);
+//     queryHandler.close();
+//     let emails = data.flat();
+//     reqData.code = 200;
+//     return res.status(200)
+//     .json(emails);
+//   });
+// });

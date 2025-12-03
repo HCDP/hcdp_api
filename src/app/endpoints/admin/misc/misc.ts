@@ -2,15 +2,16 @@ import express from "express";
 import { handleReq } from "../../../modules/util/reqHandlers.js";
 import { handleSubprocess, sendEmail } from "../../../modules/util/util.js";
 import { tapisManager } from "../../../modules/util/resourceManagers/tapis.js";
-import { githubWebhookSecret } from "../../../modules/util/config.js";
+import { githubWebhookSecret, logDir } from "../../../modules/util/config.js";
 import CsvReadableStream from "csv-reader";
 import detectDecodeStream from "autodetect-decoder-stream";
 import safeCompare from "safe-compare";
 import * as crypto from "crypto";
-import * as child_process from "child_process";
 import * as https from "https";
+import * as fs from "fs";
 import { apiDB } from "../../../modules/util/resourceManagers/db.js";
 import { parseListParam, parseParams } from "../../../modules/util/dbUtil.js";
+import { join } from "path";
 
 export const router = express.Router();
 
@@ -64,64 +65,56 @@ router.get("/users/emails/apitokens", async (req, res) => {
 router.get("/users/emails/apiqueries", async (req, res) => {
   const permission = "admin";
   await handleReq(req, res, permission, async (reqData) => {
-    let proc = child_process.spawn("python3", ["/logs/utils/get_emails.py"]);
-
-    let output = "";
-    let code = await handleSubprocess(proc, (data: string) => {
-      output += data.toString();
-    }, (error: string) => {
-      throw new Error(`Could not process log files, something went wrong: ${error}`);
-    });
-    if(code !== 0) {
-      throw new Error(`Could not process log files, something went wrong, process exited with code ${code}`);
-    }
-    let emails = output.trim().split("\n");
+    let dataFile = join(logDir, "email_log/emails.json");
+    let data = await fs.promises.readFile(dataFile);
     reqData.code = 200;
     return res.status(200)
-    .json(emails);
+    .json(data);
   });
 });
 
 
-router.get("/apistats", async (req, res) => {
-  try {
-    //start with no params, might want to add date range, need to modify scripts or otherwise make additional processing
-    //should migrate log locations to config
-    const logfile = "/logs/userlog.txt";
-    const logfileOld = "/logs/userlog_old_2.txt";
-    const logscript = "/logs/utils/gen_report_json.sh";
-    const logscriptOld = "/logs/utils/gen_report_old_json.sh";
-    let resData: any[] = [];
-    let procHandles = [child_process.spawn("/bin/bash", [logscript, logfile]), child_process.spawn("/bin/bash", [logscriptOld, logfileOld])].map((proc) => {
-      return new Promise<void>(async (resolve, reject) => {
-        try {
-          let output = "";
-          let code = await handleSubprocess(proc, (data) => {
-            output += data.toString();
-          });
-          if(code == 0) {
-            //strip out emails, can use this for additional processing if expanded on, don't want to provide to the public
-            let json = JSON.parse(output);
-            delete json.unique_emails;
-            resData.push(json);
-          }
-          resolve();
-        }
-        catch {
-          resolve();
-        }
-      });
-    });
-    Promise.all(procHandles).then(() => {
-      res.status(200)
-      .json(resData);
-    });
-  }
-  catch(e) {
-    res.status(500)
-    .send("An unexpected error occurred.");
-  }
-});
+
+
+// router.get("/apistats", async (req, res) => {
+//   try {
+//     //start with no params, might want to add date range, need to modify scripts or otherwise make additional processing
+//     //should migrate log locations to config
+//     const logfile = "/logs/userlog.txt";
+//     const logfileOld = "/logs/userlog_old_2.txt";
+//     const logscript = "/logs/utils/gen_report_json.sh";
+//     const logscriptOld = "/logs/utils/gen_report_old_json.sh";
+//     let resData: any[] = [];
+//     let procHandles = [child_process.spawn("/bin/bash", [logscript, logfile]), child_process.spawn("/bin/bash", [logscriptOld, logfileOld])].map((proc) => {
+//       return new Promise<void>(async (resolve, reject) => {
+//         try {
+//           let output = "";
+//           let code = await handleSubprocess(proc, (data) => {
+//             output += data.toString();
+//           });
+//           if(code == 0) {
+//             //strip out emails, can use this for additional processing if expanded on, don't want to provide to the public
+//             let json = JSON.parse(output);
+//             delete json.unique_emails;
+//             resData.push(json);
+//           }
+//           resolve();
+//         }
+//         catch {
+//           resolve();
+//         }
+//       });
+//     });
+//     Promise.all(procHandles).then(() => {
+//       res.status(200)
+//       .json(resData);
+//     });
+//   }
+//   catch(e) {
+//     res.status(500)
+//     .send("An unexpected error occurred.");
+//   }
+// });
 
 
 
