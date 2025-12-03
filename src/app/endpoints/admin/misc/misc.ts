@@ -29,7 +29,7 @@ router.get("/users/emails/apitokens", async (req, res) => {
     let params = [];
     let whereClause = [];
     let query = `
-      SELECT email
+      SELECT DISTINCT(email)
       FROM token_requests
     `;
 
