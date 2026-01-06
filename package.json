@@ -35,7 +35,7 @@
     "moment-timezone": "^0.5.45",
     "mongo-sanitize": "^1.1.0",
     "mongodb": "^3.7.3",
-    "nodemailer": "^6.6.1",
+    "nodemailer": "^7.0.12",
     "pg-cursor": "^2.12.1",
     "pg-promise": "^11.10.1",
     "safe-compare": "^1.1.4",
