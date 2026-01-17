@@ -576,7 +576,7 @@ router.get("/mesonet/db/stations", async (req, res) => {
     }
 
     let query = `
-      SELECT station_id, name, full_name, lat, lng, elevation, status, station_metadata.location, timezone_map.timezone
+      SELECT station_id, name, full_name, lat, lng, elevation, vegh, skn, nws_id, status, station_metadata.location, timezone_map.timezone
       FROM station_metadata
       JOIN timezone_map ON station_metadata.location = timezone_map.location
       ${whereClause}
