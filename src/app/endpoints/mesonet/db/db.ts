@@ -750,7 +750,7 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
 
     //synoptic data
     let query = `
-      SELECT program, alias, synoptic_translations.standard_name, synoptic_name, unit_conversion_coefficient
+      SELECT program, alias, synoptic_translations.standard_name, synoptic_name, unit_conversion
       FROM synoptic_translations
       JOIN version_translations ON version_translations.standard_name = synoptic_translations.standard_name;
     `;
@@ -758,7 +758,7 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
     let data = await queryHandler.read(100000);
     queryHandler.close();
     for(let row of data) {
-      const { program, alias, standard_name, synoptic_name, unit_conversion_coefficient } = row;
+      const { program, alias, standard_name, synoptic_name, unit_conversion } = row;
       let programData = synopticData.synoptic[program];
       if(!programData) {
         programData = {};
@@ -767,7 +767,7 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
       programData[alias] = {
         standard_name,
         synoptic_name,
-        unit_conversion_coefficient
+        unit_conversion
       }
     }
 
