@@ -579,7 +579,7 @@ function constructVariablesQuery(varIDs: string[], limit?: number, offset?: numb
   }
 
   let query = `
-    SELECT standard_name, display_name, unit_metadata.units units_plain, units_expanded
+    SELECT standard_name, display_name, unit_metadata.units, units_plain, units_expanded
     FROM variable_metadata_2
     LEFT JOIN unit_metadata ON variable_metadata_2.units = unit_metadata.units
     ${whereClause}
