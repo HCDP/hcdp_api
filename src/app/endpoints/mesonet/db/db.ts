@@ -6,7 +6,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
 import { apiURL, downloadRoot, mesonetLocations } from "../../../modules/util/config.js";
-import { sendEmail } from "../../../modules/util/util.js";
+import { parseBoolParam, sendEmail } from "../../../modules/util/util.js";
 import { stringify } from "csv-stringify/sync";
 import * as crypto from "crypto";
 import { parseListParam, parseParams } from "../../../modules/util/dbUtil.js";
@@ -106,8 +106,8 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
   let query = joinMetadata ? `
     WITH variable_metadata_combined AS (
       SELECT standard_name, display_name, unit_metadata.units, units_plain, units_expanded
-      FROM variable_metadata_2
-      LEFT JOIN unit_metadata ON variable_metadata_2.units = unit_metadata.units
+      FROM variable_metadata
+      LEFT JOIN unit_metadata ON variable_metadata.units = unit_metadata.units
     )
     SELECT
       timestamp,
@@ -264,6 +264,9 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, row_mode }: any = req.query;
+    reverse = parseBoolParam(reverse);
+    join_metadata = parseBoolParam(join_metadata);
+    local_tz = parseBoolParam(local_tz);
 
     // reqData.success = false;
     // reqData.code = 503;
@@ -483,8 +486,8 @@ function constructMeasurementsQueryEmail(stationIDs: string[], startDate: string
   let query = joinMetadata ? `
     WITH variable_metadata_combined AS (
       SELECT standard_name, display_name, unit_metadata.units, units_plain, units_expanded
-      FROM variable_metadata_2
-      LEFT JOIN unit_metadata ON variable_metadata_2.units = unit_metadata.units
+      FROM variable_metadata
+      LEFT JOIN unit_metadata ON variable_metadata.units = unit_metadata.units
     )
     SELECT
       timestamp,
@@ -580,8 +583,8 @@ function constructVariablesQuery(varIDs: string[], limit?: number, offset?: numb
 
   let query = `
     SELECT standard_name, display_name, unit_metadata.units, units_plain, units_expanded
-    FROM variable_metadata_2
-    LEFT JOIN unit_metadata ON variable_metadata_2.units = unit_metadata.units
+    FROM variable_metadata
+    LEFT JOIN unit_metadata ON variable_metadata.units = unit_metadata.units
     ${whereClause}
     ${limitOffsetClause};
   `;
@@ -1622,63 +1625,6 @@ async function getStartDate(location: string, stationIDs: string[]): Promise<str
   queryHandler.close();
   return timestamp;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-// function convertWide(values: MesonetMeasurementValue[], varMetadata: VariableMetadata[], limit: number, offset: number, timezone: string): {[tag: string]: any}[] {
-//   let pivotedData: {[tag: string]: any}[] = [];
-//   let baseRow = {
-//     timestamp: null,
-//     station_id: null
-//   };
-//   for(let item of varMetadata) {
-//     baseRow[item.standard_name] = null;
-//   }
-
-// 	let pivotedRow: {[tag: string]: any} | undefined;
-// 	let currentTS = pivotedRow ? pivotedRow[0] : "";
-// 	let currentSID = pivotedRow ? pivotedRow[1] : "";
-// 	for(let row of values) {
-
-// 		let {timestamp, station_id, variable, value} = row;
-//     let converted = moment(timestamp).tz(timezone);
-//     timestamp = converted.format();
-    
-// 		if(timestamp != currentTS || station_id != currentSID) {
-// 			if(pivotedRow) {
-//         if(offset > 0) {
-//           offset--;
-//         }
-//         else {
-//           pivotedData.push(pivotedRow);
-//           if(--limit < 1) {
-//             break;
-//           }
-//         }
-// 			}
-// 			pivotedRow = {
-//         ...baseRow
-//       };
-// 			pivotedRow[0] = timestamp;
-// 			pivotedRow[1] = station_id;
-// 		}
-//     pivotedRow![variable] = value;
-// 		currentTS = timestamp;
-// 		currentSID = station_id;
-// 	}
-
-// 	return pivotedData;
-// }
 
 
 
