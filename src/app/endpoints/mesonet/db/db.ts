@@ -105,7 +105,7 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
 
   let query = joinMetadata ? `
     WITH variable_metadata_combined AS (
-      SELECT standard_name, display_name, unit_metadata.units units_plain, units_expanded
+      SELECT standard_name, display_name, unit_metadata.units, units_plain, units_expanded
       FROM variable_metadata_2
       LEFT JOIN unit_metadata ON variable_metadata_2.units = unit_metadata.units
     )
@@ -482,7 +482,7 @@ function constructMeasurementsQueryEmail(stationIDs: string[], startDate: string
   
   let query = joinMetadata ? `
     WITH variable_metadata_combined AS (
-      SELECT standard_name, display_name, unit_metadata.units units_plain, units_expanded
+      SELECT standard_name, display_name, unit_metadata.units, units_plain, units_expanded
       FROM variable_metadata_2
       LEFT JOIN unit_metadata ON variable_metadata_2.units = unit_metadata.units
     )
