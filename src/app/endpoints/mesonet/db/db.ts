@@ -103,21 +103,54 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
     limitOffsetClause += ` OFFSET $${params.length}`;
   }
 
-  let query = `
+  let query = joinMetadata ? `
+    WITH variable_metadata_combined AS (
+      SELECT standard_name, display_name, unit_metadata.units units_plain, units_expanded
+      FROM variable_metadata_2
+      LEFT JOIN unit_metadata ON variable_metadata_2.units = unit_metadata.units
+    )
     SELECT
       timestamp,
       ${measurementsTable}.station_id,
       variable_data.standard_name as variable,
-      value
-      ${selectFlag ? ", flag" : ""}
-      ${joinMetadata ? ", units, units_plain, units_expanded, display_name AS variable_display_name, interval_seconds, name AS station_name, lat, lng, elevation" : ""}
+      value,
+      ${selectFlag ? "flag," : ""}
+      units,
+      units_plain,
+      units_expanded,
+      display_name AS variable_display_name,
+      interval_seconds,
+      name AS station_name,
+      lat,
+      lng,
+      elevation,
+      vegh,
+      skn,
+      nws_id,
+      status
     FROM ${measurementsTable}
     JOIN (
       SELECT alias, standard_name, interval_seconds, program
       FROM version_translations
       ${translationsWhereClause}
     ) as variable_data ON variable_data.program = ${measurementsTable}.version AND variable_data.alias = ${measurementsTable}.variable
-    ${joinMetadata ? "JOIN station_metadata ON station_metadata.station_id = " + measurementsTable + ".station_id JOIN variable_metadata ON variable_metadata.standard_name = variable_data.standard_name" : ""}
+    JOIN station_metadata ON station_metadata.station_id = ${measurementsTable}.station_id JOIN variable_metadata_combined ON variable_metadata_combined.standard_name = variable_data.standard_name
+    ${mainWhereClause}
+    ORDER BY timestamp ${reverse ? "" : "DESC"}, variable_data.standard_name
+    ${limitOffsetClause}
+  ` : `
+    SELECT
+      timestamp,
+      ${measurementsTable}.station_id,
+      variable_data.standard_name as variable,
+      value
+      ${selectFlag ? ", flag" : ""}
+    FROM ${measurementsTable}
+    JOIN (
+      SELECT alias, standard_name, interval_seconds, program
+      FROM version_translations
+      ${translationsWhereClause}
+    ) as variable_data ON variable_data.program = ${measurementsTable}.version AND variable_data.alias = ${measurementsTable}.variable
     ${mainWhereClause}
     ORDER BY timestamp ${reverse ? "" : "DESC"}, variable_data.standard_name
     ${limitOffsetClause}
@@ -447,23 +480,56 @@ function constructMeasurementsQueryEmail(stationIDs: string[], startDate: string
     limitOffsetClause += ` OFFSET $${params.length}`;
   }
   
-  let query = `
+  let query = joinMetadata ? `
+    WITH variable_metadata_combined AS (
+      SELECT standard_name, display_name, unit_metadata.units units_plain, units_expanded
+      FROM variable_metadata_2
+      LEFT JOIN unit_metadata ON variable_metadata_2.units = unit_metadata.units
+    )
     SELECT
       timestamp,
       ${measurementsTable}.station_id,
       variable_data.standard_name as variable,
       value,
-			flag
-      ${joinMetadata ? ", units, units_plain, units_expanded, display_name AS variable_display_name, interval_seconds, name AS station_name, lat, lng, elevation" : ""}
+      flag,
+      units,
+      units_plain,
+      units_expanded,
+      display_name AS variable_display_name,
+      interval_seconds,
+      name AS station_name,
+      lat,
+      lng,
+      elevation,
+      vegh,
+      skn,
+      nws_id,
+      status
     FROM ${measurementsTable}
     JOIN (
       SELECT alias, standard_name, interval_seconds, program
       FROM version_translations
       ${translationsWhereClause}
     ) as variable_data ON variable_data.program = ${measurementsTable}.version AND variable_data.alias = ${measurementsTable}.variable
-    ${joinMetadata ? "JOIN station_metadata ON station_metadata.station_id = " + measurementsTable + ".station_id JOIN variable_metadata ON variable_metadata.standard_name = variable_data.standard_name" : ""}
+    JOIN station_metadata ON station_metadata.station_id = ${measurementsTable}.station_id JOIN variable_metadata_combined ON variable_metadata_combined.standard_name = variable_data.standard_name
     ${mainWhereClause}
-    ORDER BY timestamp ${reverse ? "" : "DESC"}, ${measurementsTable}.station_id, variable_data.standard_name
+    ORDER BY timestamp ${reverse ? "" : "DESC"}, variable_data.standard_name
+    ${limitOffsetClause}
+  ` : `
+    SELECT
+      timestamp,
+      ${measurementsTable}.station_id,
+      variable_data.standard_name as variable,
+      value,
+      flag
+    FROM ${measurementsTable}
+    JOIN (
+      SELECT alias, standard_name, interval_seconds, program
+      FROM version_translations
+      ${translationsWhereClause}
+    ) as variable_data ON variable_data.program = ${measurementsTable}.version AND variable_data.alias = ${measurementsTable}.variable
+    ${mainWhereClause}
+    ORDER BY timestamp ${reverse ? "" : "DESC"}, variable_data.standard_name
     ${limitOffsetClause}
   `;
 
@@ -513,8 +579,9 @@ function constructVariablesQuery(varIDs: string[], limit?: number, offset?: numb
   }
 
   let query = `
-    SELECT standard_name, display_name, units, units_plain, units_expanded
-    FROM variable_metadata
+    SELECT standard_name, display_name, unit_metadata.units units_plain, units_expanded
+    FROM variable_metadata_2
+    LEFT JOIN unit_metadata ON variable_metadata_2.units = unit_metadata.units
     ${whereClause}
     ${limitOffsetClause};
   `;
