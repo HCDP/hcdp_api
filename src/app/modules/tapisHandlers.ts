@@ -68,7 +68,7 @@ export class DBManager {
                 this.createConnection(retries, delay);
             }
             else {
-                throw err;
+                console.error("Unable to connect to MongoDB!");
             }
         }
         this.db = this.client.db(this.dbName);
