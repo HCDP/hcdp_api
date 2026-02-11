@@ -11,6 +11,7 @@ import { stringify } from "csv-stringify/sync";
 import * as crypto from "crypto";
 import { parseListParam, parseParams } from "../../../modules/util/dbUtil.js";
 import { slowDown } from "express-slow-down";
+import Cursor from "pg-cursor";
 
 export const router = express.Router();
 
@@ -252,9 +253,11 @@ async function sanitizeExpandVarIDs(varIDs: string[]) {
     query += `WHERE ${clause[0]}`;
   }
   query += ";";
-  let queryHandler = await mesonetDBUser.query(query, params, { rowMode: "array" });
-  let data = await queryHandler.read(10000);
-  queryHandler.close();
+
+  let data = await mesonetDBUser.query(query, params, async (cursor: Cursor) => {
+    return await cursor.read(10000);
+  }, { rowMode: "array" });
+
   data = data.flat();
   return data;
 }
@@ -358,15 +361,19 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
     let { query, params, index } = await constructMeasurementsQuery(crosstabQuery, stationIDs, start_date, end_date, varIDs, intervalArr, flagArr, location, limit, offset, reverse, join_metadata);
     if(query) {
       try {
-        let queryHandler = await mesonetDBUser.query(query, params, {rowMode: row_mode});
-        const chunkSize = 10000;
-        let chunk: any[];
-        do {
-          chunk = await queryHandler.read(chunkSize);
-          data = data.concat(chunk);
-        }
-        while(chunk.length > 0)
-        queryHandler.close();
+        data = await mesonetDBUser.query(query, params, async (cursor: Cursor) => {
+          let rows = [];
+          const chunkSize = 10000;
+          let chunk: any[];
+          do {
+            chunk = await cursor.read(chunkSize);
+            for(let row of chunk) {
+              rows.push(row);
+            }
+          }
+          while(chunk.length > 0)
+          return rows;
+        }, {rowMode: row_mode});
       }
       catch(e) {
         reqData.success = false;
@@ -378,10 +385,8 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
     }
 
     if(data.length > 0 && local_tz) {
-      let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
-      let queryHandler = await mesonetDBUser.query(query, [location]);
-      let { timezone } = (await queryHandler.read(1))[0];
-      queryHandler.close();
+      let timezone = await getLocationTimezone(location);
+
       if(row_mode === "array") {
         let tsIndex = index.indexOf("timestamp");
         for(let row of data) {
@@ -655,16 +660,19 @@ router.get("/mesonet/db/stations", async (req, res) => {
 
     let data: any = [];
     try {
-      let queryHandler = await mesonetDBUser.query(query, params, {rowMode: row_mode});
-
-      const chunkSize = 10000;
-      let chunk: any[];
-      do {
-        chunk = await queryHandler.read(chunkSize);
-        data = data.concat(chunk);
-      }
-      while(chunk.length > 0)
-      queryHandler.close();
+      data = await mesonetDBUser.query(query, params, async (cursor: Cursor) => {
+        let rows = [];
+        const chunkSize = 10000;
+        let chunk: any[];
+        do {
+          chunk = await cursor.read(chunkSize);
+          for(let row of chunk) {
+            rows.push(row);
+          }
+        }
+        while(chunk.length > 0)
+        return rows;
+      }, {rowMode: row_mode});
     }
     catch(e) {
       reqData.success = false;
@@ -705,16 +713,19 @@ router.get("/mesonet/db/variables", async (req, res) => {
 
     let data: any = [];
     try {
-      let queryHandler = await mesonetDBUser.query(query, params, {rowMode: row_mode});
-
-      const chunkSize = 10000;
-      let chunk: any[];
-      do {
-        chunk = await queryHandler.read(chunkSize);
-        data = data.concat(chunk);
-      }
-      while(chunk.length > 0)
-      queryHandler.close();
+      data = await mesonetDBUser.query(query, params, async (cursor: Cursor) => {
+        let rows = [];
+        const chunkSize = 10000;
+        let chunk: any[];
+        do {
+          chunk = await cursor.read(chunkSize);
+          for(let row of chunk) {
+            rows.push(row);
+          }
+        }
+        while(chunk.length > 0)
+        return rows;
+      }, {rowMode: row_mode});
     }
     catch(e) {
       reqData.success = false;
@@ -781,9 +792,9 @@ router.get("/mesonet/db/sensors", async (req, res) => {
     `;
     let data: any;
     try {
-      let queryHandler = await mesonetDBUser.query(query, params);
-      data = await queryHandler.read(100000);
-      queryHandler.close();
+      data = await mesonetDBUser.query(query, params, async (cursor: Cursor) => {
+        return await cursor.read(100000);
+      });
     }
     catch(e) {
       reqData.success = false;
@@ -823,9 +834,11 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
       FROM synoptic_translations
       JOIN version_translations ON version_translations.standard_name = synoptic_translations.standard_name;
     `;
-    let queryHandler = await mesonetDBUser.query(query, []);
-    let data = await queryHandler.read(100000);
-    queryHandler.close();
+
+    let data = await mesonetDBUser.query(query, [], async (cursor: Cursor) => {
+      return await cursor.read(100000);
+    });
+
     for(let row of data) {
       const { program, alias, standard_name, synoptic_name, unit_conversion_coefficient } = row;
       let programData = synopticData.synoptic[program];
@@ -845,9 +858,11 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
       SELECT location, station_id, lat, lng, elevation
       FROM station_metadata;
     `;
-    queryHandler = await mesonetDBUser.query(query, []);
-    data = await queryHandler.read(100000);
-    queryHandler.close();
+
+    data = await mesonetDBUser.query(query, [], async (cursor: Cursor) => {
+      return await cursor.read(100000);
+    });
+
     for(let row of data) {
       let { location, station_id, lat, lng, elevation } = row;
 
@@ -875,9 +890,11 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
       FROM sensor_positions
       JOIN station_metadata ON station_metadata.station_id = sensor_positions.station_id;
     `;
-    queryHandler = await mesonetDBUser.query(query, []);
-    data = await queryHandler.read(100000);
-    queryHandler.close();
+
+    data = await mesonetDBUser.query(query, [], async (cursor: Cursor) => {
+      return await cursor.read(100000);
+    });
+
     for(let row of data) {
       let { location, station_id, standard_name, sensor_number, sensor_height } = row;
       let sensorMetadata = synopticData.locationData[location].sensorMetadata;
@@ -898,9 +915,11 @@ router.get("/mesonet/db/synopticData", async (req, res) => {
       FROM synoptic_exclude
       JOIN station_metadata ON station_metadata.station_id = synoptic_exclude.station_id;
     `;
-    queryHandler = await mesonetDBUser.query(query, []);
-    data = await queryHandler.read(100000);
-    queryHandler.close();
+
+    data = await mesonetDBUser.query(query, [], async (cursor: Cursor) => {
+      return await cursor.read(100000);
+    });
+
     for(let row of data) {
       let { location, station_id, standard_name } = row;
       let exclusions = synopticData.locationData[location].exclusions;
@@ -942,9 +961,9 @@ router.get("/mesonet/db/sff", async (req, res) => {
       ORDER BY ${table_name}.station_id, ${table_name}.timestamp, synoptic_translations.synoptic_name, sensor_positions.sensor_number;
     `;
 
-    let queryHandler = await mesonetDBUser.query(query, []);
-    let data = await queryHandler.read(100000);
-    queryHandler.close();
+    let data = await mesonetDBUser.query(query, [], async (cursor: Cursor) => {
+      return await cursor.read(100000);
+    });
     
     res.write("station_id,LAT [ddeg],LON [ddeg],date_time [UTC],ELEV [m],T [C],RH [%],FF [m/s],DD [deg],FFGUST [m/s],P [hPa],SOLRAD [W/m2],SOLOUT [W/m2],LWRAD [W/m2],LWOUT [W/m2],NETSWRAD [W/m2],NETLWRAD [W/m2],NETRAD [W/m2],PAR [umol/m2s],PCP5M [mm],BATV [volt],SOILT [C],SOILMP [%]\n");
 
@@ -1041,9 +1060,9 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
 
     let data: {table_name: string}[] = []
     try {
-      let queryHandler = await mesonetDBUser.query(query, [stationID]);
-      data = await queryHandler.read(1);
-      queryHandler.close();
+      data = await mesonetDBUser.query(query, [stationID], async (cursor: Cursor) => {
+        return await cursor.read(1);
+      });
     }
     catch(e) {
       reqData.success = false;
@@ -1279,9 +1298,10 @@ router.post("/mesonet/db/measurements/email", mesonetEmailLimiter, async (req, r
     }
 
     let { query, params } = constructVariablesQuery(varIDs);
-    let queryHandler = await mesonetDBUser.query(query, params);
-    let varMetadata: VariableMetadata[] = await queryHandler.read(10000);
-    queryHandler.close();
+
+    let varMetadata: VariableMetadata[] = await mesonetDBUser.query(query, params, async (cursor: Cursor) => {
+      return await cursor.read(10000);
+    });
 
     if(varMetadata.length < 1) {
       reqData.success = false;
@@ -1328,16 +1348,17 @@ router.post("/mesonet/db/measurements/email", mesonetEmailLimiter, async (req, r
           try {
             let [ startDate, endDate ] = window;
             ({ query, params } = constructMeasurementsQueryEmail(stationIDs, startDate, endDate, varIDs, intervalArr, flagArr, location, maxLimit, 0, reverse, false));
-            queryHandler = await mesonetDBUser.query(query, params);
-            const readChunkSize = 10000;
-            let readChunk: MesonetMeasurementValue[];
-            do {
-              readChunk = await queryHandler.read(readChunkSize);
-              await writeManager.write(readChunk);
-              maxLimit -= writeManager.lastRecordsRead;
-            }
-            while(readChunk.length > 0 && maxLimit > 0 && !writeManager.finished)
-            queryHandler.close();
+
+            await mesonetDBUser.query(query, params, async (cursor: Cursor) => {
+              const readChunkSize = 10000;
+              let readChunk: MesonetMeasurementValue[];
+              do {
+                readChunk = await cursor.read(readChunkSize);
+                await writeManager.write(readChunk);
+                maxLimit -= writeManager.lastRecordsRead;
+              }
+              while(readChunk.length > 0 && maxLimit > 0 && !writeManager.finished)
+            });
           }
           catch(e: any) {
             //non-timeout error, rethrow error to be caught by outer handler
@@ -1433,21 +1454,16 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
 
     let inlineParams = params.map((value, index) => { return `$${index + 1}`});
 
-    let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
-    let queryHandler = await mesonetDBUser.query(query, [location]);
-    let { timezone } = (await queryHandler.read(1))[0];
+    let timezone = await getLocationTimezone(location);
     
-    query = `
+    let query = `
       SELECT MIN(timestamp), MAX(timestamp)
       FROM ${tableName};
     `;
 
-    queryHandler = await mesonetDBUser.query(query, [], { rowMode: "array" });
-    let data: any[];
-
-    data = await queryHandler.read(1);
-
-    queryHandler.close();
+    let data: any[] = await mesonetDBUser.query(query, [], async (cursor: Cursor) => {
+      return await cursor.read(1);
+    }, { rowMode: "array" });
 
     let [ startDate, endDate ] = data[0];
 
@@ -1531,16 +1547,19 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
 
     data = [];
     try {
-      queryHandler = await mesonetDBUser.query(query, params, { rowMode: "array" });
-
-      const chunkSize = 10000;
-      let chunk: any[];
-      do {
-        chunk = await queryHandler.read(chunkSize);
-        data = data.concat(chunk);
-      }
-      while(chunk.length > 0)
-      queryHandler.close();
+      data = await mesonetDBUser.query(query, params, async (cursor: Cursor) => {
+        let rows = [];
+        const chunkSize = 10000;
+        let chunk: any[];
+        do {
+          chunk = await cursor.read(chunkSize);
+          for(let row of chunk) {
+            rows.push(row);
+          }
+        }
+        while(chunk.length > 0)
+        return rows;
+      }, { rowMode: "array" });
     }
     catch(e) {
       reqData.success = false;
@@ -1590,9 +1609,9 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
 
 async function getLocationTimezone(location: string) {
   let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
-  let queryHandler = await mesonetDBUser.query(query, [location]);
-  let { timezone } = (await queryHandler.read(1))[0];
-  queryHandler.close();
+  let {timezone} = await mesonetDBUser.query(query, [location], async (cursor: Cursor) => {
+    return await cursor.read(1)[0];
+  });
   return timezone;
 }
 
@@ -1616,13 +1635,16 @@ async function getStartDate(location: string, stationIDs: string[]): Promise<str
     ORDER BY timestamp
     LIMIT 1;
   `;
-  let queryHandler = await mesonetDBUser.query(query, params);
-  let data = await queryHandler.read(1);
+
+  let data = await mesonetDBUser.query(query, params, async (cursor: Cursor) => {
+    return await cursor.read(1);
+  });
+
   let timestamp = null;
   if(data.length > 0) {
     timestamp = data[0].timestamp;
   }
-  queryHandler.close();
+
   return timestamp;
 }
 

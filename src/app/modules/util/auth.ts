@@ -1,3 +1,4 @@
+import Cursor from "pg-cursor";
 import { apiDB } from "./resourceManagers/db.js";
 
 async function validateTokenAccess(token, permission) {
@@ -10,10 +11,11 @@ async function validateTokenAccess(token, permission) {
     FROM auth_token_store
     WHERE token = $1;
   `;
+
+  let queryRes = await apiDB.query(query, [token], async (cursor: Cursor) => {
+    return await cursor.read(1);
+  });
   
-  let queryHandler = await apiDB.query(query, [token]);
-  let queryRes = await queryHandler.read(1);
-  queryHandler.close();
   if(queryRes.length > 0) {
     let { user_label, permissions } = queryRes[0];
     valid = true;

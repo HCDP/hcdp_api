@@ -6,6 +6,7 @@ import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js
 import { rawDataRoot, apiURL, mesonetLocations, dataRoot } from "../../../modules/util/config.js";
 import { readdir } from "../../../modules/util/util.js";
 import { mesonetDBUser, mesonetDBAdmin } from "../../../modules/util/resourceManagers/db.js";
+import Cursor from "pg-cursor";
 
 export const router = express.Router();
 
@@ -17,17 +18,19 @@ router.get("/mesonet/dirtyFiles/list", async (req, res) => {
       FROM dirty_files;
     `;
 
-    let queryHandler = await mesonetDBUser.query(query, [], { rowMode: "array" });
-    let files: string[] = [];
-    let chunkSize = 10000;
-    let chunk: string[];
-    do {
-      chunk = await queryHandler.read(chunkSize);
-      files = files.concat(chunk);
-    }
-    while(chunk.length > 0)
-    queryHandler.close();
-    files = files.flat()
+    let files = await mesonetDBUser.query(query, [], async (cursor: Cursor) => {
+      let fileList = [];
+      const chunkSize = 10000;
+      let chunk: any[];
+      do {
+        chunk = await cursor.read(chunkSize);
+        for(let row of chunk) {
+          fileList.push(row[0]);
+        }
+      }
+      while(chunk.length > 0)
+      return fileList;
+    }, { rowMode: "array" });
 
     reqData.code = 200;
     return res.status(200)

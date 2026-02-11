@@ -3,6 +3,7 @@ import { mesonetDBUser } from "../../../modules/util/resourceManagers/db.js";
 import { handleReq } from "../../../modules/util/reqHandlers.js";
 import { v4 as uuidv4, validate as isValidUUID } from "uuid";
 import { checkEmail, MailOptions, sendEmail, validateArray, validateType } from "../../../modules/util/util.js";
+import Cursor from "pg-cursor";
 
 export const router = express.Router();
 
@@ -14,9 +15,11 @@ async function getUserID(email: string): Promise<string> {
     FROM climate_report_register
     WHERE email = $1 AND ACTIVE = TRUE;
   `;
-  let queryHandler = await mesonetDBUser.query(query, [email], { rowMode: "array" });
-  let data = await queryHandler.read(1);
-  queryHandler.close();
+
+  let data = await mesonetDBUser.query(query, [email], async (cursor: Cursor) => {
+    return await cursor.read(1);
+  }, { rowMode: "array" });
+
   let id = null;
   if(data.length > 0) {
     id = data[0][0]
@@ -132,9 +135,10 @@ router.get("/mesonet/climate_report/subscription/:id", async (req, res) => {
       FROM climate_report_register
       WHERE id = $1 AND active = TRUE;
     `;
-    let queryHandler = await mesonetDBUser.query(query, [id]);
-    let data = await queryHandler.read(1);
-    queryHandler.close();
+
+    let data = await mesonetDBUser.query(query, [id], async (cursor: Cursor) => {
+      return await cursor.read(1);
+    });
 
     if(data.length < 1) {
       reqData.success = false;
@@ -267,17 +271,20 @@ router.get("/mesonet/climate_report/subscriptions", async (req, res) => {
       WHERE active = TRUE;
     `;
 
-    let data = [];
-    let queryHandler = await mesonetDBUser.query(query, []);
 
-    const chunkSize = 10000;
-    let chunk: any[];
-    do {
-      chunk = await queryHandler.read(chunkSize);
-      data = data.concat(chunk);
-    }
-    while(chunk.length > 0)
-    queryHandler.close();
+    let data = await mesonetDBUser.query(query, [], async (cursor: Cursor) => {
+      let rows = [];
+      const chunkSize = 10000;
+      let chunk: any[];
+      do {
+        chunk = await cursor.read(chunkSize);
+        for(let row of chunk) {
+          rows.push(row);
+        }
+      }
+      while(chunk.length > 0)
+      return rows;
+    });
     
     reqData.code = 200;
     return res.status(200)
@@ -323,9 +330,11 @@ router.post("/mesonet/climate_report/subscription/:id/email", async (req, res) =
       FROM climate_report_register
       WHERE id = $1 AND active = TRUE;
     `;
-    let queryHandler = await mesonetDBUser.query(query, [id], { rowMode: "array" });
-    let data = await queryHandler.read(1);
-    queryHandler.close();
+
+    let data = await mesonetDBUser.query(query, [id], async (cursor: Cursor) => {
+      return await cursor.read(1);
+    }, { rowMode: "array" });
+
     if(data.length < 1) {
       reqData.success = false;
       reqData.code = 404;

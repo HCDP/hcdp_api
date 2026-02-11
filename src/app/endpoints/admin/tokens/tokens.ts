@@ -3,6 +3,7 @@ import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js
 import { apiDB } from "../../../modules/util/resourceManagers/db.js";
 import { sendEmail } from "../../../modules/util/util.js";
 import * as crypto from "crypto";
+import Cursor from "pg-cursor";
 
 export const router = express.Router();
 
@@ -66,9 +67,10 @@ router.get("/respondTokenRequest", async (req, res) => {
       FROM token_requests
       WHERE requestID = $1;
     `;
-    let queryHandler = await apiDB.query(query, [requestID]);
-    let requestData = await queryHandler.read(1);
-    queryHandler.close();
+
+    let requestData = await apiDB.query(query, [requestID], async (cursor: Cursor) => {
+      return await cursor.read(1);
+    });
     const timestamp = new Date().toISOString();
 
     let updateRequest = async () => {
@@ -247,22 +249,3 @@ router.patch("/deprecateToken", async (req, res) => {
     .send(`Token has been replaced with ${newToken} and the user has been emailed the new token.`);
   });
 });
-
-
-// router.get("/users/emails", async (req, res) => {
-//   const permission = "admin";
-//   await handleReq(req, res, permission, async (reqData) => {
-//     let query = `
-//       SELECT DISTINCT(email)
-//       FROM token_requests
-//       WHERE approved;
-//     `;
-//     let queryHandler = await apiDB.query(query, [], { rowMode: "array" });
-//     let data = await queryHandler.read(10000);
-//     queryHandler.close();
-//     let emails = data.flat();
-//     reqData.code = 200;
-//     return res.status(200)
-//     .json(emails);
-//   });
-// });
