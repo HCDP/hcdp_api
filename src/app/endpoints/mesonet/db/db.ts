@@ -1609,9 +1609,11 @@ router.get("/mesonet/db/stationMonitor", async (req, res) => {
 
 async function getLocationTimezone(location: string) {
   let query = `SELECT timezone FROM timezone_map WHERE location = $1`;
-  let {timezone} = await mesonetDBUser.query(query, [location], async (cursor: Cursor) => {
+  let test = await mesonetDBUser.query(query, [location], async (cursor: Cursor) => {
     return await cursor.read(1)[0];
   });
+  console.log(test)
+  let {timezone} = test;
   return timezone;
 }
 
