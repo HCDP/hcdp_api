@@ -12,6 +12,7 @@ import * as fs from "fs";
 import { apiDB } from "../../../modules/util/resourceManagers/db.js";
 import { parseListParam, parseParams } from "../../../modules/util/dbUtil.js";
 import { join } from "path";
+import Cursor from "pg-cursor";
 
 export const router = express.Router();
 
@@ -52,9 +53,10 @@ router.get("/users/emails/apitokens", async (req, res) => {
       query += `WHERE ${whereClause[0]}`;
     }
     query += ";";
-    let handler = await apiDB.query(query, params, { rowMode: "array" });
-    let data = await handler.read(100000);
-    handler.close();
+    let data = await apiDB.query(query, params, async (cursor: Cursor) => {
+      return await cursor.read(100000);
+    }, { rowMode: "array" });
+    
     let emails = data.flat();
     reqData.code = 200;
     return res.status(200)

@@ -13,25 +13,6 @@ export interface QueryOptions {
     rowMode?: "array" | undefined
 }
 
-class QueryHandler {
-    conn: any;
-    cursor: any;
-
-    constructor(conn: any, cursor: any) {
-        this.conn = conn;
-        this.cursor = cursor;
-    }
-
-    async read(entries: number): Promise<any[]> {
-        let rows = await this.cursor.read(entries);
-        return rows;
-    }
-
-    async close() {
-        this.cursor.close(this.conn.done);
-    }
-}
-
 export class PostgresDBManager {
     private dbHandler: any;
     private pgp: any;
@@ -49,25 +30,39 @@ export class PostgresDBManager {
         });
     }
 
-    async query(query: string, params: string[], options: QueryOptions = {}): Promise<QueryHandler> {
+    async query<T>(query: string, params: string[], processor: (cursor: Cursor) => Promise<T>, options: QueryOptions = {}): Promise<T> {
         let conn: any = null;
-        let cursor: any = null;
+        let cursor: Cursor = null;
+        let result: T = null;
         try {
             conn = await this.dbHandler.connect();
             cursor = conn.client.query(new Cursor(query, params, {
                 rowMode: options.rowMode
             }));
+            result = await processor(cursor);
         }
         catch(e) {
+            throw e;
+        }
+        finally {
             if(cursor) {
-                cursor.close(conn.done);
+                await new Promise<void>((resolve) => {
+                    cursor.close((err: any) => {
+                        if(err) {
+                            console.error(`Error closing cursor: ${err}`);
+                        }
+                        if(conn) {
+                            conn.done(Boolean(err));
+                        }
+                        resolve();
+                    });
+                });
             }
             else if(conn) {
                 conn.done();
             }
-            throw e;
         }
-        return new QueryHandler(conn, cursor);
+        return result;
     }
 
     async queryNoRes(query: string, params: string[]): Promise<number> {
