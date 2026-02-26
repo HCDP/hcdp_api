@@ -195,7 +195,7 @@ router.put("/updateTokenPermissions", async (req, res) => {
 router.patch("/deprecateToken", async (req, res) => {
   const permission = "admin";
   await handleReq(req, res, permission, async (reqData) => {
-    const { token, email } = req.body;
+    const { token, email, revoke } = req.body;
 
     const newToken = crypto.randomBytes(16).toString("hex");
 

@@ -1,5 +1,5 @@
 import express from "express";
-import { handleReq } from "../../../modules/util/reqHandlers.js";
+import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
 import { tapisManager } from "../../../modules/util/resourceManagers/tapis.js";
 import { processTapisError, handleSubprocess, parseBoolParam } from "../../../modules/util/util.js";
 import { getPaths, fnamePattern, getEmpty } from "../../../modules/fileIndexer.js";
@@ -212,6 +212,47 @@ router.get("/stations", async (req, res) => {
 });
 
 
+
+router.get(/^\/files\/download(\/.*)?$/, async (req, res) => {
+  await handleReqNoAuth(req, res, async (reqData) => {
+    // Note must be rooted at HCDP folder, so alias from https://ikeauth.its.hawaii.edu/files/v2/download/public/system/ikewai-annotated-data/HCDP/
+    const userPath = path.resolve(req.params[0] || "/");
+    const dataPath = path.join(dataRoot, userPath);
+    
+    
+    //if path is not allowed or does not exist return 404
+    if(!fs.existsSync(dataPath)) {
+      //set failure and code in status
+      reqData.success = false;
+      reqData.code = 404;
+
+      return res.status(404)
+      .send("The requested file does not exist or is not accessible.");
+    }
+
+    let stat = fs.lstatSync(dataPath);
+    if(stat.isFile()) {
+      let fsizeB = stat.size;
+      //set file size for logging
+      reqData.sizeB = fsizeB;
+      reqData.sizeF = 1;
+      reqData.code = 200;
+      return res.status(200)
+      .sendFile(dataPath);
+    }
+    else {
+      //set failure and code in status
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send("The provided path is not a file. For directory support use the files/explore endpoint");
+    }
+  });
+});
+
+
+
 router.get("/files/production/list", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
@@ -355,6 +396,10 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
 
     let stat = fs.lstatSync(dataPath);
     if(stat.isFile()) {
+      let fsizeB = stat.size;
+      //set file size for logging
+      reqData.sizeB = fsizeB;
+      reqData.sizeF = 1;
       reqData.code = 200;
       return res.status(200)
       .sendFile(dataPath);
