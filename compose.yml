@@ -1,5 +1,9 @@
 name: hcdp-api
 
+networks:
+  hcdp-net:
+    driver: bridge
+
 services:
   api:
     build:
@@ -20,6 +24,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - hcdp-net
   api-dev:
     build:
       context: .
@@ -39,6 +45,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - hcdp-net
   postgres:
     image: postgres:17
     container_name: api-db
@@ -50,3 +58,5 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - hcdp-net
