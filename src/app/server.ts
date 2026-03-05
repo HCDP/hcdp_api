@@ -1,10 +1,8 @@
 import express from "express";
 import compression from "compression";
 import cors from "cors";
-import * as https from "https";
-import sslRootCAs from "ssl-root-cas";
 import timeout from "connect-timeout";
-import { hskey, hscert, port } from "./modules/util/config.js";
+import { port } from "./modules/util/config.js";
 import { router as r1 } from "./endpoints/admin/tapisDB/db.js";
 import { router as r2 } from "./endpoints/mesonet/db/db.js";
 import { router as r4 } from "./endpoints/admin/tokens/tokens.js";
@@ -32,7 +30,6 @@ process.env["NODE_ENV"] = "production";
 const app = express();
 
 app.options('*', cors());
-sslRootCAs.inject();
 app.set("trust proxy", 1);
 
 //compress all HTTP responses
@@ -71,14 +68,8 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-let options = {
-    key: hskey,
-    cert: hscert
-};
-
-const server = https.createServer(options, app)
-.listen(port, () => {
-  console.log("Server listening at port " + port);
+const server = app.listen(port, () => {
+  console.log("Server running on port " + port);
 });
 
 

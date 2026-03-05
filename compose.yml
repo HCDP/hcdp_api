@@ -7,11 +7,10 @@ services:
     restart: on-failure
     container_name: api
     ports:
-      - "443:443"
+      - "8080:8080"
     volumes:
       - /mnt/lustre/annotated/HCDP:/data
       - /home/hcdp/hcdp-api/logs:/logs
-      - /home/hcdp/hcdp-api/certs:/certs
     profiles: [ prod ]
     healthcheck:
       test: "curl -f https://storeapi.ikewai.org/health"
@@ -27,11 +26,10 @@ services:
     restart: on-failure
     container_name: api-dev
     ports:
-      - "8443:443"
+      - "8081:8080"
     volumes:
       - /mnt/lustre/annotated/HCDP:/data
       - /home/hcdp/hcdp-api/logs:/logs
-      - /home/hcdp/hcdp-api/certs:/certs
     profiles: [ dev ]
     healthcheck:
       test: "curl -f https://storeapi.ikewai.org:8443/health"

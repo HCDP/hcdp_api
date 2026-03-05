@@ -25,9 +25,5 @@ export const mesonetLocations = ["american_samoa", "hawaii"];
 
 export const apiURL = "https://api.hcdp.ikewai.org";
 
-const { key, cert } = config.certFiles;
-export const hskey = fs.readFileSync(key);
-export const hscert = fs.readFileSync(cert);
-
 //gmail attachment limit
 export const ATTACHMENT_MAX_MB = 25;
