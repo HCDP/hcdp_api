@@ -353,27 +353,65 @@ router.get("/files/production/retrieve", async (req, res) => {
 router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
-    const allowedDirs = ["NASA_downscaling", "production", "workflow_data", "raw", "backup_data_aqs"]
+    const allowedDirs = ["NASA_downscaling", "production", "workflow_data", "raw", "backup_data_aqs", "ASCDP"]
     const allowedPaths = allowedDirs.map((sub: string) => path.join(dataRoot, sub));
     const userPath = path.resolve(req.params[0] || "/");
-    const urlPath = path.join("/files/explore", userPath);
     const dataPath = path.join(dataRoot, userPath);
-    if(path.resolve(dataPath) == path.resolve(dataRoot)) {
-      const pathData: FileData[] = allowedDirs.map((dir: string) => {
-        let subUrlPath = path.join(urlPath, dir);
-        return {
+
+    const getFileData = (file: string): FileData => {
+      let pathData: FileData = null;
+      let fpath = path.join(dataPath, file);
+      let subUserPath = path.join(userPath, file);
+      let subStat = fs.lstatSync(fpath);
+      const { mtime, size } = subStat;
+      const modified = mtime.toISOString();
+      if(subStat.isFile()) {
+        const urlPath = path.join("/files/download", userPath);
+        const subUrlPath = path.join(urlPath, file);
+
+        pathData = {
           url: url.resolve(apiURL, subUrlPath),
-          name: dir,
-          path: `/${dir}`,
-          sizeBytes: 4096,
+          name: file,
+          path: subUserPath,
+          sizeBytes: size,
+          modified,
+          ext: path.extname(file),
+          type: "f"
+        };
+      }
+      else if(subStat.isDirectory()) {
+        const urlPath = path.join("/files/explore", userPath);
+        const subUrlPath = path.join(urlPath, file);
+
+        pathData = {
+          url: url.resolve(apiURL, subUrlPath),
+          name: file,
+          path: subUserPath,
+          sizeBytes: size,
+          modified,
           ext: "",
           type: "d"
-        }
-      });
+        };
+      }
+      return pathData;
+    }
+    const getPathData = (paths: string[]): FileData[] => {
+      return paths.reduce((data: FileData[], file: string) => {
+        const pathData = getFileData(file);
+        data.push(pathData);
+        return data;
+      }, []);
+    }
+
+    // If root return allowed paths
+    if(path.resolve(dataPath) == path.resolve(dataRoot)) {
+      const pathData: FileData[] = getPathData(allowedDirs);
       reqData.code = 200;
       return res.status(200)
       .json(pathData);
     }
+
+    // Check if path is allowed
     let allowed = false;
     for(let root of allowedPaths) {
       let rel = path.relative(root, dataPath);
@@ -405,34 +443,8 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
       .sendFile(dataPath);
     }
     else if(stat.isDirectory()) {
-      let data = fs.readdirSync(dataPath)
-      .reduce((pathData: FileData[], file: string) => {
-        let fpath = path.join(dataPath, file);
-        let subUrlPath = path.join(urlPath, file);
-        let subUserPath = path.join(userPath, file);
-        let subStat = fs.lstatSync(fpath);
-        if(subStat.isFile()) {
-          pathData.push({
-            url: url.resolve(apiURL, subUrlPath),
-            name: file,
-            path: subUserPath,
-            sizeBytes: subStat.size,
-            ext: path.extname(file),
-            type: "f"
-          });
-        }
-        else if(subStat.isDirectory()) {
-          pathData.push({
-            url: url.resolve(apiURL, subUrlPath),
-            name: file,
-            path: subUserPath,
-            sizeBytes: subStat.size,
-            ext: "",
-            type: "d"
-          });
-        }
-        return pathData;
-      }, []);
+      let paths = fs.readdirSync(dataPath);
+      let data = getPathData(paths);
       reqData.code = 200;
       return res.status(200)
       .json(data);
@@ -453,6 +465,7 @@ interface FileData {
   path: string,
   name: string,
   ext: string,
+  modified: string,
   sizeBytes: number,
   type: "f" | "d"
 }
