@@ -356,6 +356,7 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
     const allowedDirs = ["NASA_downscaling", "production", "workflow_data", "raw", "backup_data_aqs", "ASCDP"]
     const allowedPaths = allowedDirs.map((sub: string) => path.join(dataRoot, sub));
     const userPath = path.resolve(req.params[0] || "/");
+    const pathStub = path.basename(userPath);
     const dataPath = path.join(dataRoot, userPath);
 
     const getFileData = (file: string): FileData => {
@@ -440,7 +441,7 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
 
     if(stat.isFile()) {
       pathType = "f";
-      content = [getFileData(dataPath)];
+      content = [getFileData(pathStub)];
     }
     else if(stat.isDirectory()) {
       pathType = "d";
