@@ -407,57 +407,55 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
       }, []);
     }
 
-    // If root return allowed paths
-    if(path.resolve(dataPath) == path.resolve(dataRoot)) {
-      const pathData: FileData[] = getPathData(allowedDirs);
-      reqData.code = 200;
-      return res.status(200)
-      .json(pathData);
-    }
-
-    // Check if path is allowed
-    let allowed = false;
-    for(let root of allowedPaths) {
-      let rel = path.relative(root, dataPath);
-      //if relative path is equivalent to one of the allowed paths or it is a subfolder (no .. and relative), then path is allowed
-      if(rel.length == 0 || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
-        allowed = true;
-        break;
-      }
-    }
-    
-    //if path is not allowed or does not exist return 404
-    if(!(allowed && fs.existsSync(dataPath))) {
-      //set failure and code in status
-      reqData.success = false;
-      reqData.code = 404;
-
-      return res.status(404)
-      .send("The requested file does not exist or is not accessible.");
-    }
-
-    let stat = fs.lstatSync(dataPath);
-
-
     let pathType: "f" | "d";
     let content: FileData[];
 
-    if(stat.isFile()) {
-      pathType = "f";
-      content = [getFileData()];
-    }
-    else if(stat.isDirectory()) {
+    // If root return allowed paths
+    if(path.resolve(dataPath) == path.resolve(dataRoot)) {
       pathType = "d";
-      let paths = fs.readdirSync(dataPath);
-      content = getPathData(paths);
+      content = getPathData(allowedDirs);
     }
     else {
-      //set failure and code in status
-      reqData.success = false;
-      reqData.code = 404;
+      // Check if path is allowed
+      let allowed = false;
+      for(let root of allowedPaths) {
+        let rel = path.relative(root, dataPath);
+        //if relative path is equivalent to one of the allowed paths or it is a subfolder (no .. and relative), then path is allowed
+        if(rel.length == 0 || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
+          allowed = true;
+          break;
+        }
+      }
+      
+      //if path is not allowed or does not exist return 404
+      if(!(allowed && fs.existsSync(dataPath))) {
+        //set failure and code in status
+        reqData.success = false;
+        reqData.code = 404;
 
-      return res.status(404)
-      .send("The requested file does not exist or is not accessible.");
+        return res.status(404)
+        .send("The requested file does not exist or is not accessible.");
+      }
+
+      let stat = fs.lstatSync(dataPath);
+
+      if(stat.isFile()) {
+        pathType = "f";
+        content = [getFileData()];
+      }
+      else if(stat.isDirectory()) {
+        pathType = "d";
+        let paths = fs.readdirSync(dataPath);
+        content = getPathData(paths);
+      }
+      else {
+        //set failure and code in status
+        reqData.success = false;
+        reqData.code = 404;
+
+        return res.status(404)
+        .send("The requested file does not exist or is not accessible.");
+      }
     }
 
     let data: PathData = {
@@ -467,7 +465,6 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
     reqData.code = 200;
     return res.status(200)
     .json(data);
-
   });
 });
 
