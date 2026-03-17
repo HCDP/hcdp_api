@@ -356,20 +356,25 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
     const allowedDirs = ["NASA_downscaling", "production", "workflow_data", "raw", "backup_data_aqs", "ASCDP"]
     const allowedPaths = allowedDirs.map((sub: string) => path.join(dataRoot, sub));
     const userPath = path.resolve(req.params[0] || "/");
-    const pathStub = path.basename(userPath);
     const dataPath = path.join(dataRoot, userPath);
 
-    const getFileData = (file: string): FileData => {
+    const getFileData = (file?: string): FileData => {
       let pathData: FileData = null;
-      let fpath = path.join(dataPath, file);
-      let subUserPath = path.join(userPath, file);
+
+      let fpath = dataPath;
+      let subUserPath = userPath;
+      if(file) {
+        fpath = path.join(dataPath, file);
+        subUserPath = path.join(userPath, file);
+      }
+      else {
+        file = path.basename(userPath);
+      }
       let subStat = fs.lstatSync(fpath);
       const { mtime, size } = subStat;
       const modified = mtime.toISOString();
       if(subStat.isFile()) {
-        const urlPath = path.join("/files/download", userPath);
-        const subUrlPath = path.join(urlPath, file);
-
+        const subUrlPath = path.join("/files/download", subUserPath);
         pathData = {
           url: url.resolve(apiURL, subUrlPath),
           name: file,
@@ -381,9 +386,7 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
         };
       }
       else if(subStat.isDirectory()) {
-        const urlPath = path.join("/files/explore", userPath);
-        const subUrlPath = path.join(urlPath, file);
-
+        const subUrlPath = path.join("/files/explore", subUserPath);
         pathData = {
           url: url.resolve(apiURL, subUrlPath),
           name: file,
@@ -441,7 +444,7 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
 
     if(stat.isFile()) {
       pathType = "f";
-      content = [getFileData(pathStub)];
+      content = [getFileData()];
     }
     else if(stat.isDirectory()) {
       pathType = "d";
