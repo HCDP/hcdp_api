@@ -433,21 +433,19 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
     }
 
     let stat = fs.lstatSync(dataPath);
+
+
+    let pathType: "f" | "d";
+    let content: FileData[];
+
     if(stat.isFile()) {
-      let fsizeB = stat.size;
-      //set file size for logging
-      reqData.sizeB = fsizeB;
-      reqData.sizeF = 1;
-      reqData.code = 200;
-      return res.status(200)
-      .sendFile(dataPath);
+      pathType = "f";
+      content = [getFileData(dataPath)];
     }
     else if(stat.isDirectory()) {
+      pathType = "d";
       let paths = fs.readdirSync(dataPath);
-      let data = getPathData(paths);
-      reqData.code = 200;
-      return res.status(200)
-      .json(data);
+      content = getPathData(paths);
     }
     else {
       //set failure and code in status
@@ -457,8 +455,22 @@ router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
       return res.status(404)
       .send("The requested file does not exist or is not accessible.");
     }
+
+    let data: PathData = {
+      pathType,
+      content
+    };
+    reqData.code = 200;
+    return res.status(200)
+    .json(data);
+
   });
 });
+
+interface PathData {
+  pathType: "f" | "d",
+  content: FileData[]
+}
 
 interface FileData {
   url: string,
