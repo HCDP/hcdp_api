@@ -1,7 +1,7 @@
 import moment, { Moment } from "moment-timezone";
 
 
-export type DPLocation = "hawaii" | "american_samoa";
+export type DPLocation = "hawaii" | "american_samoa" | "guam";
 
 export interface DateParts {
   year: number | string | undefined,
@@ -16,7 +16,8 @@ export interface DateParts {
 export function getTimezone(location: DPLocation) {
   const tzmap = {
     "hawaii": "Pacific/Honolulu",
-    "american_samoa": "Pacific/Pago_Pago"
+    "american_samoa": "Pacific/Pago_Pago",
+    "guam": "Pacific/Guam"
   }
   return tzmap[location];
 }
