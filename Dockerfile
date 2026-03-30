@@ -1,25 +1,24 @@
 FROM node:22-slim
 
-RUN apt-get update \
-&& apt-get install -y zip \
-&& apt-get install -y uuid-runtime \
-&& apt-get install -y g++ \
-&& apt-get install -y curl
+RUN apt-get update && apt-get install -y \
+  zip \
+  uuid-runtime \
+  g++ \
+  curl \
+  && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
 WORKDIR /api
 
 # Install app dependencies
 COPY package*.json ./
+RUN npm install
+
 COPY tsconfig.json ./
 COPY tiffextract ./tiffextract
 COPY src ./src
 
-# RUN npm install
-# If you are building your code for production
-RUN npm install
-
-EXPOSE 443
+EXPOSE 8080
 
 # Don't use npm start because signals are handled weird. To get a graceful stop need to run node server.js directly
 # https://medium.com/@becintec/building-graceful-node-applications-in-docker-4d2cd4d5d392

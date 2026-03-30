@@ -2,13 +2,13 @@
   "name": "hcdp_api",
   "version": "1.0.0",
   "description": "HCDP API.",
-  "main": "server.js",
+  "main": "cluster.js",
   "type": "module",
   "scripts": {
     "deploy": "bash util/deploy.sh",
     "deploy-test": "bash util/deploy_test.sh",
     "build": "npx tsc && cp -R src/assets dist",
-    "start": "npm run build && cd dist/app && node server.js",
+    "start": "npm run build && cd dist/app && node cluster.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Jared McLean",
