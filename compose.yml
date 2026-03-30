@@ -6,6 +6,7 @@ networks:
 
 services:
   api:
+    init: true
     build:
       context: .
     restart: on-failure
@@ -17,8 +18,8 @@ services:
       - /home/hcdp/hcdp-api/logs:/logs
     profiles: [ prod ]
     healthcheck:
-      test: "curl -f https://storeapi.ikewai.org/health"
-      interval: 5s
+      test: "curl -f https://localhost:8080/health || exit 1"
+      interval: 1m
       timeout: 5s
       retries: 5
     depends_on:
@@ -27,6 +28,7 @@ services:
     networks:
       - hcdp-net
   api-dev:
+    init: true
     build:
       context: .
     restart: on-failure
@@ -38,8 +40,8 @@ services:
       - /home/hcdp/hcdp-api/logs:/logs
     profiles: [ dev ]
     healthcheck:
-      test: "curl -f https://storeapi.ikewai.org:8443/health"
-      interval: 5s
+      test: "curl -f https://localhost:8080/health || exit 1"
+      interval: 1m
       timeout: 5s
       retries: 5
     depends_on:
@@ -48,6 +50,7 @@ services:
     networks:
       - hcdp-net
   postgres:
+    init: true
     image: postgres:17
     container_name: api-db
     env_file: db.env
