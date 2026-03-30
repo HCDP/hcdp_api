@@ -16,6 +16,8 @@ services:
     volumes:
       - /mnt/lustre/annotated/HCDP:/data
       - /home/hcdp/hcdp-api/logs:/logs
+    environment:
+      - NODE_OPTIONS=--no-deprecation
     profiles: [ prod ]
     healthcheck:
       test: "curl -f http://localhost:8080/health || exit 1"
@@ -38,6 +40,8 @@ services:
     volumes:
       - /mnt/lustre/annotated/HCDP:/data
       - /home/hcdp/hcdp-api/logs:/logs
+    environment:
+      - NODE_OPTIONS=--no-deprecation
     profiles: [ dev ]
     healthcheck:
       test: "curl -f http://localhost:8080/health || exit 1"
