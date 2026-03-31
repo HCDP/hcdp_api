@@ -65,7 +65,7 @@ export class PostgresDBManager {
         return result;
     }
 
-    async queryNoRes(query: string, params: string[]): Promise<number> {
+    async queryNoRes(query: string, params: any[]): Promise<number> {
         return this.dbHandler.result(query, params, (r: any) => { return r.rowCount; });
     }
 

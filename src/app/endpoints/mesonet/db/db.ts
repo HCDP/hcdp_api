@@ -1120,6 +1120,90 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
 });
 
 
+// router.put("/mesonet/db/measurements/insert", async (req, res) => {
+//   const permission = "meso_admin";
+//   await handleReq(req, res, permission, async (reqData) => {
+//     let { overwrite, location, data }: any = req.body;
+
+//     if(!Array.isArray(data)) {
+//       reqData.success = false;
+//       reqData.code = 400;
+
+//       return res.status(400)
+//       .send(`Invalid data provided. Data must be a 2D array with 7 element rows.`);
+//     }
+
+//     if(data.length < 1) {
+//       reqData.code = 200;
+//       return res.status(200)
+//       .json({ modified: 0 });
+//     }
+
+//     if(!mesonetLocations.includes(location)) {
+//       reqData.success = false;
+//       reqData.code = 400;
+
+//       return res.status(400)
+//       .send(`Invalid location provided.`);
+//     }
+
+//     let onConflict = overwrite ? `
+//       DO UPDATE SET
+//         version = EXCLUDED.version,
+//         value = EXCLUDED.value,
+//         flag = EXCLUDED.flag;
+//       ` : "DO NOTHING;";
+
+//     let params: string[] = [];
+//     let valueClauseParts: string[] = [];
+//     for(let row of data) {
+//       if(!Array.isArray(row) || row.length != 7) {
+//         reqData.success = false;
+//         reqData.code = 400;
+
+//         return res.status(400)
+//         .send(`Invalid data provided. Data must be a 2D array with 7 element rows.`);
+//       }
+
+//       let rowParts: string[] = [];
+//       for(let value of row) {
+//         params.push(value);
+//         rowParts.push(`$${params.length}`);
+//       }
+//       valueClauseParts.push(rowParts.join(","));
+//     }
+//     let valueClause = `(${valueClauseParts.join("),(")})`;
+
+//     let query = `
+//       INSERT INTO ${location}_measurements_tsdb
+//       VALUES ${valueClause}
+//       ON CONFLICT (timestamp, station_id, variable)
+//       ${onConflict}
+//     `;
+
+//     try {
+//       let modified = await mesonetDBAdmin.queryNoRes(query, params);
+//       reqData.code = 200;
+//       return res.status(200)
+//       .json({ modified });
+//     }
+//     catch(e: any) {
+//       if(e.code.startsWith("42")) {
+//         reqData.success = false;
+//         reqData.code = 400;
+  
+//         return res.status(400)
+//         .send(`Invalid query syntax. Please validate the data provided is correctly formatted.`);
+//       }
+//       else {
+//         throw e;
+//       }
+//     }
+//   });
+// });
+
+
+
 router.put("/mesonet/db/measurements/insert", async (req, res) => {
   const permission = "meso_admin";
   await handleReq(req, res, permission, async (reqData) => {
@@ -1128,23 +1212,42 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
     if(!Array.isArray(data)) {
       reqData.success = false;
       reqData.code = 400;
-
-      return res.status(400)
-      .send(`Invalid data provided. Data must be a 2D array with 7 element rows.`);
+      return res.status(400).send(`Invalid data provided. Data must be a 2D array.`);
     }
 
     if(data.length < 1) {
       reqData.code = 200;
-      return res.status(200)
-      .json({ modified: 0 });
+      return res.status(200).json({ modified: 0 });
     }
 
     if(!mesonetLocations.includes(location)) {
       reqData.success = false;
       reqData.code = 400;
+      return res.status(400).send(`Invalid location provided.`);
+    }
 
-      return res.status(400)
-      .send(`Invalid location provided.`);
+    // transpose the 2D rows into 1D columns
+    let timestamps: string[] = [];
+    let station_ids: string[] = [];
+    let variables: string[] = [];
+    let versions: string[] = [];
+    let value_ds: number[] = [];
+    let values: number[] = [];
+    let flags: string[] = [];
+
+    for(let row of data) {
+      if(!Array.isArray(row) || row.length != 7) {
+        reqData.success = false;
+        reqData.code = 400;
+        return res.status(400).send(`Invalid data provided. Data must be a 2D array with 7 element rows.`);
+      }
+      timestamps.push(row[0]);
+      station_ids.push(row[1]);
+      variables.push(row[2]);
+      versions.push(row[3]);
+      value_ds.push(row[4]);
+      values.push(row[5]);
+      flags.push(row[6]);
     }
 
     let onConflict = overwrite ? `
@@ -1154,46 +1257,39 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
         flag = EXCLUDED.flag;
       ` : "DO NOTHING;";
 
-    let params: string[] = [];
-    let valueClauseParts: string[] = [];
-    for(let row of data) {
-      if(!Array.isArray(row) || row.length != 7) {
-        reqData.success = false;
-        reqData.code = 400;
-
-        return res.status(400)
-        .send(`Invalid data provided. Data must be a 2D array with 7 element rows.`);
-      }
-
-      let rowParts: string[] = [];
-      for(let value of row) {
-        params.push(value);
-        rowParts.push(`$${params.length}`);
-      }
-      valueClauseParts.push(rowParts.join(","));
-    }
-    let valueClause = `(${valueClauseParts.join("),(")})`;
-
+    // Use a CTE as an in-memory temp table
+    // Pass 7 parameter arrays and UNNEST them directly into columns
     let query = `
-      INSERT INTO ${location}_measurements_tsdb
-      VALUES ${valueClause}
+      WITH tmp_insert AS (
+        SELECT * FROM UNNEST(
+          $1::timestamptz[], 
+          $2::text[], 
+          $3::text[], 
+          $4::text[], 
+          $5::double precision[], 
+          $6::double precision[], 
+          $7::text[]
+        ) AS t(timestamp, station_id, variable, version, value_d, value, flag)
+      )
+      INSERT INTO ${location}_measurements_tsdb (timestamp, station_id, variable, version, value_d, value, flag)
+      SELECT * FROM tmp_insert
       ON CONFLICT (timestamp, station_id, variable)
       ${onConflict}
     `;
 
+    // Pass value arrays as single parameters
+    let params = [timestamps, station_ids, variables, versions, value_ds, values, flags];
+
     try {
       let modified = await mesonetDBAdmin.queryNoRes(query, params);
       reqData.code = 200;
-      return res.status(200)
-      .json({ modified });
+      return res.status(200).json({ modified });
     }
     catch(e: any) {
-      if(e.code.startsWith("42")) {
+      if(e.code && e.code.startsWith("42")) {
         reqData.success = false;
         reqData.code = 400;
-  
-        return res.status(400)
-        .send(`Invalid query syntax. Please validate the data provided is correctly formatted.`);
+        return res.status(400).send(`Invalid query syntax. Please validate the data provided is correctly formatted.`);
       }
       else {
         throw e;
