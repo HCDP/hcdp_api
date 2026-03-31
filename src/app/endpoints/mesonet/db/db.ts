@@ -15,8 +15,6 @@ import Cursor from "pg-cursor";
 
 export const router = express.Router();
 
-const largePayloadParser = express.json({ limit: '50mb' });
-
 interface QueryData {
   query: string,
   params: any[],
@@ -1206,7 +1204,7 @@ router.patch("/mesonet/db/setFlag", async (req, res) => {
 
 
 
-router.put("/mesonet/db/measurements/insert", largePayloadParser, async (req, res) => {
+router.put("/mesonet/db/measurements/insert", async (req, res) => {
   const permission = "meso_admin";
   await handleReq(req, res, permission, async (reqData) => {
     let { overwrite, location, data }: any = req.body;
