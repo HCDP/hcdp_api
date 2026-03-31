@@ -63,10 +63,11 @@ app.use((req, res, next) => {
 //   store: pgStoreLimitAll
 // });
 
-// // Apply the rate limiting middleware to all requests.
-// app.use(cutoffLimit);
 
+
+app.use("/mesonet/db/measurements/insert", express.json({ limit: '50mb' }));
 app.use(express.json());
+
 
 const server = app.listen(port, () => {
   console.log("Server running on port " + port);
