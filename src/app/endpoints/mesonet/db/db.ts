@@ -1227,8 +1227,8 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
     }
 
     // transpose the 2D rows into 1D columns
-    let timestamps: string[] = [];
     let station_ids: string[] = [];
+    let timestamps: string[] = [];
     let variables: string[] = [];
     let versions: string[] = [];
     let value_ds: number[] = [];
@@ -1241,12 +1241,12 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
         reqData.code = 400;
         return res.status(400).send(`Invalid data provided. Data must be a 2D array with 7 element rows.`);
       }
-      timestamps.push(row[0]);
-      station_ids.push(row[1]);
-      variables.push(row[2]);
-      versions.push(row[3]);
-      value_ds.push(row[4]);
-      values.push(row[5]);
+      station_ids.push(row[0]);  
+      timestamps.push(row[1]);   
+      variables.push(row[2]);    
+      versions.push(row[3]);     
+      value_ds.push(row[4]);     
+      values.push(row[5]);       
       flags.push(row[6]);
     }
 
@@ -1262,13 +1262,13 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
     let query = `
       WITH tmp_insert AS (
         SELECT * FROM UNNEST(
-          $1::timestamptz[], 
-          $2::text[], 
-          $3::text[], 
-          $4::text[], 
-          $5::double precision[], 
-          $6::double precision[], 
-          $7::text[]
+          $1::timestamptz[],            -- timestamp: timestamp with time zone
+          $2::character(4)[],           -- station_id: character(4)
+          $3::character varying(255)[], -- variable: varchar(255)
+          $4::character varying(255)[], -- version: varchar(255)
+          $5::double precision[],       -- value_d: double precision
+          $6::character varying(255)[], -- value: varchar(255)
+          $7::integer[]                 -- flag: integer
         ) AS t(timestamp, station_id, variable, version, value_d, value, flag)
       )
       INSERT INTO ${location}_measurements_tsdb (timestamp, station_id, variable, version, value_d, value, flag)
