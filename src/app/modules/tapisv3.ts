@@ -1,4 +1,4 @@
-import { TwoWayMap } from './util/util';
+import { TwoWayMap } from './util/util.js';
 import fetchRetry from 'fetch-retry';
 const rfetch = fetchRetry(fetch);
 
