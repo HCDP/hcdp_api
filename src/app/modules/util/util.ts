@@ -11,6 +11,24 @@ const transporterOptions = {
   ignoreTLS: true
 };
 
+export class TwoWayMap<T, U> {
+    private map: Map<T, U>;
+    private reverseMap: Map<U, T>;
+
+    constructor(map: [T, U][]) {
+        this.map = new Map<T, U>(map);
+        this.reverseMap = new Map<U, T>(map.map(([key, value]) => [value, key]));
+    }
+
+    public lookup(value: T) {
+        return this.map.get(value);
+    }
+
+    public reverseLookup(value: U) {
+        return this.reverseMap.get(value);
+    }
+}
+
 export async function readdir(dir): Promise<{err, files}> {
   return new Promise((resolve, reject) => {
     fs.readdir(dir, (err, files) => {
@@ -76,7 +94,8 @@ export async function logReq(data) {
 }
 
 export function processTapisError(res, reqData, e) {
-  let {status, reason} = e;
+  let status = e["http status code"];
+  let reason = e["message"];
   if(status === undefined) {
     status = 500;
   }

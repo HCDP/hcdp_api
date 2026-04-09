@@ -1,6 +1,6 @@
 import express from "express";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
-import { tapisManager } from "../../../modules/util/resourceManagers/tapis.js";
+import { stationMetadataHelper } from "../../../modules/util/resourceManagers/tapis.js";
 import { processTapisError, handleSubprocess, parseBoolParam } from "../../../modules/util/util.js";
 import { getPaths, fnamePattern, getEmpty } from "../../../modules/fileIndexer.js";
 import { urlRoot, dataRoot, apiURL } from "../../../modules/util/config.js";
@@ -180,34 +180,75 @@ router.get("/raster", async (req, res) => {
 router.get("/stations", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
-    let { q, limit, offset }: any = req.query;
-    try {
-      //parse query string to JSON
-      q = JSON.parse(q.replace(/'/g, '"'));
-    }
-    catch {
+
+    const r400 = (message: string) => {
       //set failure and code in status
       reqData.success = false;
       reqData.code = 400;
 
       return res.status(400)
       .send(
-        `Request must include the following parameters:
+        `${message}
+        
+        Request must include the following parameters:
+
+        Required:
         q: Mongo DB style query for station documents.
-        limit (optional): A number indicating the maximum number of records to be returned for each variable.
-        offset (optional): A number indicating an offset in the records returned from the first available record.`
+        - OR -
+        location: The location of the stations being requested (e.g. hawaii, american_samoa, guam)
+        type: The type of data being requested, value or metadata
+        [...other_parameters]: dataset identification parameters (e.g. datatype: rainfall, production: new, period: day, fill: partial)
+
+        Optional:
+        limit: An integer representing the maximum results to return. Default value 1000
+        offset: An integer representing the number of results to skip. Default value 0`
       );
     }
-    
+
+    let { q, limit, offset, ...params }: any = req.query;
+
+    // Convert limit and offset to integers
+    limit = limit ? parseInt(limit) : undefined;
+    offset = offset ? parseInt(offset) : undefined;
+
+    // validate limit and offset were able to be parsed to valid integers
+    if((limit !== undefined && isNaN(limit)) || (offset !== undefined && isNaN(offset))) {
+      return r400("Limit and offset must be valid integers.");
+    }
+
+    let data = null;
     try {
-      const data = await tapisManager.queryData(q, limit, offset);
-      reqData.code = 200;
-      return res.status(200)
-      .json(data);
+      // query provided directly, use raw query handler
+      if(q) {
+        try {
+          //parse query string to JSON
+          q = JSON.parse(q.replace(/'/g, '"'));
+        }
+        catch {
+          return r400("Unable to parse query");
+        }
+        
+        data = await stationMetadataHelper.queryMetadataRaw(q, limit, offset);
+      }
+      // otherwise parse params
+      else {
+        let { location, type, ...values } = params;
+
+        if(!(location && type)) {
+          return r400("No query or location and type provided");
+        }
+
+        data = await stationMetadataHelper.queryMetadata(location, type, values, limit, offset);
+      }
     }
     catch(e) {
       return processTapisError(res, reqData, e);
     }
+
+    reqData.code = 200;
+    return res.status(200)
+    .json(data);
+   
   });
 });
 
