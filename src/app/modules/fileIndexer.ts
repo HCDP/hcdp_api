@@ -40,7 +40,7 @@ function fillDefaults(dataset: any) {
     if(datatype == "ignition_probability" && lead === undefined) {
         dataset.lead = "lead00";
     }
-    if(location == "american_samoa" && datatype == "prism_climatology" && units === undefined) {
+    if(datatype == "prism_climatology" && units === undefined) {
         if(variable == "rainfall") {
             dataset.units = "mm"
         }
