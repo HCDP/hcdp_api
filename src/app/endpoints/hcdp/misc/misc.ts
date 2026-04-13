@@ -133,7 +133,7 @@ router.get("/raster", async (req, res) => {
     //destructure query
     let {date, type, returnEmptyNotFound, ...properties} = req.query;
 
-    let returnEmptyNotFoundBool = parseBoolParam(returnEmptyNotFound)
+    let returnEmptyNotFoundBool = parseBoolParam(returnEmptyNotFound);
 
     if(!type) {
       type = "data_map";
