@@ -229,6 +229,13 @@ router.get("/stations", async (req, res) => {
         }
         
         data = await stationMetadataHelper.queryMetadataRaw(q, limit, offset);
+        // wrap in legacy tapis response format
+        data = {
+          status: "success",
+          message: null,
+          version: null,
+          result: data
+        };
       }
       // otherwise parse params
       else {

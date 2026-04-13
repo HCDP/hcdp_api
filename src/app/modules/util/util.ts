@@ -81,11 +81,8 @@ export async function logReq(data) {
   const currentTime = moment().tz("Pacific/Honolulu");
   const timestamp = currentTime.format("YYYY-MM-DD HH:mm:ss");
   const fname = "requests.log";
-  console.log(logDir);
   const logDateDir = path.join(logDir, "data", currentTime.format("YYYY/MM/DD"));
-  console.log(logDateDir);
   const logFile = path.join(logDateDir, fname);
-  console.log(logFile);
   let dataString = `[${timestamp}] ${method}:${endpoint}:${user}:${tokenUser}:${token}:${code}:${success}:${sizeB}:${sizeF}\n`;
   try {
     await fs.promises.mkdir(logDateDir, { recursive: true });
