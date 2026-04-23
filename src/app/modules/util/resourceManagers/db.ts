@@ -24,5 +24,5 @@ for(let key in databaseConnections) {
   }
 }
 
-export const { mesonetDBUser, mesonetDBAdmin, apiDB } = dbManagers;
+export const { mesonetDBUser, mesonetDBAdmin, apiDB, hcdpGeneralUser, hcdpGeneralAdmin } = dbManagers;
 export const { pgStoreSlowAll, pgStoreLimitAll, pgStoreSlowMesonetMeasurements, pgStoreMesonetEmail } = postgresStores;
