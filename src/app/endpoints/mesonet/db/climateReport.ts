@@ -461,9 +461,9 @@ router.get("/mesonet/climate_report/:table", async (req, res) => {
       }
     }
    
-    let whereClause = ";"
+    let whereClause = ""
     if(conditions.length > 0) {
-      whereClause = `WHERE ${conditions.join(" AND ")};`;
+      whereClause = `WHERE ${conditions.join(" AND ")}`;
     }
 
     let columns = tableSchema.join(", ");
@@ -471,7 +471,7 @@ router.get("/mesonet/climate_report/:table", async (req, res) => {
     let query = `
       SELECT ${columns}
       FROM climate_report.${table}
-      ${whereClause}
+      ${whereClause};
     `;
     
 
