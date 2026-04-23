@@ -597,8 +597,9 @@ router.post("/mesonet/climate_report/:table", async (req, res) => {
       ${onConflict};
     `;
 
-    await hcdpGeneralAdmin.queryNoRes(query, params);
-    reqData.code = 204;
-    return res.status(204).end();
+    let modified = await hcdpGeneralAdmin.queryNoRes(query, params);
+    reqData.code = 200;
+    return res.status(200)
+    .json({ modified });
   });
 });

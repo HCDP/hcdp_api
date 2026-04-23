@@ -161,7 +161,7 @@ router.get("/respondTokenRequest", async (req, res) => {
 });
 
 
-router.put("/updateTokenPermissions", async (req, res) => {
+router.patch("/updateTokenPermissions", async (req, res) => {
   const permission = "admin";
   await handleReq(req, res, permission, async (reqData) => {
     const { token, permissions } = req.body;

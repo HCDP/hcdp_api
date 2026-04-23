@@ -79,48 +79,6 @@ router.get("/users/emails/apiqueries", async (req, res) => {
 
 
 
-// router.get("/apistats", async (req, res) => {
-//   try {
-//     //start with no params, might want to add date range, need to modify scripts or otherwise make additional processing
-//     //should migrate log locations to config
-//     const logfile = "/logs/userlog.txt";
-//     const logfileOld = "/logs/userlog_old_2.txt";
-//     const logscript = "/logs/utils/gen_report_json.sh";
-//     const logscriptOld = "/logs/utils/gen_report_old_json.sh";
-//     let resData: any[] = [];
-//     let procHandles = [child_process.spawn("/bin/bash", [logscript, logfile]), child_process.spawn("/bin/bash", [logscriptOld, logfileOld])].map((proc) => {
-//       return new Promise<void>(async (resolve, reject) => {
-//         try {
-//           let output = "";
-//           let code = await handleSubprocess(proc, (data) => {
-//             output += data.toString();
-//           });
-//           if(code == 0) {
-//             //strip out emails, can use this for additional processing if expanded on, don't want to provide to the public
-//             let json = JSON.parse(output);
-//             delete json.unique_emails;
-//             resData.push(json);
-//           }
-//           resolve();
-//         }
-//         catch {
-//           resolve();
-//         }
-//       });
-//     });
-//     Promise.all(procHandles).then(() => {
-//       res.status(200)
-//       .json(resData);
-//     });
-//   }
-//   catch(e) {
-//     res.status(500)
-//     .send("An unexpected error occurred.");
-//   }
-// });
-
-
-
 //add middleware to get raw body, don't actually need body data so no need to do anything fancy to get parsed body as well
 router.post("/addmetadata", express.raw({ limit: "50mb", type: () => true }), async (req, res) => {
   try {
