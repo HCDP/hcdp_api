@@ -15,7 +15,7 @@ const STAT_TABLE_DATA = {
   drought_stats: ['division_full', 'date', 'd4', 'd3', 'd2', 'd1', 'd0', 'near_normal', 'w0', 'w1', 'w2', 'w3', 'w4'],
   rainfall_historical: ['division_full', 'date', 'value'],
   temperature_historical: ['division_full', 'date', 'value']
-};;
+};
 
 async function getUserID(email: string): Promise<string> {
   let query = `
@@ -463,7 +463,7 @@ router.get("/mesonet/climate_report/:table", async (req, res) => {
    
     let whereClause = ";"
     if(conditions.length > 0) {
-      whereClause = conditions.join(" AND ") + whereClause;
+      whereClause = `WHERE ${conditions.join(" AND ")};`;
     }
 
     let columns = tableSchema.join(", ");
