@@ -89,6 +89,23 @@ export function processTapisError(res, reqData, e) {
   .send(reason);
 }
 
+export function parseListParam(param: any, valid: Set<string> = null) {
+  let parsed: string[] = [];
+  if(Array.isArray(param) && param.every(value => typeof value === "string")) {
+    parsed = param;
+    if(valid) {
+      parsed = parsed.filter((value) => valid.has(value));
+    }
+  }
+  else if(typeof param === "string") {
+    parsed = param.split(",");
+    if(valid) {
+      parsed =parsed.filter((value) => valid.has(value));
+    }
+  }
+  return parsed;
+}
+
 export function parseBoolParam(param: any, defaultValue: boolean = false): boolean {
   let nonDefaultParamString = (!defaultValue).toString();
   let value = defaultValue;

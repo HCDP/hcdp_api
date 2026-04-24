@@ -10,7 +10,8 @@ import * as crypto from "crypto";
 import * as https from "https";
 import * as fs from "fs";
 import { apiDB } from "../../../modules/util/resourceManagers/db.js";
-import { parseListParam, parseParams } from "../../../modules/util/dbUtil.js";
+import { parseParams } from "../../../modules/util/dbUtil.js";
+import { parseListParam } from "../../../modules/util/util.js";
 import { join } from "path";
 import Cursor from "pg-cursor";
 

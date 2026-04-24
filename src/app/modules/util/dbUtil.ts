@@ -1,23 +1,3 @@
-export function parseListParam(param: any, valid: Set<string> = null) {
-  let parsed: string[] = null;
-  if(Array.isArray(param) && param.every(value => typeof value === "string")) {
-    parsed = param;
-    if(valid) {
-      parsed.filter((value) => valid.has(value));
-    }
-  }
-  else if(typeof param === "string") {
-    parsed = param.split(",");
-    if(valid) {
-      parsed.filter((value) => valid.has(value));
-    }
-  }
-  else if(param === undefined) {
-    parsed = [];
-  }
-  return parsed;
-}
-
 export function parseParams(paramListArr: string[], allParams: string[], whereClauses: string[], column: string) {
   let orClauses: string[] = [];
   let paramSet = new Set(paramListArr);

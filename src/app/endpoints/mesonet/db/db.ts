@@ -6,10 +6,10 @@ import * as fs from "fs";
 import * as path from "path";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
 import { apiURL, downloadRoot, mesonetLocations } from "../../../modules/util/config.js";
-import { parseBoolParam, sendEmail } from "../../../modules/util/util.js";
+import { parseBoolParam, parseListParam, sendEmail } from "../../../modules/util/util.js";
 import { stringify } from "csv-stringify/sync";
 import * as crypto from "crypto";
-import { parseListParam, parseParams } from "../../../modules/util/dbUtil.js";
+import { parseParams } from "../../../modules/util/dbUtil.js";
 import { slowDown } from "express-slow-down";
 import Cursor from "pg-cursor";
 

@@ -5,16 +5,18 @@ import { v4 as uuidv4, validate as isValidUUID } from "uuid";
 import { checkEmail, MailOptions, sendEmail, validateArray, validateType } from "../../../modules/util/util.js";
 import Cursor from "pg-cursor";
 import moment from "moment-timezone";
+import { parseParams } from "../../../modules/util/dbUtil.js";
+import { parseListParam } from "../../../modules/util/util.js";
 
 export const router = express.Router();
 
 const REPORT_TYPES = ["ahupuaa", "county", "watershed", "moku"];
 const STAT_TABLE_DATA = {
-  rainfall_stats: ['division_full', 'date', 'mean', 'anomaly', 'pchange', 'rank', 'ytd_pnormal'],
-  temperature_stats: ['division_full', 'date', 'mean', 'anomaly', 'pchange', 'rank', 'max'],
-  drought_stats: ['division_full', 'date', 'd4', 'd3', 'd2', 'd1', 'd0', 'near_normal', 'w0', 'w1', 'w2', 'w3', 'w4'],
-  rainfall_historical: ['division_full', 'date', 'value'],
-  temperature_historical: ['division_full', 'date', 'value']
+  rainfall_stats: ['island', 'division_type', 'name', 'date', 'mean', 'anomaly', 'pchange', 'rank', 'ytd_pnormal'],
+  temperature_stats: ['island', 'division_type', 'name', 'date', 'mean', 'anomaly', 'pchange', 'rank', 'max'],
+  drought_stats: ['island', 'division_type', 'name', 'date', 'd4', 'd3', 'd2', 'd1', 'd0', 'near_normal', 'w0', 'w1', 'w2', 'w3', 'w4'],
+  rainfall_historical: ['island', 'division_type', 'name', 'date', 'value'],
+  temperature_historical: ['island', 'division_type', 'name', 'date', 'value']
 };
 
 async function getUserID(email: string): Promise<string> {
@@ -422,18 +424,22 @@ router.get("/mesonet/climate_report/:table", async (req, res) => {
       return e400(`Invalid table ${table}, valid tables: ${Object.keys(STAT_TABLE_DATA)}`); 
     }
 
-    const { date, startDate, endDate, division } = req.query;
+    const { date, startDate, endDate, island, division_type, name } = req.query;
+    let islands = parseListParam(island)
+    let divisionTypes = parseListParam(division_type);
+    let names = parseListParam(name);
 
     let params: any[] = [];
     let conditions: string[] = [];
 
-    // Filter by division if provided
-    if(division) {
-      if(typeof division !== "string") {
-        return e400("Invalid division format");
-      }
-      params.push(division);
-      conditions.push(`division_full = $${params.length}`);
+    if(islands.length > 0) {
+      parseParams(islands, params, conditions, "island");
+    }
+    if(divisionTypes.length > 0) {
+      parseParams(divisionTypes, params, conditions, "division_type");
+    }
+    if(names.length > 0) {
+      parseParams(names, params, conditions, "name");
     }
 
     // Filter by exact date, or range
@@ -532,7 +538,7 @@ router.post("/mesonet/climate_report/:table", async (req, res) => {
 
     let onConflict = "DO NOTHING";
     if (overwrite) {
-      const updateCols = tableSchema.filter(col => col !== 'division_full' && col !== 'date');
+      const updateCols = tableSchema.filter(col => !['island', 'division_type', 'name', 'date'].includes(col));
       const setClause = updateCols.map(col => `${col} = EXCLUDED.${col}`).join(', ');
       onConflict = `DO UPDATE SET ${setClause}`;
     }
@@ -555,13 +561,15 @@ router.post("/mesonet/climate_report/:table", async (req, res) => {
       
       for (let colIndex = 0; colIndex < row.length; colIndex++) {
         switch (colIndex) {
-          case 0: {
+          case 0:
+          case 1:
+          case 2: {
             if (typeof row[colIndex] !== "string") {
               return e400(`Invalid division provided at row ${rowIndex}, column ${colIndex}.`);
             }
             break;
           }
-          case 1: {
+          case 3: {
             let parsedDate = moment(row[colIndex]);
             if (parsedDate.isValid()) {
               row[colIndex] = parsedDate.format('YYYY-MM-DD'); 
@@ -571,13 +579,18 @@ router.post("/mesonet/climate_report/:table", async (req, res) => {
             break;
           }
           default: {
-            let value = Number(row[colIndex]);
-            if (!isNaN(value)) {
-              row[colIndex] = value;
+            if (row[colIndex] === "" || row[colIndex] === null || row[colIndex] === undefined) {
+              row[colIndex] = null;
             }
             else {
-              return e400(`Invalid numeric value at row ${rowIndex}, column ${colIndex}.`);
+              let value = Number(row[colIndex]);
+              if (!isNaN(value)) {
+                row[colIndex] = value;
+              } else {
+                return e400(`Invalid numeric value at row ${rowIndex}, column ${colIndex}.`);
+              }
             }
+            break;
           }
         }
 
@@ -593,7 +606,7 @@ router.post("/mesonet/climate_report/:table", async (req, res) => {
     let query = `
       INSERT INTO climate_report.${table} (${columnsClause})
       VALUES ${valueClause}
-      ON CONFLICT (division_full, date)
+      ON CONFLICT (island, division_type, name, date)
       ${onConflict};
     `;
 
