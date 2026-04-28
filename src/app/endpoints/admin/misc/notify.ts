@@ -84,12 +84,15 @@ router.post("/notify/subscriptions", async (req, res) => {
   const permission = "notify";
   await handleReq(req, res, permission, async (reqData) => {
     const { source, reason, type } = req.body;
+    res.status(501).send('Not Implemented');
   });
 });
 
 router.post("/notify/subscribe", async (req, res) => {
   const permission = "notify";
   await handleReq(req, res, permission, async (reqData) => {
+    return res.status(501).send('Not Implemented');
+
     const { email, source, reason, type } = req.body;
 
     let id = uuidv4()
@@ -121,13 +124,13 @@ router.post("/notify/subscribe", async (req, res) => {
 router.patch("/notify/subscription/:id/unsubscribe", async (req, res) => {
   const permission = "notify";
   await handleReq(req, res, permission, async (reqData) => {
-
+    res.status(501).send('Not Implemented');
   });
 });
 
 router.patch("/notify/subscription/:id/delay", async (req, res) => {
   const permission = "notify";
   await handleReq(req, res, permission, async (reqData) => {
-
+    res.status(501).send('Not Implemented');
   });
 });
