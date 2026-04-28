@@ -1,6 +1,8 @@
 
-import { tapisDBConfig, tapisConfig } from "../../util/config.js";
-import { DBManager, TapisManager } from "../../../modules/tapisHandlers.js";
+import { tapisV3Config } from "../../util/config.js";
+import { TapisV3Manager, HCDPStationTapisMetadataHelper } from "../../tapisv3.js";
 
-export const tapisDBManager = new DBManager(tapisDBConfig.server, tapisDBConfig.port, tapisDBConfig.username, tapisDBConfig.password, tapisDBConfig.db, tapisDBConfig.collection, tapisDBConfig.connectionRetryLimit, tapisDBConfig.queryRetryLimit);
-export const tapisManager = new TapisManager(tapisConfig.tenantURL, tapisConfig.token, tapisDBConfig.queryRetryLimit, tapisDBManager);
+const { retryLimit, url, username, password, db } = tapisV3Config;
+
+const tapisV3Manager: TapisV3Manager = new TapisV3Manager(retryLimit, url, username, password);
+export const stationMetadataHelper: HCDPStationTapisMetadataHelper = new HCDPStationTapisMetadataHelper(tapisV3Manager, db);

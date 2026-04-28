@@ -1,7 +1,6 @@
 import express from "express";
 import { handleReq } from "../../../modules/util/reqHandlers.js";
-import { sendEmail } from "../../../modules/util/util.js";
-import { tapisManager } from "../../../modules/util/resourceManagers/tapis.js";
+import { stationMetadataHelper } from "../../../modules/util/resourceManagers/tapis.js";
 import { githubWebhookSecret, logDir } from "../../../modules/util/config.js";
 import CsvReadableStream from "csv-reader";
 import detectDecodeStream from "autodetect-decoder-stream";
@@ -79,7 +78,6 @@ router.get("/users/emails/apiqueries", async (req, res) => {
 
 
 
-
 //add middleware to get raw body, don't actually need body data so no need to do anything fancy to get parsed body as well
 router.post("/addmetadata", express.raw({ limit: "50mb", type: () => true }), async (req, res) => {
   try {
@@ -148,7 +146,7 @@ router.post("/addmetadata", express.raw({ limit: "50mb", type: () => true }), as
       })
       .on("end", () => {
         //if there are a lot may want to add ability to process in chunks in the future, only a few thousand at the moment so just process all at once
-        tapisManager.createMetadataDocs(docs)
+        stationMetadataHelper.addMetadata(docs)
         .catch((e) => {
           console.error(`Metadata ingestion failed. Errors: ${e}`);
         });
@@ -169,56 +167,6 @@ router.post("/addmetadata", express.raw({ limit: "50mb", type: () => true }), as
 });
 
 
-router.post("/notify", async (req, res) => {
-  const permission = "notify";
-  await handleReq(req, res, permission, async (reqData) => {
-    const { recepients, source, type, message } = req.body;
-
-    if(!Array.isArray(recepients) || recepients.length < 1) {
-      //set failure and code in status
-      reqData.success = false;
-      reqData.code = 400;
-
-      return res.status(400)
-      .send(
-        `Request body should be JSON with the fields:
-        recepients: An array of email addresses to send the notification to.
-        source (optional): The source of the notification.
-        type (optional): The notification type (e.g. Error, Info, etc.).
-        message (optional): The notification message.`
-      );
-    }
-
-    let mailOptions = {
-      to: recepients,
-      subject: `HCDP Notifier: ${type}`,
-      text: `${type}\nNotification source: ${source}\nNotification message: ${message}`,
-      html: `<h3>${type}</h3><p>Notification source: ${source}</p><p>Notification message: ${message}</p>`
-    };
-    try {
-      //attempt to send email to the recepients list
-      let emailStatus = await sendEmail(mailOptions);
-      //if email send failed throw error for logging
-      if(!emailStatus.success) {
-        throw emailStatus.error;
-      }
-    }
-    //if error while sending admin email write to stderr
-    catch(e) {
-      //set failure and code in status
-      reqData.success = false;
-      reqData.code = 500;
-
-      return res.status(500)
-      .send(
-        `The notification could not be sent. Error: ${e}`
-      );
-    }
-    reqData.code = 200;
-    return res.status(200)
-    .send("Success! A notification has been sent to the requested recepients.");
-  });
-});
 
 router.get("/error", async (req, res) => {
   const permission = "admin";
