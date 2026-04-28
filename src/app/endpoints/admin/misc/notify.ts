@@ -93,31 +93,31 @@ router.post("/notify/subscribe", async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     return res.status(501).send('Not Implemented');
 
-    const { email, source, reason, type } = req.body;
+    // const { email, source, reason, type } = req.body;
 
-    let id = uuidv4()
-    const timestamp = new Date().toISOString();
+    // let id = uuidv4()
+    // const timestamp = new Date().toISOString();
 
-    let query = `
-      INSERT INTO notification_register
-      VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
-      ON CONFLICT (email, source, reason, type) DO NOTHING;
-    `;
+    // let query = `
+    //   INSERT INTO notification_register
+    //   VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
+    //   ON CONFLICT (email, source, reason, type) DO NOTHING;
+    // `;
 
-    let modified = await apiDB.queryNoRes(query, [id, email, source, reason, type, timestamp, timestamp]);
+    // let modified = await apiDB.queryNoRes(query, [id, email, source, reason, type, timestamp, timestamp]);
 
-    if(!modified) {
-      reqData.success = false;
-      reqData.code = 400;
+    // if(!modified) {
+    //   reqData.success = false;
+    //   reqData.code = 400;
 
-      return res.status(400)
-      .send("");
-    }
+    //   return res.status(400)
+    //   .send("");
+    // }
 
-    id = await getUserID(email);
-    reqData.code = 200;
-    return res.status(200)
-    .json({userID: id});
+    // id = await getUserID(email);
+    // reqData.code = 200;
+    // return res.status(200)
+    // .json({userID: id});
   });
 });
 
