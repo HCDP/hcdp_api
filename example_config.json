@@ -33,9 +33,12 @@
         "connectionRetryLimit": 3,
         "queryRetryLimit": 3
     },
-    "tapisConfig": {
-        "tenantURL": "https://agaveauth.its.hawaii",
-        "token": "token"
-    },
+    "tapisV3Config": {
+        "retryLimit": 3,
+        "url": "https://uhprod.uhtapis.org/v3",
+        "username": "username",
+        "password": "password",
+        "db": "hcdp"
+        },
     "githubWebhookSecret": "secret"
 }

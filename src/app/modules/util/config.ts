@@ -19,7 +19,7 @@ export const downloadRoot = join(dataRoot, downloadDir);
 export const fsHealthData = config.fsHealth;
 fsHealthData.file = join(dataRoot, fsHealthData.file);
 
-export const { port, smtp, smtpPort, emailConfig, defaultZipName, urlRoot, logDir, administrators, databaseConnections, tapisConfig, tapisV3Config, githubWebhookSecret, licenseFile } = config;
+export const { port, smtp, smtpPort, emailConfig, defaultZipName, urlRoot, logDir, administrators, databaseConnections, tapisV3Config, githubWebhookSecret, licenseFile } = config;
 
 export const mesonetLocations = ["american_samoa", "hawaii"];
 
