@@ -3,6 +3,7 @@ import compression from "compression";
 import cors from "cors";
 import timeout from "connect-timeout";
 import { port } from "./modules/util/config.js";
+import { router as r1 } from "./endpoints/admin/misc/notify.js";
 import { router as r2 } from "./endpoints/mesonet/db/db.js";
 import { router as r4 } from "./endpoints/admin/tokens/tokens.js";
 import { router as r5 } from "./endpoints/admin/misc/misc.js";
@@ -18,7 +19,7 @@ import { tapisV3Manager } from "./modules/util/resourceManagers/tapis.js";
 import consoleStamp from 'console-stamp';
 consoleStamp(console);
 
-const routers = [r2, r4, r5, r6, r7, r8, r9, r10, r11];
+const routers = [r1, r2, r4, r5, r6, r7, r8, r9, r10, r11];
 
 //process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
 process.env["NODE_ENV"] = "production";
