@@ -108,19 +108,54 @@ export function processTapisError(res, reqData, e) {
   .send(reason);
 }
 
+function parseEscapedListString(value: string): string[] {
+  let parsedValues = [];
+  let escape = false;
+  let parsedValue = "";
+  for(let char of value) {
+    switch(char) {
+      // if not escaped, found item boundary, push value, reset, and break
+      // otherwise fallthrough and use character verbatim
+      case ",": {
+        if(!escape) {
+          parsedValues.push(parsedValue);
+          parsedValue = "";
+          break;
+        }
+      }
+      case "\\": {
+        // if not escaped set escape to true and break
+        // otherwise fallthrough and use character verbatim
+        if(!escape) {
+          escape = true;
+          break;
+        }
+      }
+      default: {
+        parsedValue += char;
+        escape = false;
+      }
+    }
+    parsedValues.push(parsedValue);
+  }
+  return parsedValues;
+}
+
 export function parseListParam(param: any, valid: Set<string> = null) {
   let parsed: string[] = [];
-  if(Array.isArray(param) && param.every(value => typeof value === "string")) {
-    parsed = param;
-    if(valid) {
-      parsed = parsed.filter((value) => valid.has(value));
+  if(Array.isArray(param)) {
+    for(let item of param) {
+      if(typeof item === "string") {
+        parsed = parsed.concat(parseEscapedListString(item));
+      }
     }
   }
   else if(typeof param === "string") {
-    parsed = param.split(",");
-    if(valid) {
-      parsed =parsed.filter((value) => valid.has(value));
-    }
+    parsed = parseEscapedListString(param);
+  }
+
+  if(valid) {
+    parsed = parsed.filter((value) => valid.has(value));
   }
   return parsed;
 }
@@ -158,6 +193,21 @@ export function validateArray(param: any, elementValidator?: (value: any, index?
     }
   }
   return valid;
+}
+
+export function deepEqual(obj1: any, obj2: any): boolean {
+  let match = false;
+  if(obj1 === obj2) {
+    match = true;
+  }
+  else if(typeof obj1 == "object" && typeof obj1 == typeof obj2 && obj1 && obj2) {
+    let keys1 = Object.keys(obj1);
+    let keys2 = Object.keys(obj2);
+    if(keys1.length == keys2.length && keys1.every((key: string) => key in obj2 && deepEqual(obj1[key], obj2[key]))) {
+      match = true;
+    }
+  }
+  return match;
 }
 
 export interface MailRes {

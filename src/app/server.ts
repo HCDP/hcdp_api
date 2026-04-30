@@ -12,6 +12,7 @@ import { router as r8 } from "./endpoints/hcdp/packageGen/packageGen.js";
 import { router as r9 } from "./endpoints/hcdp/datasets/dates/dates.js";
 import { router as r10 } from "./endpoints/util/health.js";
 import { router as r11 } from "./endpoints/mesonet/db/climateReport.js";
+import { tapisV3Manager } from "./modules/util/resourceManagers/tapis.js";
 
 //add timestamps to output
 import consoleStamp from 'console-stamp';
@@ -92,6 +93,8 @@ function shutdown(code) {
   //stops new connections and completes existing ones before closing
   server.close(() => {
     console.log(`Server shutdown.`);
+    // stop tapis manager
+    tapisV3Manager.close();
     process.exit(code);
   });
 }

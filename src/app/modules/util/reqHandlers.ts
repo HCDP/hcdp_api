@@ -2,6 +2,20 @@ import { logReq, sendEmail } from "./util.js";
 import { administrators } from "./config.js";
 import { validateToken } from "./auth.js";
 import { apiDB } from "./resourceManagers/db.js";
+import { Request, Response } from "express";
+import QueryString from "qs";
+
+export type RequestData = {
+    user: string,
+    code: number,
+    success: boolean,
+    sizeF: number,
+    method: string,
+    endpoint: string,
+    token: string,
+    sizeB: number,
+    tokenUser: string
+  }
 
 async function sendErrorMessage(errorMsg: string) {
   let htmlErrorMsg = errorMsg.replace(/\n/g, "<br>");
@@ -42,10 +56,10 @@ async function checkSendErrorMessage(errorMsg: string) {
   }
 }
 
-export async function handleReqNoAuth(req, res, handler) {
+export async function handleReqNoAuth(req: Request, res: Response, handler: (reqData: RequestData) => void) {
   //note include success since 202 status might not indicate success in generating download package
   //note sizeB will be 0 for everything but download packages
-  let reqData = {
+  let reqData: RequestData = {
     user: "",
     code: 0,
     success: true,

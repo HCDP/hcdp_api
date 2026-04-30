@@ -1,8 +1,25 @@
-import { TwoWayMap } from './util/util.js';
+import { deepEqual, TwoWayMap } from './util/util.js';
 import fetchRetry from 'fetch-retry';
 const rfetch = fetchRetry(fetch);
 
 const TAPIS_MAX_PAGE_SIZE = 1000;
+
+export type TapisMetadataDocument = { name: string, value: TapisMetadataValue };
+export type TapisMetadataValue = { [field: string]: string };
+
+// mimic tapis error class
+export class TapisHttpError extends Error {
+    "http status code": number;
+
+    constructor(statusCode: number, message: string) {
+        super(message);
+        this.name = this.constructor.name;
+        this["http status code"] = statusCode;
+        
+        // Maintains proper stack trace
+        Error.captureStackTrace(this, this.constructor); 
+    }
+}
 
 class TapisTimeoutError extends Error {
   constructor(message: string) {
@@ -48,13 +65,13 @@ class TapisV3AuthManager {
             // exponential backoff seconds up to 5 minutes
             retryDelay: (attempt) => Math.min(Math.pow(2, attempt) * 1000, 5 * 60 * 1000)
         });
-        let data = await response.json();
+        let data = await TapisV3Manager.handleTapisResponse(response);
         let tokenData = data.result.access_token;
         let { access_token, expires_in } = tokenData;
         let reauthTime = expires_in < 60 ? expires_in * 5 * 1000 : (expires_in - (5 * 60)) * 1000;
         this.reauthTimer = setTimeout(() => {
             this.token = this.auth();
-        }, reauthTime);
+        }, reauthTime).unref();
         return access_token;
     }
 
@@ -137,8 +154,126 @@ export class TapisV3MetadataHandler {
             retryDelay: (attempt) => Math.pow(2, attempt) * 1000
         });
 
-        let data = await response.json();
+        let data = await TapisV3Manager.handleTapisResponse(response);
         return data;
+    }
+
+
+
+    public async createDocs(data: TapisMetadataDocument[], keyFields: string[], db: string, collection: string, replace: boolean = true) {        
+        let replaceDocs: { [key: string]: any } = {};
+        let createDocsList: any[] = [];
+
+        // Check for duplicates concurrently
+        const duplicateTasks = data.map(doc => this.checkDuplicate(doc, keyFields, db, collection, replace));
+        const duplicateData = await Promise.all(duplicateTasks);
+
+        for(const { doc, uuid, action } of duplicateData) {
+            if(action === "replace" && uuid) {
+                replaceDocs[uuid] = doc;
+            }
+            else if (action === "create") {
+                createDocsList.push(doc);
+            }
+        }
+
+        const createTasks = Object.keys(replaceDocs).map(uuid => this.replaceDocument(uuid, replaceDocs[uuid], db, collection));
+        if(createDocsList.length > 0) {
+            createTasks.push(this.createDocsUnsafe(createDocsList, db, collection));
+        }
+        await Promise.all(createTasks);
+        return {
+            replaced: Object.keys(replaceDocs).length,
+            created: createDocsList.length
+        };
+    }
+
+
+    public async createDocsUnsafe(data: TapisMetadataDocument | TapisMetadataDocument[], db: string, collection: string) {
+        const token = await this.authManager.getToken();
+        const url = `${this.url}/meta/${db}/${collection}`;
+        const headers = {
+            "X-Tapis-Token": token,
+            "Content-Type": "application/json"
+        };
+        // if only one item in array move out of array
+        if(Array.isArray(data) && data.length == 1) {
+            data = data[0];
+        }
+
+        if(Array.isArray(data)) {
+            // Bulk ingest up to 500 docs at a time
+            const chunkSize = 500;
+            for (let i = 0; i < data.length; i += chunkSize) {
+                const chunk = data.slice(i, i + chunkSize);
+                let response = await rfetch(url, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(chunk),
+                    retries: this.retryLimit,
+                    retryDelay: (attempt) => Math.pow(2, attempt) * 1000
+                });
+                await TapisV3Manager.handleTapisResponse(response);
+            }
+        }
+        else {
+            let response = await rfetch(url, {
+                method: "POST",
+                headers,
+                body: JSON.stringify(data),
+                retries: this.retryLimit,
+                retryDelay: (attempt) => Math.pow(2, attempt) * 1000
+            });
+            await TapisV3Manager.handleTapisResponse(response);
+        }
+    }
+
+    public async replaceDocument(uuid: string, data: TapisMetadataDocument, db: string, collection: string) {
+        const token = await this.authManager.getToken();
+        const url = `${this.url}/meta/${db}/${collection}/${uuid}`;
+        const headers = {
+            "X-Tapis-Token": token,
+            "Content-Type": "application/json"
+        };
+
+        let response = await rfetch(url, {
+            method: "PUT",
+            headers,
+            body: JSON.stringify(data),
+            retries: this.retryLimit,
+            retryDelay: (attempt) => Math.pow(2, attempt) * 1000
+        });
+        await TapisV3Manager.handleTapisResponse(response);
+    }
+
+
+    private async checkDuplicate(doc: TapisMetadataDocument, keyFields: string[], db: string, collection: string, replace: boolean = true) {
+        let keyData: { [field: string]: any } = {
+            name: doc.name
+        };
+
+        for (const field of keyFields) {
+            keyData[`value.${field}`] = doc.value[field];
+        }
+
+        const matches = await this.queryMetadata(keyData, db, collection);
+
+        let uuid: string | null = null;
+        let action: "create" | "replace" | "skip" = "skip";
+
+        if(matches.length > 1) {
+            throw new TapisHttpError(500, "Multiple entries match the specified key data");
+        }
+        else if(matches.length > 0 && replace && !deepEqual(matches[0].value, doc.value)) {
+            // parse Tapis V3 OID format
+            uuid = matches[0]._id?.$oid || matches[0]._id;
+            action = "replace";
+        }
+        else if(matches.length === 0) {
+            action = "create";
+        }
+
+        return { doc, uuid, action };
     }
 }
 
@@ -152,6 +287,35 @@ export class TapisV3Manager {
         this.meta = new TapisV3MetadataHandler(retryLimit, url, this.authManager);
     }
 
+    public static async handleTapisResponse(response: Response) {
+        const contentType = response.headers.get("content-type");
+
+        // if the response failed (4xx or 5xx) process error and throw
+        if (!response.ok) {
+            let errorMessage = `Tapis API Error: ${response.status} ${response.statusText}`;
+            
+            if (contentType && contentType.includes("application/json")) {
+                const errorBody = await response.json();
+                errorMessage = errorBody.message || errorMessage; 
+            }
+            else {
+                // If it's an HTML page (like a 502 Bad Gateway), grab the text
+                const textBody = await response.text();
+                errorMessage = textBody || errorMessage;
+            }
+
+            throw new TapisHttpError(response.status, errorMessage);
+        }
+
+        // if the response succeeded, ensure it's actually JSON
+        if(contentType && contentType.includes("application/json")) {
+            return await response.json();
+        }
+        // if not JSON throw 500
+        else {
+            throw new TapisHttpError(500, "Expected JSON response from Tapis, but received a different format.");
+        }
+    }
 
     close() {
         this.authManager.end();
@@ -176,8 +340,16 @@ export class HCDPStationTapisMetadataHelper {
         ]);
     }
 
-    public async addMetadata(docs: any[]) {
-        throw new Error("Function not implemented");
+    public async createMetadata(location: string, name: string, values: TapisMetadataValue[], keyFields: string[], replace: boolean = true) {
+        let docs = values.map((value: { [field: string]: string }) => {
+            let doc = {
+                name,
+                value
+            };
+            return doc;
+        });
+        let collection = `${location}_stations`;
+        return await this.tapisManager.meta.createDocs(docs, keyFields, this.database, collection, replace);
     }
 
     public async queryMetadata(location: string, type: "value" | "metadata", values: { [field: string]: string }, limit?: number, offset?: number) {
@@ -209,10 +381,14 @@ export class HCDPStationTapisMetadataHelper {
         return data;
     }
 
-    public async queryMetadataRaw(query: { [field: string]: any }, limit?: number, offset?: number) {
+    public async queryMetadataRaw(query: any, limit?: number, offset?: number) {
         //workaround for extracting location from legacy query style
         const nameRegex = /"name":"(.+?cdp)_station_/;
-        let cdp = JSON.stringify(query).match(nameRegex)[1];
+        let match = JSON.stringify(query).match(nameRegex);
+        if(!match) {
+            throw new TapisHttpError(400, "Query does not contain the name parameter or the provided name is invalid");
+        }
+        let cdp = match[1];
         let location = this.locationCdpTranslation.reverseLookup(cdp);
         let collection = `${location}_stations`;
         let data = await this.query(query, collection, limit, offset);

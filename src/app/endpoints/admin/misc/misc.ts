@@ -1,5 +1,5 @@
 import express from "express";
-import { handleReq } from "../../../modules/util/reqHandlers.js";
+import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
 import { stationMetadataHelper } from "../../../modules/util/resourceManagers/tapis.js";
 import { githubWebhookSecret, logDir } from "../../../modules/util/config.js";
 import CsvReadableStream from "csv-reader";
@@ -15,6 +15,22 @@ import { join } from "path";
 import Cursor from "pg-cursor";
 
 export const router = express.Router();
+
+const HCDP_STATION_HEADER_TRANSLATIONS: { [key: string]: string } = {
+  "SKN": "skn",
+  "Station.Name": "name",
+  "Observer": "observer",
+  "Network": "network",
+  "Island": "island",
+  "ELEV.m.": "elevation_m",
+  "LAT": "lat",
+  "LON": "lng",
+  "NCEI.id": "ncei_id",
+  "NWS.id": "nws_id",
+  "NESDIS.id": "nesdis_id",
+  "SCAN.id": "scan_id",
+  "SMART_NODE_RF.id": "smart_node_rf_id"
+};
 
 function signBlob(key, blob) {
   return "sha1=" + crypto.createHmac("sha1", key).update(blob).digest("hex");
@@ -64,6 +80,7 @@ router.get("/users/emails/apitokens", async (req, res) => {
   });
 });
 
+
 router.get("/users/emails/apiqueries", async (req, res) => {
   const permission = "userdata";
   await handleReq(req, res, permission, async (reqData) => {
@@ -77,10 +94,9 @@ router.get("/users/emails/apiqueries", async (req, res) => {
 });
 
 
-
 //add middleware to get raw body, don't actually need body data so no need to do anything fancy to get parsed body as well
 router.post("/addmetadata", express.raw({ limit: "50mb", type: () => true }), async (req, res) => {
-  try {
+  await handleReqNoAuth(req, res, async (reqData) => {
     //ensure this is coming from github by hashing with the webhook secret
     const receivedSig = req.headers['x-hub-signature'];
     const computedSig = signBlob(githubWebhookSecret, req.body);
@@ -94,7 +110,7 @@ router.post("/addmetadata", express.raw({ limit: "50mb", type: () => true }), as
     let header: string[] | null = null;
     //might want to move file location/header translations to config
     https.get("https://raw.githubusercontent.com/ikewai/hawaii_wx_station_mgmt_container/main/Hawaii_Master_Station_Meta.csv", (res) => {
-      let docs: any[] = [];
+      let values: any[] = [];
       res.pipe(new detectDecodeStream({ defaultEncoding: "1255" }))
       //note old data does not parse numbers, maybe reprocess data with parsed numbers at some point, for now leave everything as strings though
       .pipe(new CsvReadableStream({ parseNumbers: false, parseBooleans: false, trim: true }))
@@ -135,35 +151,22 @@ router.post("/addmetadata", express.raw({ limit: "50mb", type: () => true }), as
           }
           //validate
           if(data.skn && typeof data.lat == "number" && typeof data.lng == "number") {
-            let doc = {
-              name: "hcdp_station_metadata",
-              value: data
-            };
-            docs.push(doc);
+            values.push(data);
           }
-          
         }
       })
-      .on("end", () => {
+      .on("end", async () => {
         //if there are a lot may want to add ability to process in chunks in the future, only a few thousand at the moment so just process all at once
-        stationMetadataHelper.addMetadata(docs)
-        .catch((e) => {
-          console.error(`Metadata ingestion failed. Errors: ${e}`);
-        });
-
+        await stationMetadataHelper.createMetadata("hawaii", "hcdp_station_metadata", values, ["station_group", "skn"])
       })
       .on("error", (e) => {
-        console.error(`Failed to get/read master metadata file. Error: ${e}`);
+        throw e;
       });
     });
-    res.status(202)
+    reqData.code = 202;
+    return res.status(202)
     .send("Metadata update processing.");
-  }
-  catch(e) {
-    console.error(`An unexpected error occurred while processing the metadata request. Error: ${e}`);
-    res.status(500)
-    .send("An unexpected error occurred.");
-  }
+  });
 });
 
 
