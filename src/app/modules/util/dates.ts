@@ -1,7 +1,6 @@
 import moment, { Moment } from "moment-timezone";
+import { DataPortalLocation } from "./config.js";
 
-
-export type DPLocation = "hawaii" | "american_samoa" | "guam";
 
 export interface DateParts {
   year: number | string | undefined,
@@ -13,7 +12,7 @@ export interface DateParts {
   subsecond?: number | string | undefined
 }
 
-export function getTimezone(location: DPLocation) {
+export function getTimezone(location: DataPortalLocation) {
   const tzmap = {
     "hawaii": "Pacific/Honolulu",
     "american_samoa": "Pacific/Pago_Pago",
@@ -22,11 +21,11 @@ export function getTimezone(location: DPLocation) {
   return tzmap[location];
 }
 
-export function setTimezone(location: DPLocation, isoDate: Moment, keepLocalTime: boolean = false) {
+export function setTimezone(location: DataPortalLocation, isoDate: Moment, keepLocalTime: boolean = false) {
   return isoDate.clone().tz(getTimezone(location), keepLocalTime);
 }
 
-export function createTZDateFromString(location: DPLocation, dateString: string, keepLocalTime: boolean = false) {
+export function createTZDateFromString(location: DataPortalLocation, dateString: string, keepLocalTime: boolean = false) {
   let isoDate = moment(dateString)
   return setTimezone(location, isoDate, keepLocalTime);
 }
@@ -37,7 +36,7 @@ export function createISODateFromParts(parts: DateParts) {
   return moment(isoDateStr);
 }
 
-export function createTZDateFromParts(location: DPLocation, parts: DateParts, keepLocalTime: boolean = false) {
+export function createTZDateFromParts(location: DataPortalLocation, parts: DateParts, keepLocalTime: boolean = false) {
   let isoDate = createISODateFromParts(parts);
   return setTimezone(location, isoDate, keepLocalTime);
 }

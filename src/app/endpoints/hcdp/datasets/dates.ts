@@ -1,6 +1,6 @@
 import express from "express";
-import { handleReq } from "../../../../modules/util/reqHandlers.js";
-import { getDatasetDateRange } from "../../../../modules/fileIndexer.js";
+import { handleReq } from "../../../modules/util/reqHandlers.js";
+import { getDatasetDateRange } from "../../../modules/fileIndexer.js";
 
 export const router = express.Router();
 

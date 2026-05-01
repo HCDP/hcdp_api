@@ -1,12 +1,6 @@
 import express from "express";
-import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
-import { stationMetadataHelper } from "../../../modules/util/resourceManagers/tapis.js";
-import { githubWebhookSecret, logDir } from "../../../modules/util/config.js";
-import CsvReadableStream from "csv-reader";
-import detectDecodeStream from "autodetect-decoder-stream";
-import safeCompare from "safe-compare";
-import * as crypto from "crypto";
-import * as https from "https";
+import { handleReq } from "../../../modules/util/reqHandlers.js";
+import { logDir } from "../../../modules/util/config.js";
 import * as fs from "fs";
 import { apiDB } from "../../../modules/util/resourceManagers/db.js";
 import { parseParams } from "../../../modules/util/dbUtil.js";
@@ -15,26 +9,6 @@ import { join } from "path";
 import Cursor from "pg-cursor";
 
 export const router = express.Router();
-
-const HCDP_STATION_HEADER_TRANSLATIONS: { [key: string]: string } = {
-  "SKN": "skn",
-  "Station.Name": "name",
-  "Observer": "observer",
-  "Network": "network",
-  "Island": "island",
-  "ELEV.m.": "elevation_m",
-  "LAT": "lat",
-  "LON": "lng",
-  "NCEI.id": "ncei_id",
-  "NWS.id": "nws_id",
-  "NESDIS.id": "nesdis_id",
-  "SCAN.id": "scan_id",
-  "SMART_NODE_RF.id": "smart_node_rf_id"
-};
-
-function signBlob(key, blob) {
-  return "sha1=" + crypto.createHmac("sha1", key).update(blob).digest("hex");
-}
 
 router.get("/users/emails/apitokens", async (req, res) => {
   const permission = "userdata";
@@ -90,82 +64,6 @@ router.get("/users/emails/apiqueries", async (req, res) => {
     reqData.code = 200;
     return res.status(200)
     .json(data);
-  });
-});
-
-
-//add middleware to get raw body, don't actually need body data so no need to do anything fancy to get parsed body as well
-router.post("/addmetadata", express.raw({ limit: "50mb", type: () => true }), async (req, res) => {
-  await handleReqNoAuth(req, res, async (reqData) => {
-    //ensure this is coming from github by hashing with the webhook secret
-    const receivedSig = req.headers['x-hub-signature'];
-    const computedSig = signBlob(githubWebhookSecret, req.body);
-    if(!safeCompare(receivedSig, computedSig)) {
-      return res.status(401).end();
-    }
-    //only process github push events
-    if(req.headers["x-github-event"] != "push") {
-      return res.status(200).end();
-    }
-    let header: string[] | null = null;
-    //might want to move file location/header translations to config
-    https.get("https://raw.githubusercontent.com/ikewai/hawaii_wx_station_mgmt_container/main/Hawaii_Master_Station_Meta.csv", (res) => {
-      let values: any[] = [];
-      res.pipe(new detectDecodeStream({ defaultEncoding: "1255" }))
-      //note old data does not parse numbers, maybe reprocess data with parsed numbers at some point, for now leave everything as strings though
-      .pipe(new CsvReadableStream({ parseNumbers: false, parseBooleans: false, trim: true }))
-      .on("data", (row) => {
-        if(header === null) {
-          let translations = {
-            "SKN": "skn",
-            "Station.Name": "name",
-            "Observer": "observer",
-            "Network": "network",
-            "Island": "island",
-            "ELEV.m.": "elevation_m",
-            "LAT": "lat",
-            "LON": "lng",
-            "NCEI.id": "ncei_id",
-            "NWS.id": "nws_id",
-            "NESDIS.id": "nesdis_id",
-            "SCAN.id": "scan_id",
-            "SMART_NODE_RF.id": "smart_node_rf_id"
-          }
-          header = [];
-          for(let property of row) {
-            let trans = translations[property] ? translations[property] : property;
-            header.push(trans);
-          }
-        }
-        else {
-          let data: any = {
-            station_group: "hawaii_climate_primary",
-            id_field: "skn"
-          };
-          for(let i = 0; i < header.length; i++) {
-            let property = header[i];
-            let value = row[i];
-            if(value != "NA") {
-              data[property] = value;
-            }
-          }
-          //validate
-          if(data.skn && typeof data.lat == "number" && typeof data.lng == "number") {
-            values.push(data);
-          }
-        }
-      })
-      .on("end", async () => {
-        //if there are a lot may want to add ability to process in chunks in the future, only a few thousand at the moment so just process all at once
-        await stationMetadataHelper.createMetadata("hawaii", "hcdp_station_metadata", values, ["station_group", "skn"])
-      })
-      .on("error", (e) => {
-        throw e;
-      });
-    });
-    reqData.code = 202;
-    return res.status(202)
-    .send("Metadata update processing.");
   });
 });
 

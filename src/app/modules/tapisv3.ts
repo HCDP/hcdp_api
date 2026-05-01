@@ -1,3 +1,4 @@
+import { DataPortalLocation } from './util/config.js';
 import { deepEqual, TwoWayMap } from './util/util.js';
 import fetchRetry from 'fetch-retry';
 const rfetch = fetchRetry(fetch);
@@ -5,7 +6,8 @@ const rfetch = fetchRetry(fetch);
 const TAPIS_MAX_PAGE_SIZE = 1000;
 
 export type TapisMetadataDocument = { name: string, value: TapisMetadataValue };
-export type TapisMetadataValue = { [field: string]: string };
+export type TapisMetadataValue = { [field: string]: string | number };
+export type HCDPTapisMetadataType = "value" | "metadata";
 
 // mimic tapis error class
 export class TapisHttpError extends Error {
@@ -340,8 +342,10 @@ export class HCDPStationTapisMetadataHelper {
         ]);
     }
 
-    public async createMetadata(location: string, name: string, values: TapisMetadataValue[], keyFields: string[], replace: boolean = true) {
-        let docs = values.map((value: { [field: string]: string }) => {
+    public async createMetadata(location: DataPortalLocation, type: HCDPTapisMetadataType, values: TapisMetadataValue[], keyFields: string[], replace: boolean = true) {
+        let cdp = this.locationCdpTranslation.lookup(location);
+        let name = `${cdp}_station_${type}`;
+        let docs = values.map((value: { [field: string]: string | number }) => {
             let doc = {
                 name,
                 value
@@ -352,9 +356,9 @@ export class HCDPStationTapisMetadataHelper {
         return await this.tapisManager.meta.createDocs(docs, keyFields, this.database, collection, replace);
     }
 
-    public async queryMetadata(location: string, type: "value" | "metadata", values: { [field: string]: string }, limit?: number, offset?: number) {
+    public async queryMetadata(location: DataPortalLocation, type: HCDPTapisMetadataType, values: { [field: string]: string }, limit?: number, offset?: number) {
         let queryValues: { [field: string]: any } = values;
-        if( type === "value") {
+        if(type === "value") {
             let { startDate, endDate, ...params } = values;
             queryValues = { ...params };
             if(startDate || endDate) {

@@ -21,7 +21,9 @@ fsHealthData.file = join(dataRoot, fsHealthData.file);
 
 export const { port, smtp, smtpPort, emailConfig, defaultZipName, urlRoot, logDir, administrators, databaseConnections, tapisV3Config, githubWebhookSecret, licenseFile } = config;
 
-export const mesonetLocations = ["american_samoa", "hawaii"];
+export const mesonetLocations = ["hawaii", "american_samoa"];
+export const dataPortalLocations = ["hawaii", "american_samoa", "guam"] as const;
+export type DataPortalLocation = typeof dataPortalLocations[number];
 
 export const apiURL = "https://api.hcdp.ikewai.org";
 

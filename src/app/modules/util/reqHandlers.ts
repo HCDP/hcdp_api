@@ -92,7 +92,7 @@ export async function handleReqNoAuth(req: Request, res: Response, handler: (req
   logReq(reqData);
 }
 
-export async function handleReq(req, res, permission, handler) {
+export async function handleReq(req: Request, res: Response, permission: string, handler: (reqData: RequestData) => void) {
   //note include success since 202 status might not indicate success in generating download package
   //note sizeB will be 0 for everything but download packages
   let reqData = {
