@@ -189,7 +189,7 @@ router.post("/stations/:type(value|metadata)", async (req, res) => {
 
     const metadataType = req.params.type as HCDPTapisMetadataType;
 
-    let { location, replace, values, keyFields }: any = req.body;
+    let { location, replace, values, additionalKeyFields }: any = req.body;
 
     // validate values and set defaults
     if(typeof replace !== "boolean") {
@@ -198,14 +198,14 @@ router.post("/stations/:type(value|metadata)", async (req, res) => {
     if(!dataPortalLocations.includes(location)) {
       location = "hawaii";
     }
+    if(!Array.isArray(additionalKeyFields)) {
+      additionalKeyFields = [];
+    }
     if(!Array.isArray(values) || values.length < 1) {
       return r400("No values provided");
     }
-    if(!Array.isArray(keyFields) || keyFields.length < 1) {
-      return r400("No key fields provided");
-    }
-    if(!validateArray(keyFields, (value) => validateType(value, ["string"]))) {
-      return r400("keyFields must be an array of strings");
+    if(!validateArray(additionalKeyFields, (value) => validateType(value, ["string"]))) {
+      return r400("additionalKeyFields must be an array of strings");
     }
 
     for(let item of values) {
@@ -219,7 +219,7 @@ router.post("/stations/:type(value|metadata)", async (req, res) => {
 
     let data = null;
     try {
-      data = await stationMetadataHelper.createMetadata(location, metadataType, values, keyFields, replace);
+      data = await stationMetadataHelper.createMetadata(location, metadataType, values, additionalKeyFields, replace);
     }
     catch(e) {
       return processTapisError(res, reqData, e);
@@ -305,7 +305,7 @@ router.post("/addmetadata", express.raw({ limit: "50mb", type: () => true }), as
       }
     }
 
-    await stationMetadataHelper.createMetadata("hawaii", "metadata", values, ["station_group", "skn"]);
+    await stationMetadataHelper.createMetadata("hawaii", "metadata", values);
 
     reqData.code = 204;
     return res.status(204).end();

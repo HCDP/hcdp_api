@@ -19,6 +19,54 @@ const STAT_TABLE_DATA = {
   temperature_historical: ['island', 'division_type', 'name', 'date', 'value']
 };
 
+
+function createClimateReportWhereClause(date: string | undefined, startDate: string | undefined, endDate: string | undefined, islands: string[], divisionTypes: string[], names: string[]): { whereClause: string, params: string[] } {
+  let params: any[] = [];
+  let conditions: string[] = [];
+
+  if(islands.length > 0) {
+    parseParams(islands, params, conditions, "island");
+  }
+  if(divisionTypes.length > 0) {
+    parseParams(divisionTypes, params, conditions, "division_type");
+  }
+  if(names.length > 0) {
+    parseParams(names, params, conditions, "name");
+  }
+
+  // Filter by exact date, or range
+  if(date) {
+    if(typeof date !== "string" || !moment(date).isValid()) {
+      throw new Error("Invalid date format");
+    }
+    params.push(moment(date).format('YYYY-MM-DD'));
+    conditions.push(`date = $${params.length}`);
+  }
+  else {
+    if(startDate){
+      if(typeof startDate !== "string" || !moment(startDate).isValid()) {
+        throw new Error("Invalid startDate format");
+      }
+      params.push(moment(startDate).format('YYYY-MM-DD'));
+      conditions.push(`date >= $${params.length}`);
+    }
+    if(endDate) {
+      if (typeof endDate !== "string" || !moment(endDate).isValid()) {
+        throw new Error("Invalid endDate format");
+      }
+      params.push(moment(endDate).format('YYYY-MM-DD'));
+      conditions.push(`date <= $${params.length}`);
+    }
+  }
+  
+  let whereClause = ""
+  if(conditions.length > 0) {
+    whereClause = `WHERE ${conditions.join(" AND ")}`;
+  }
+  return { whereClause, params };
+}
+
+
 async function getUserID(email: string): Promise<string> {
   let query = `
     SELECT id
@@ -396,13 +444,6 @@ router.post("/mesonet/climate_report/subscription/:id/email", async (req, res) =
 
 
 
-
-
-
-
-
-
-
 router.get("/mesonet/climate_report/:table", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
@@ -429,47 +470,21 @@ router.get("/mesonet/climate_report/:table", async (req, res) => {
     let divisionTypes = parseListParam(division_type);
     let names = parseListParam(name);
 
-    let params: any[] = [];
-    let conditions: string[] = [];
-
-    if(islands.length > 0) {
-      parseParams(islands, params, conditions, "island");
-    }
-    if(divisionTypes.length > 0) {
-      parseParams(divisionTypes, params, conditions, "division_type");
-    }
-    if(names.length > 0) {
-      parseParams(names, params, conditions, "name");
+    if(
+      date && typeof date !== "string" ||
+      startDate && typeof startDate !== "string" ||
+      endDate && typeof endDate !== "string"
+    ) {
+      return e400("Invalid date format");
     }
 
-    // Filter by exact date, or range
-    if(date) {
-      if(typeof date !== "string" || !moment(date).isValid()) {
-        return e400("Invalid date format");
-      }
-      params.push(moment(date).format('YYYY-MM-DD'));
-      conditions.push(`date = $${params.length}`);
+    let whereClause: string;
+    let params: string[];
+    try {
+      ({ whereClause, params } = createClimateReportWhereClause(date as string | undefined, startDate as string | undefined, endDate as string | undefined, islands, divisionTypes, names));
     }
-    else {
-      if(startDate){
-        if(typeof startDate !== "string" || !moment(startDate).isValid()) {
-          return e400("Invalid startDate format");
-        }
-        params.push(moment(startDate).format('YYYY-MM-DD'));
-        conditions.push(`date >= $${params.length}`);
-      }
-      if(endDate) {
-        if (typeof endDate !== "string" || !moment(endDate).isValid()) {
-          return e400("Invalid endDate format");
-        }
-        params.push(moment(endDate).format('YYYY-MM-DD'));
-        conditions.push(`date <= $${params.length}`);
-      }
-    }
-   
-    let whereClause = ""
-    if(conditions.length > 0) {
-      whereClause = `WHERE ${conditions.join(" AND ")}`;
+    catch(e: any) {
+      return e400(e?.message || e?.toString());
     }
 
     let columns = tableSchema.join(", ");
@@ -500,7 +515,6 @@ router.get("/mesonet/climate_report/:table", async (req, res) => {
     .json(data);
   });
 });
-
 
 
 
@@ -565,7 +579,7 @@ router.post("/mesonet/climate_report/:table", async (req, res) => {
           case 1:
           case 2: {
             if (typeof row[colIndex] !== "string") {
-              return e400(`Invalid division provided at row ${rowIndex}, column ${colIndex}.`);
+              return e400(`Invalid string value provided at row ${rowIndex}, column ${colIndex}.`);
             }
             break;
           }
@@ -614,5 +628,69 @@ router.post("/mesonet/climate_report/:table", async (req, res) => {
     reqData.code = 200;
     return res.status(200)
     .json({ modified });
+  });
+});
+
+
+
+
+router.delete("/mesonet/climate_report/:table", async (req, res) => {
+  const permission = "meso_admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    const e400 = (reason: string) => {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(reason);
+    }
+
+    const { table } = req.params;
+    const tableSchema = STAT_TABLE_DATA[table];
+
+    if(!tableSchema) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return e400(`Invalid table ${table}, valid tables: ${Object.keys(STAT_TABLE_DATA)}`); 
+    }
+
+    let { date, startDate, endDate, island, division_type, name } = req.body;
+    if(
+      date && typeof date !== "string" ||
+      startDate && typeof startDate !== "string" ||
+      endDate && typeof endDate !== "string"
+    ) {
+      return e400("Invalid date format");
+    }
+    let islands = Array.isArray(island) ? island : (island ? [island] : []);
+    let divisionTypes = Array.isArray(division_type) ? division_type : (division_type ? [division_type] : []);
+    let names = Array.isArray(name) ? name : (name ? [name] : []);
+
+    let whereClause: string;
+    let params: string[];
+    try {
+      ({ whereClause, params } = createClimateReportWhereClause(date, startDate, endDate, islands, divisionTypes, names));
+    }
+    catch(e: any) {
+      return e400(e?.message || e?.toString());
+    }
+
+    if(!whereClause || whereClause.trim() === "") {
+      return e400("Must provide at least one condition for deletion");
+    }
+
+    let query = `
+      DELETE FROM climate_report.${table}
+      ${whereClause};
+    `;
+
+    // Execute the query using your existing admin driver
+    let deleted = await hcdpGeneralAdmin.queryNoRes(query, params);
+    
+    reqData.code = 200;
+    return res.status(200)
+    .json({ deleted });
+
   });
 });

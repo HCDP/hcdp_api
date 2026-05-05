@@ -1,3 +1,5 @@
+
+
 export function parseParams(paramListArr: string[], allParams: string[], whereClauses: string[], column: string) {
   let orClauses: string[] = [];
   let paramSet = new Set(paramListArr);

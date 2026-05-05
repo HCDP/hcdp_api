@@ -9,6 +9,23 @@ export type TapisMetadataDocument = { name: string, value: TapisMetadataValue };
 export type TapisMetadataValue = { [field: string]: string | number };
 export type HCDPTapisMetadataType = "value" | "metadata";
 
+
+export class HCDPTapisMetadataKeyError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = this.constructor.name;
+        Error.captureStackTrace(this, this.constructor); 
+    }
+}
+
+export class HCDPTapisMetadataTypeError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = this.constructor.name;
+        Error.captureStackTrace(this, this.constructor); 
+    }
+}
+
 // mimic tapis error class
 export class TapisHttpError extends Error {
     "http status code": number;
@@ -162,7 +179,7 @@ export class TapisV3MetadataHandler {
 
 
 
-    public async createDocs(data: TapisMetadataDocument[], keyFields: string[], db: string, collection: string, replace: boolean = true) {        
+    public async createDocs(data: TapisMetadataDocument[], keyFields: Set<string>, db: string, collection: string, replace: boolean = true) {        
         let replaceDocs: { [key: string]: any } = {};
         let createDocsList: any[] = [];
 
@@ -249,7 +266,7 @@ export class TapisV3MetadataHandler {
     }
 
 
-    private async checkDuplicate(doc: TapisMetadataDocument, keyFields: string[], db: string, collection: string, replace: boolean = true) {
+    private async checkDuplicate(doc: TapisMetadataDocument, keyFields: Set<string>, db: string, collection: string, replace: boolean = true) {
         let keyData: { [field: string]: any } = {
             name: doc.name
         };
@@ -342,7 +359,31 @@ export class HCDPStationTapisMetadataHelper {
         ]);
     }
 
-    public async createMetadata(location: DataPortalLocation, type: HCDPTapisMetadataType, values: TapisMetadataValue[], keyFields: string[], replace: boolean = true) {
+    private getDefaultKeyFields(type: HCDPTapisMetadataType): string[] {
+        let keyFields: string[];
+        if(type == "metadata") {
+            keyFields = ["station_group", "skn"];
+        }
+        else if(type == "value") {
+            keyFields = ["station_id", "datatype", "period", "date", "fill"];
+        }
+        else {
+            throw new HCDPTapisMetadataTypeError(`Invalid metadata type ${type} provided.`);
+        }
+        return keyFields;
+    }
+
+    private validateDataKeys(values: TapisMetadataValue[], keyFields: Set<string>): void {
+        for(let value of values) {
+            for(let key of keyFields) {
+                if(!value[key]) {
+                    throw new HCDPTapisMetadataKeyError(`Value does not include key value ${key} or the value is invalid`);
+                }
+            }
+        }
+    }
+
+    public async createMetadata(location: DataPortalLocation, type: HCDPTapisMetadataType, values: TapisMetadataValue[], additionalKeyFields: string[] = [], replace: boolean = true) {
         let cdp = this.locationCdpTranslation.lookup(location);
         let name = `${cdp}_station_${type}`;
         let docs = values.map((value: { [field: string]: string | number }) => {
@@ -353,7 +394,10 @@ export class HCDPStationTapisMetadataHelper {
             return doc;
         });
         let collection = `${location}_stations`;
-        return await this.tapisManager.meta.createDocs(docs, keyFields, this.database, collection, replace);
+        let defaultKeys = this.getDefaultKeyFields(type);
+        let allKeyFields = new Set([...defaultKeys, ...additionalKeyFields]);
+        this.validateDataKeys(values, allKeyFields);
+        return await this.tapisManager.meta.createDocs(docs, allKeyFields, this.database, collection, replace);
     }
 
     public async queryMetadata(location: DataPortalLocation, type: HCDPTapisMetadataType, values: { [field: string]: string }, limit?: number, offset?: number) {
