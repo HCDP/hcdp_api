@@ -148,7 +148,7 @@ router.get("/files/production/retrieve", async (req, res) => {
 router.get(/^\/files\/explore(\/.*)?$/, async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
-    const allowedDirs = ["NASA_downscaling", "production", "workflow_data", "raw", "backup_data_aqs", "kml_files", "empty", "ASCDP", "GCDP"]
+    const allowedDirs = ["NASA_downscaling", "production", "workflow_data", "raw", "backup_data_aqs", "kml_files", "empty", "ASCDP", "GCDP", "climate_report_data"]
     const allowedPaths = allowedDirs.map((sub: string) => path.join(dataRoot, sub));
     const userPath = path.resolve(req.params[0] || "/");
     const dataPath = path.join(dataRoot, userPath);
