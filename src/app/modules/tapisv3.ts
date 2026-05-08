@@ -310,7 +310,7 @@ export class TapisV3Manager {
         const contentType = response.headers.get("content-type");
         const responseText = await response.text();
         let responseJSON = null;
-        // Tapis is awful and may return nothing while reporting a content type of application/json
+        // check valid JSON response
         if(responseText && responseText.trim() !== "" && contentType?.includes("application/json")) {
             // make sure it doesn't return invalid JSON
             try {
