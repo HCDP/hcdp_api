@@ -308,32 +308,24 @@ export class TapisV3Manager {
 
     public static async handleTapisResponse(response: Response) {
         const contentType = response.headers.get("content-type");
+        const responseText = await response.text();
+        let responseJSON = null;
+        // Tapis is awful and may return nothing while reporting a content type of application/json
+        if(responseText && responseText.trim() !== "" && contentType?.includes("application/json")) {
+            // make sure it doesn't return invalid JSON
+            try {
+                responseJSON = JSON.parse(responseText);
+            }
+            catch(e) {}
+        }
 
         // if the response failed (4xx or 5xx) process error and throw
-        if (!response.ok) {
-            let errorMessage = `Tapis API Error: ${response.status} ${response.statusText}`;
-            
-            if (contentType && contentType.includes("application/json")) {
-                const errorBody = await response.json();
-                errorMessage = errorBody.message || errorMessage; 
-            }
-            else {
-                // If it's an HTML page (like a 502 Bad Gateway), grab the text
-                const textBody = await response.text();
-                errorMessage = textBody || errorMessage;
-            }
-
+        if(!response.ok) {
+            let errorMessage = `Tapis API Error: ${responseJSON?.message || responseText || response.statusText}`;
             throw new TapisHttpError(response.status, errorMessage);
         }
-
-        // if the response succeeded, ensure it's actually JSON
-        if(contentType && contentType.includes("application/json")) {
-            return await response.json();
-        }
-        // if not JSON throw 500
-        else {
-            throw new TapisHttpError(500, "Expected JSON response from Tapis, but received a different format.");
-        }
+        // otherwise return the response data
+        return responseJSON;
     }
 
     close() {

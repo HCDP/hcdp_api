@@ -101,7 +101,7 @@ export function processTapisError(res, reqData, e) {
   }
   if(reason === undefined) {
     reason = "An error occured while processing the request.";
-    console.error(`An unexpected error occurred while listing the measurements. Error: ${e}`);
+    console.error(`An unexpected error occurred during a Tapis operation. Error: ${e}`);
   }
   reqData.code = status;
   res.status(status)
