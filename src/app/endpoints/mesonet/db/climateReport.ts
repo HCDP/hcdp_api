@@ -10,7 +10,7 @@ import { parseListParam } from "../../../modules/util/util.js";
 
 export const router = express.Router();
 
-const REPORT_TYPES = ["ahupuaa", "county", "watershed", "moku"];
+const REPORT_TYPES = ["ahupuaa", "island", "watershed", "moku"];
 const STAT_TABLE_DATA = {
   rainfall_stats: ['island', 'division_type', 'name', 'date', 'mean', 'anomaly', 'pchange', 'rank', 'ytd_pnormal'],
   temperature_stats: ['island', 'division_type', 'name', 'date', 'mean', 'anomaly', 'pchange', 'rank', 'max'],
@@ -99,8 +99,8 @@ router.post("/mesonet/climate_report/subscribe", async (req, res) => {
       .send(
         `Request body must be a JSON object including the following parameters: \n\
         email: A valid email string to receive climate reports at. \n\
-        ahupuaʻa (optional): An array of the names of ahupuaa to include in the climate report \n\
-        county (optional): An array of the names of counties to include in the climate report \n\
+        ahupuaa (optional): An array of the names of ahupuaʻa to include in the climate report \n\
+        island (optional): An array of the names of islands to include in the climate report \n\
         watershed (optional): An array of the names of watershed to include in the climate report \n\
         moku (optional): An array of the names of moku to include in the climate report`
       );
@@ -124,17 +124,17 @@ router.post("/mesonet/climate_report/subscribe", async (req, res) => {
       }
     }
     
-    const { ahupuaa, county, watershed, moku } = req.body;
+    const { ahupuaa, island, watershed, moku } = req.body;
     
     let query = `
-      INSERT INTO climate_report.climate_report_register
+      INSERT INTO climate_report.climate_report_register (id, email, ahupuaa, island, watershed, moku, created, modified, active)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)
       ON CONFLICT (email) DO UPDATE
-      SET ahupuaa = $3, county = $4, watershed = $5, moku = $6, modified = $8, active = TRUE
+      SET ahupuaa = $3, island = $4, watershed = $5, moku = $6, modified = $8, active = TRUE
       WHERE climate_report.climate_report_register.active = FALSE;
     `;
 
-    let modified = await hcdpGeneralAdmin.queryNoRes(query, [id, email, ahupuaa, county, watershed, moku, timestamp, timestamp]);
+    let modified = await hcdpGeneralAdmin.queryNoRes(query, [id, email, ahupuaa, island, watershed, moku, timestamp, timestamp]);
 
     if(!modified) {
       reqData.success = false;
@@ -189,7 +189,7 @@ router.get("/mesonet/climate_report/subscription/:id", async (req, res) => {
     }
 
     let query = `
-      SELECT email, ahupuaa, county, watershed, moku, created, modified, active
+      SELECT email, ahupuaa, island, watershed, moku, created, modified, active
       FROM climate_report.climate_report_register
       WHERE id = $1 AND active = TRUE;
     `;
@@ -252,8 +252,8 @@ router.patch("/mesonet/climate_report/subscription/:id", async (req, res) => {
       return res.status(400)
       .send(
         `Request body must include at least one of the following fields to update: \n\
-        ahupuaʻa: An array of the names of ahupuaa to include in the climate report \n\
-        county: An array of the names of counties to include in the climate report \n\
+        ahupuaa: An array of the names of ahupuaʻa to include in the climate report \n\
+        island: An array of the names of islands to include in the climate report \n\
         watershed: An array of the names of watershed to include in the climate report \n\
         moku: An array of the names of moku to include in the climate report`
       );
@@ -324,7 +324,7 @@ router.get("/mesonet/climate_report/subscriptions", async (req, res) => {
   const permission = "userdata";
   await handleReq(req, res, permission, async (reqData) => {
     let query = `
-      SELECT id, email, ahupuaa, county, watershed, moku
+      SELECT id, email, ahupuaa, island, watershed, moku
       FROM climate_report.climate_report_register
       WHERE active = TRUE;
     `;
