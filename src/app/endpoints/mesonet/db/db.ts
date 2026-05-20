@@ -1689,7 +1689,7 @@ class MesonetCSVWriter {
   
     if(!this.state.header || !this.state.index) {
       this.state.index = {};
-      this.state.header = [`Timestamp ${this.timezone}`, "Station ID"];
+      this.state.header = [`Timestamp (${this.timezone})`, "Station ID"];
       for(let item of this.varMetadata) {
         let {display_name, units, standard_name} = item;
         let headerVar = display_name;
