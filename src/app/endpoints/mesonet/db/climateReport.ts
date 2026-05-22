@@ -10,7 +10,7 @@ import { parseListParam } from "../../../modules/util/util.js";
 
 export const router = express.Router();
 
-const REPORT_TYPES = ["ahupuaa", "island", "watershed", "moku"];
+const REPORT_TYPES = ["ahupuaa", "island", "watershed", "moku", "climate"];
 const STAT_TABLE_DATA = {
   rainfall_stats: ['island', 'division_type', 'name', 'date', 'mean', 'anomaly', 'pchange', 'rank', 'ytd_pnormal'],
   temperature_stats: ['island', 'division_type', 'name', 'date', 'mean', 'anomaly', 'pchange', 'rank', 'max'],
@@ -102,7 +102,8 @@ router.post("/mesonet/climate_report/subscribe", async (req, res) => {
         ahupuaa (optional): An array of the names of ahupuaʻa to include in the climate report \n\
         island (optional): An array of the names of islands to include in the climate report \n\
         watershed (optional): An array of the names of watershed to include in the climate report \n\
-        moku (optional): An array of the names of moku to include in the climate report`
+        moku (optional): An array of the names of moku to include in the climate report
+        climate (optional): An array of the names of climates to include in the climate report`
       );
     }
     let id = uuidv4()
@@ -124,17 +125,17 @@ router.post("/mesonet/climate_report/subscribe", async (req, res) => {
       }
     }
     
-    const { ahupuaa, island, watershed, moku } = req.body;
+    const { ahupuaa, island, watershed, moku, climate } = req.body;
     
     let query = `
-      INSERT INTO climate_report.climate_report_register (id, email, ahupuaa, island, watershed, moku, created, modified, active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)
+      INSERT INTO climate_report.climate_report_register (id, email, ahupuaa, island, watershed, moku, climate, created, modified, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE)
       ON CONFLICT (email) DO UPDATE
-      SET ahupuaa = $3, island = $4, watershed = $5, moku = $6, modified = $8, active = TRUE
+      SET ahupuaa = $3, island = $4, watershed = $5, moku = $6, climate = $7 modified = $9, active = TRUE
       WHERE climate_report.climate_report_register.active = FALSE;
     `;
 
-    let modified = await hcdpGeneralAdmin.queryNoRes(query, [id, email, ahupuaa, island, watershed, moku, timestamp, timestamp]);
+    let modified = await hcdpGeneralAdmin.queryNoRes(query, [id, email, ahupuaa, island, watershed, moku, climate, timestamp, timestamp]);
 
     if(!modified) {
       reqData.success = false;
@@ -189,7 +190,7 @@ router.get("/mesonet/climate_report/subscription/:id", async (req, res) => {
     }
 
     let query = `
-      SELECT email, ahupuaa, island, watershed, moku, created, modified, active
+      SELECT email, ahupuaa, island, watershed, moku, climate, created, modified, active
       FROM climate_report.climate_report_register
       WHERE id = $1 AND active = TRUE;
     `;
@@ -255,7 +256,8 @@ router.patch("/mesonet/climate_report/subscription/:id", async (req, res) => {
         ahupuaa: An array of the names of ahupuaʻa to include in the climate report \n\
         island: An array of the names of islands to include in the climate report \n\
         watershed: An array of the names of watershed to include in the climate report \n\
-        moku: An array of the names of moku to include in the climate report`
+        moku: An array of the names of moku to include in the climate report
+        climate: An array of climates to include in the climate report`
       );
     }
     // update time record was modified
@@ -324,7 +326,7 @@ router.get("/mesonet/climate_report/subscriptions", async (req, res) => {
   const permission = "userdata";
   await handleReq(req, res, permission, async (reqData) => {
     let query = `
-      SELECT id, email, ahupuaa, island, watershed, moku
+      SELECT id, email, ahupuaa, island, watershed, moku, climate
       FROM climate_report.climate_report_register
       WHERE active = TRUE;
     `;
@@ -403,20 +405,21 @@ router.post("/mesonet/climate_report/subscription/:id/email", async (req, res) =
 
     const subject = "Your Monthly Hawaiʻi Climate Report";
 
-    const socSite = "https://www.hawaii.edu/climate-data-portal/state-of-the-climate";
+    const socSite = " https://www.hawaii.edu/climate-data-portal/climate-summary";
     const unsubscribeLink = `${socSite}/#/unsubscribe?id=${id}`;
+    const preferenceUpdateLink = `${socSite}/#/manage-preferences?id=${id}`;
 
     //text
     const introText = "Here is your monthly climate report:";
     const signoffText = "Thank you for subscribing! Sincerely,\nThe HCDP Team"
-    const unsubscribeMessageText = `Subscription preferences can be updated at ${socSite} No longer interested in receiving these emails? Visit ${unsubscribeLink} to unsubscribe.`;
+    const unsubscribeMessageText = `Subscription preferences can be updated at ${preferenceUpdateLink} No longer interested in receiving these emails? Visit ${unsubscribeLink} to unsubscribe.`;
     let textParts = [introText, text, signoffText, unsubscribeMessageText];
     text = textParts.join("\n");
 
     //html
     const introHTML = "<h3>Here is your monthly climate report:</h3>";
     const signoffHTML = "<p>Thank you for subscribing! Sincerely,<br/>The HCDP Team</p>"
-    const unsubscribeMessageHTML = `<p>Subscription preferences can be updated <a href="${socSite}">here</a>. No longer interested in receiving these emails? <a href="${unsubscribeLink}">Unsubscribe</a></p>`;
+    const unsubscribeMessageHTML = `<p>Subscription preferences can be updated <a href="${preferenceUpdateLink}">here</a>. No longer interested in receiving these emails? <a href="${unsubscribeLink}">Unsubscribe</a></p>`;
     let htmlParts = [html, signoffHTML, unsubscribeMessageHTML];
     html = `${introHTML}${htmlParts.join("<br/>")}`;
     
