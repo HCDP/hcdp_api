@@ -131,7 +131,7 @@ router.post("/mesonet/climate_report/subscribe", async (req, res) => {
       INSERT INTO climate_report.climate_report_register (id, email, ahupuaa, island, watershed, moku, climate, created, modified, active)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE)
       ON CONFLICT (email) DO UPDATE
-      SET ahupuaa = $3, island = $4, watershed = $5, moku = $6, climate = $7 modified = $9, active = TRUE
+      SET ahupuaa = $3, island = $4, watershed = $5, moku = $6, climate = $7, modified = $9, active = TRUE
       WHERE climate_report.climate_report_register.active = FALSE;
     `;
 
