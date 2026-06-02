@@ -1,7 +1,9 @@
 import { DataPortalLocation } from './util/config.js';
 import { deepEqual, TwoWayMap } from './util/util.js';
 import fetchRetry from 'fetch-retry';
-const rfetch = fetchRetry(fetch);
+const rfetch = fetchRetry(fetch, {
+    retryOn: [500, 502, 503, 504] 
+});
 
 const TAPIS_MAX_PAGE_SIZE = 1000;
 
