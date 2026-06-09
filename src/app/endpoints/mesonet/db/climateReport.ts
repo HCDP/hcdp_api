@@ -410,18 +410,16 @@ router.post("/mesonet/climate_report/subscription/:id/email", async (req, res) =
     const preferenceUpdateLink = `${socSite}/#/manage-preferences?id=${id}`;
 
     //text
-    const introText = "Here is your monthly climate report:";
     const signoffText = "Thank you for subscribing! Sincerely,\nThe HCDP Team"
     const unsubscribeMessageText = `Subscription preferences can be updated at ${preferenceUpdateLink} No longer interested in receiving these emails? Visit ${unsubscribeLink} to unsubscribe.`;
-    let textParts = [introText, text, signoffText, unsubscribeMessageText];
+    let textParts = [text, signoffText, unsubscribeMessageText];
     text = textParts.join("\n");
 
     //html
-    const introHTML = "<h3>Here is your monthly climate report:</h3>";
     const signoffHTML = "<p>Thank you for subscribing! Sincerely,<br/>The HCDP Team</p>"
     const unsubscribeMessageHTML = `<p>Subscription preferences can be updated <a href="${preferenceUpdateLink}">here</a>. No longer interested in receiving these emails? <a href="${unsubscribeLink}">Unsubscribe</a></p>`;
     let htmlParts = [html, signoffHTML, unsubscribeMessageHTML];
-    html = `${introHTML}${htmlParts.join("<br/>")}`;
+    html = `${htmlParts.join("<br/>")}`;
     
     
     let email = data[0][0];
