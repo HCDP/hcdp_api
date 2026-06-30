@@ -22,7 +22,7 @@ router.get("/higre/query", async (req, res) => {
         Request must include the following parameters:
 
         Required:
-        q: A JSON formatted mongo query for the data being requested
+        q: A mongo query for the data being requested
 
         Optional:
         limit: An integer representing the maximum results to return. Default unlimited
@@ -32,8 +32,8 @@ router.get("/higre/query", async (req, res) => {
 
     let { q, limit, offset }: any = req.query;
 
-    if(q === undefined || !validateType(q, ["string"]) || !validateJSON(q)) {
-      return r400("q must be a valid JSON string.");
+    if(q === undefined || !validateType(q, ["string"])) {
+      return r400("q must be a string.");
     }
 
     // Convert limit and offset to integers
