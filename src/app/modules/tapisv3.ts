@@ -338,13 +338,59 @@ export class TapisV3Manager {
 
 
 
-export class HCDPStationTapisMetadataHelper {
-    private tapisManager: TapisV3Manager;
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////// Helper Classes //////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+class TapisMetadataHelper {
+    private _tapisManager: TapisV3Manager;
+
+    constructor(tapisManager: TapisV3Manager) {
+        this._tapisManager = tapisManager;
+    }
+
+    protected get tapisManager() {
+        return this._tapisManager;
+    }
+
+    // chunk query by TAPIS_MAX_QUERY
+    protected async query(query: any, database: string, collection: string, limit: number = Infinity, offset: number = 0) {
+        // determine starting page
+        let page = Math.floor(offset / TAPIS_MAX_PAGE_SIZE) + 1;
+        // get offset in page
+        offset %= TAPIS_MAX_PAGE_SIZE;
+        let chunk: any[] = await this._tapisManager.meta.queryMetadata(query, database, collection, TAPIS_MAX_PAGE_SIZE, page++);
+        // if the chunk is not an array something went wrong, just return empty
+        if (!Array.isArray(chunk)) {
+            return [];
+        }
+        // offset page
+        let data = chunk.slice(offset);
+
+        // if chunk page was full and still below limit get next page and add to data
+        while(data.length < limit && chunk.length === TAPIS_MAX_PAGE_SIZE) {
+            chunk = await this._tapisManager.meta.queryMetadata(query, database, collection, TAPIS_MAX_PAGE_SIZE, page++);
+            // if page is not an array or has no data, break
+            if(!Array.isArray(chunk) || chunk.length === 0) {
+                break;
+            }
+            data.push(...chunk);
+        }
+        // truncate data to limit
+        data.length = Math.min(data.length, limit);
+        
+        return data;
+    }
+}
+
+
+export class HCDPStationTapisMetadataHelper extends TapisMetadataHelper {
     private database: string;
     private locationCdpTranslation: TwoWayMap<string, string>;
 
     constructor(tapisManager: TapisV3Manager, database: string) {
-        this.tapisManager = tapisManager;
+        super(tapisManager);
         this.database = database;
         this.locationCdpTranslation = new TwoWayMap([
             ["hawaii", "hcdp"],
@@ -419,7 +465,7 @@ export class HCDPStationTapisMetadataHelper {
             query[`value.${field}`] = queryValues[field];
         }
         let collection = `${location}_stations`;
-        let data = await this.query(query, collection, limit, offset);
+        let data = await this.query(query, this.database, collection, limit, offset);
         return data;
     }
 
@@ -433,36 +479,25 @@ export class HCDPStationTapisMetadataHelper {
         let cdp = match[1];
         let location = this.locationCdpTranslation.reverseLookup(cdp);
         let collection = `${location}_stations`;
-        let data = await this.query(query, collection, limit, offset);
+        let data = await this.query(query, this.database, collection, limit, offset);
         return data;
     }
+}
 
-    // chunk query by TAPIS_MAX_QUERY
-    private async query(query: { [field: string]: any }, collection: string, limit: number = Infinity, offset: number = 0) {
-        // determine starting page
-        let page = Math.floor(offset / TAPIS_MAX_PAGE_SIZE) + 1;
-        // get offset in page
-        offset %= TAPIS_MAX_PAGE_SIZE;
-        let chunk: any[] = await this.tapisManager.meta.queryMetadata(query, this.database, collection, TAPIS_MAX_PAGE_SIZE, page++);
-        // if the chunk is not an array something went wrong, just return empty
-        if (!Array.isArray(chunk)) {
-            return [];
-        }
-        // offset page
-        let data = chunk.slice(offset);
 
-        // if chunk page was full and still below limit get next page and add to data
-        while(data.length < limit && chunk.length === TAPIS_MAX_PAGE_SIZE) {
-            chunk = await this.tapisManager.meta.queryMetadata(query, this.database, collection, TAPIS_MAX_PAGE_SIZE, page++);
-            // if page is not an array or has no data break
-            if(!Array.isArray(chunk) || chunk.length === 0) {
-                break;
-            }
-            data.push(...chunk);
-        }
-        // truncate data to limit
-        data.length = Math.min(data.length, limit);
-        
+
+export class HIGRETapisMetadataHelper extends TapisMetadataHelper {
+    private database: string;
+    private collection: string;
+
+    constructor(tapisManager: TapisV3Manager, database: string) {
+        super(tapisManager);
+        this.database = database;
+        this.collection = "higre";
+    }
+
+    public async queryMetadata(query: any, limit?: number, offset?: number) {
+        let data = await this.query(query, this.database, this.collection, limit, offset);
         return data;
     }
 }

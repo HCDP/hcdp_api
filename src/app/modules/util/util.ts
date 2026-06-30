@@ -195,6 +195,16 @@ export function validateArray(param: any, elementValidator?: (value: any, index?
   return valid;
 }
 
+export function validateJSON(value: string) {
+  try {
+    JSON.parse(value);
+    return true;
+  }
+  catch (e) {
+    return false;
+  }
+}
+
 export function deepEqual(obj1: any, obj2: any): boolean {
   let match = false;
   if(obj1 === obj2) {

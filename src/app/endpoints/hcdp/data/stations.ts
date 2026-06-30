@@ -53,7 +53,7 @@ router.get("/stations", async (req, res) => {
         q: Mongo DB style query for station documents.
 
         Optional:
-        limit: An integer representing the maximum results to return. Default value 1000
+        limit: An integer representing the maximum results to return. Default unlimited
         offset: An integer representing the number of results to skip. Default value 0`
       );
     }
@@ -124,7 +124,7 @@ router.get("/stations/:type(value|metadata)", async (req, res) => {
         Optional:
         [filter_values]: document filter fields (e.g. datatype: rainfall, production: new, period: day, fill: partial)
         location: The location of the stations being requested (e.g. hawaii, american_samoa, guam). Default value hawaii
-        limit: An integer representing the maximum results to return. Default value 1000
+        limit: An integer representing the maximum results to return. Default unlimited
         offset: An integer representing the number of results to skip. Default value 0`
       );
     }
