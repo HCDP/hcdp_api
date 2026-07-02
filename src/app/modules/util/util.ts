@@ -3,13 +3,26 @@ import * as path from "path";
 import * as nodemailer from "nodemailer";
 import moment from "moment-timezone";
 import { logDir, emailConfig, smtp, smtpPort } from "./config.js";
+import SMTPTransport from "nodemailer/lib/smtp-transport";
 
 const transporterOptions = {
   host: smtp,
   port: smtpPort,
   secure: false,
-  ignoreTLS: true
+  ignoreTLS: true,
+  pool: true,
+  maxConnections: 3,
+  maxMessages: 100
 };
+const transporter = nodemailer.createTransport(transporterOptions);
+transporter.verify((error: Error | null) => {
+  if(error) {
+    console.error("SMTP Startup Error: Failed to connect to UH SMTP server", error.message);
+  }
+  else {
+    console.log("SMTP Pool initialized and ready to send emails.");
+  }
+});
 
 export class TwoWayMap<T, U> {
     private map: Map<T, U>;
@@ -56,14 +69,13 @@ export async function handleSubprocess(subprocess, dataHandler, errHandler?) {
 
 export async function sendEmail(mailOptions: MailOptions): Promise<MailRes> {
   let combinedMailOptions = Object.assign({}, emailConfig, mailOptions);
-  let transporter = nodemailer.createTransport(transporterOptions);
   //have to be on uh netork
   return transporter.sendMail(combinedMailOptions)
-  .then((info) => {
-    //should parse response for success (should start with 250) 
+  .then((info: SMTPTransport.SentMessageInfo) => {
+    const success = info.response.startsWith("250");
     return {
-      success: true,
-      result: info,
+      success: success,
+      result: info, 
       error: null
     };
   })
