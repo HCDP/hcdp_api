@@ -11,7 +11,7 @@ const transporterOptions = {
   secure: false,
   ignoreTLS: true,
   pool: true,
-  maxConnections: 3,
+  maxConnections: 1,
   maxMessages: 100
 };
 const transporter = nodemailer.createTransport(transporterOptions);
