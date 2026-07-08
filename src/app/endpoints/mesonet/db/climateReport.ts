@@ -7,8 +7,7 @@ import Cursor from "pg-cursor";
 import moment from "moment-timezone";
 import { parseParams } from "../../../modules/util/dbUtil.js";
 import { parseListParam } from "../../../modules/util/util.js";
-import { getTimezone } from "src/app/modules/util/dates.js";
-import { DataPortalLocation } from "src/app/modules/util/config.js";
+import { getTimezone } from "../../../modules/util/dates.js";
 
 export const router = express.Router();
 
