@@ -7,6 +7,8 @@ import Cursor from "pg-cursor";
 import moment from "moment-timezone";
 import { parseParams } from "../../../modules/util/dbUtil.js";
 import { parseListParam } from "../../../modules/util/util.js";
+import { getTimezone } from "src/app/modules/util/dates.js";
+import { DataPortalLocation } from "src/app/modules/util/config.js";
 
 export const router = express.Router();
 
@@ -18,6 +20,31 @@ const STAT_TABLE_DATA = {
   rainfall_historical: ['island', 'division_type', 'name', 'date', 'value'],
   temperature_historical: ['island', 'division_type', 'name', 'date', 'value']
 };
+
+
+function getClimateReportMonthCode(): string {
+  // assume hawaii for now, may have to expand this
+  let tz = getTimezone("hawaii");
+  let ts = moment().tz(tz);
+  let monthCode = ts.format("YYYYMM");
+  return monthCode;
+}
+
+async function checkConfigured(monthCode: string) {
+  let query = `
+    SELECT EXISTS(
+      SELECT 1
+      FROM climate_report.climate_report_configuration
+      WHERE month_code = $1
+    );
+  `;
+
+  let data = await hcdpGeneralAdmin.query(query, [monthCode], async (cursor: Cursor) => {
+    return await cursor.read(1);
+  });
+
+  return data[0].exists;
+}
 
 
 function createClimateReportWhereClause(date: string | undefined, startDate: string | undefined, endDate: string | undefined, islands: string[], divisionTypes: string[], names: string[]): { whereClause: string, params: string[] } {
@@ -354,97 +381,6 @@ router.get("/mesonet/climate_report/subscriptions", async (req, res) => {
 
 
 
-router.post("/mesonet/climate_report/subscription/:id/email", async (req, res) => {
-  const permission = "notify";
-  await handleReq(req, res, permission, async (reqData) => {
-    const { id } = req.params;
-    let { text, html } = req.body;
-
-    if(!validateType(text, ["string"])) {
-      reqData.success = false;
-      reqData.code = 400;
-
-      return res.status(400)
-      .send(
-        `Request body must include the content you would like to send to the user: \n\
-        text: A string containing the email content you would like to send. \n\
-        html (optional): An HTML string containing the email content you would like to send. This will default to the text data provided wrapped in a paragraph block if not provided.`
-      ); 
-    }
-    if(!validateType(html, ["string"])) {
-      html = `<p>${text.replace("\n", "<br/>")}</p>`;
-    }
-
-    if(!isValidUUID(id)) {
-      reqData.success = false;
-      reqData.code = 400;
-
-      return res.status(400)
-      .send(
-        `Invalid UUID provided in url`
-      );
-    }
-
-    let query = `
-      SELECT email
-      FROM climate_report.climate_report_register
-      WHERE id = $1 AND active = TRUE;
-    `;
-
-    let data = await hcdpGeneralAdmin.query(query, [id], async (cursor: Cursor) => {
-      return await cursor.read(1);
-    }, { rowMode: "array" });
-
-    if(data.length < 1) {
-      reqData.success = false;
-      reqData.code = 404;
-
-      return res.status(404)
-      .send("User not found. Email has not been sent.");
-    }
-
-    const subject = "Your Monthly Hawaiʻi Climate Report";
-
-    const socSite = " https://www.hawaii.edu/climate-data-portal/climate-summary";
-    const unsubscribeLink = `${socSite}/#/unsubscribe?id=${id}`;
-    const preferenceUpdateLink = `${socSite}/#/manage-preferences?id=${id}`;
-
-    //text
-    const signoffText = "Thank you for subscribing! Sincerely,\nThe HCDP Team"
-    const unsubscribeMessageText = `Subscription preferences can be updated at ${preferenceUpdateLink} No longer interested in receiving these emails? Visit ${unsubscribeLink} to unsubscribe.`;
-    let textParts = [text, signoffText, unsubscribeMessageText];
-    text = textParts.join("\n");
-
-    //html
-    const signoffHTML = "<p>Thank you for subscribing! Sincerely,<br/>The HCDP Team</p>"
-    const unsubscribeMessageHTML = `<p>Subscription preferences can be updated <a href="${preferenceUpdateLink}">here</a>. No longer interested in receiving these emails? <a href="${unsubscribeLink}">Unsubscribe</a></p>`;
-    let htmlParts = [html, signoffHTML, unsubscribeMessageHTML];
-    html = `${htmlParts.join("<br/>")}`;
-    
-    
-    let email = data[0][0];
-    let mailOptions: MailOptions = {
-      to: email,
-      subject,
-      text,
-      html
-    }
-
-    let mailRes = await sendEmail(mailOptions);
-    if(!mailRes.success) {
-      reqData.success = false;
-      throw new Error("Failed to email user " + email + ". Error: " + mailRes.error.toString());
-    }
-    
-    reqData.code = 200;
-    return res.status(200)
-    .json(data);
-  });
-});
-
-
-
-
 router.get("/mesonet/climate_report/:table", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
@@ -650,9 +586,6 @@ router.delete("/mesonet/climate_report/:table", async (req, res) => {
     const tableSchema = STAT_TABLE_DATA[table];
 
     if(!tableSchema) {
-      reqData.success = false;
-      reqData.code = 400;
-
       return e400(`Invalid table ${table}, valid tables: ${Object.keys(STAT_TABLE_DATA)}`); 
     }
 
@@ -693,5 +626,209 @@ router.delete("/mesonet/climate_report/:table", async (req, res) => {
     return res.status(200)
     .json({ deleted });
 
+  });
+});
+
+
+
+
+router.get("/mesonet/climate_report/configure", async (req, res) => {
+  const permission = "meso_admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    const monthCode = getClimateReportMonthCode();
+    const configured = await checkConfigured(monthCode);
+    reqData.code = 200;
+    return res.status(200)
+    .json({ configured });
+  });
+});
+
+
+router.post("/mesonet/climate_report/configure", async (req, res) => {
+  const permission = "meso_admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    const monthCode = getClimateReportMonthCode();
+    const configured = await checkConfigured(monthCode);
+
+    if(configured) {
+      reqData.success = false;
+      reqData.code = 409;
+
+      return res.status(409)
+      .send("Climate report has already been configured for this month.");
+    }
+
+    let query = `
+      INSERT INTO climate_report.climate_report_configuration (month_code, ids)
+      SELECT $1, COALESCE(ARRAY_AGG(id::TEXT), '{}')
+      FROM climate_report.climate_report_register
+      WHERE active = TRUE
+    `;
+
+    let inserted = await hcdpGeneralAdmin.queryNoRes(query, [monthCode]);
+    if(inserted < 1) {
+      reqData.success = false;
+      reqData.code = 500;
+
+      return res.status(500)
+      .send("An unknown error occured, configuration has not been updated.");
+    }
+
+    reqData.code = 204;
+    return res.status(204).end();
+  });
+});
+
+
+router.get("/mesonet/climate_report/configuration", async (req, res) => {
+  const permission = "meso_admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    const monthCode = getClimateReportMonthCode();
+    let query = `
+      SELECT ids
+      FROM climate_report.climate_report_configuration
+      WHERE month_code = $1;
+    `;
+
+    let data = await hcdpGeneralAdmin.query(query, [monthCode], async (cursor: Cursor) => {
+      return await cursor.read(1);
+    });
+    if(data.length < 1) {
+      reqData.success = false;
+      reqData.code = 404;
+
+      return res.status(404)
+      .send("Climate report has not been configured for this month.");
+    }
+
+    const { ids } = data[0];
+    reqData.code = 200;
+    return res.status(200)
+    .json({ ids });
+  });
+});
+
+
+
+
+
+router.post("/mesonet/climate_report/subscription/:id/email", async (req, res) => {
+  const permission = "notify";
+  await handleReq(req, res, permission, async (reqData) => {
+    const { id } = req.params;
+    let { text, html } = req.body;
+
+    if(!validateType(text, ["string"])) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Request body must include the content you would like to send to the user: \n\
+        text: A string containing the email content you would like to send. \n\
+        html (optional): An HTML string containing the email content you would like to send. This will default to the text data provided wrapped in a paragraph block if not provided.`
+      ); 
+    }
+    if(!validateType(html, ["string"])) {
+      html = `<p>${text.replace("\n", "<br/>")}</p>`;
+    }
+
+    if(!isValidUUID(id)) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Invalid UUID provided in url`
+      );
+    }
+
+    // check if the ID exists in the configuration for the current month
+    const monthCode = getClimateReportMonthCode();
+    let query = `
+      SELECT EXISTS(
+        SELECT 1
+        FROM climate_report.climate_report_configuration
+        WHERE month_code = $1 AND $2 = ANY(ids)
+      );
+    `;
+
+    let configCheckData = await hcdpGeneralAdmin.query(query, [monthCode, id], async (cursor: Cursor) => {
+      return await cursor.read(1);
+    });
+
+    if(!configCheckData[0].exists) {
+      reqData.success = false;
+      reqData.code = 404;
+
+      return res.status(404)
+      .send("User ID not found in the configuration for the current month.");
+    }
+
+    query = `
+      SELECT email
+      FROM climate_report.climate_report_register
+      WHERE id = $1 AND active = TRUE;
+    `;
+
+    let data = await hcdpGeneralAdmin.query(query, [id], async (cursor: Cursor) => {
+      return await cursor.read(1);
+    });
+
+    if(data.length < 1) {
+      reqData.success = false;
+      reqData.code = 404;
+
+      return res.status(404)
+      .send("User not found. Email has not been sent.");
+    }
+
+    const subject = "Your Monthly Hawaiʻi Climate Report";
+
+    const socSite = " https://www.hawaii.edu/climate-data-portal/climate-summary";
+    const unsubscribeLink = `${socSite}/#/unsubscribe?id=${id}`;
+    const preferenceUpdateLink = `${socSite}/#/manage-preferences?id=${id}`;
+
+    //text
+    const signoffText = "Thank you for subscribing! Sincerely,\nThe HCDP Team"
+    const unsubscribeMessageText = `Subscription preferences can be updated at ${preferenceUpdateLink} No longer interested in receiving these emails? Visit ${unsubscribeLink} to unsubscribe.`;
+    let textParts = [text, signoffText, unsubscribeMessageText];
+    text = textParts.join("\n");
+
+    //html
+    const signoffHTML = "<p>Thank you for subscribing! Sincerely,<br/>The HCDP Team</p>"
+    const unsubscribeMessageHTML = `<p>Subscription preferences can be updated <a href="${preferenceUpdateLink}">here</a>. No longer interested in receiving these emails? <a href="${unsubscribeLink}">Unsubscribe</a></p>`;
+    let htmlParts = [html, signoffHTML, unsubscribeMessageHTML];
+    html = `${htmlParts.join("<br/>")}`;
+    
+    let { email } = data[0];
+    let mailOptions: MailOptions = {
+      to: email,
+      subject,
+      text,
+      html
+    }
+
+    let mailRes = await sendEmail(mailOptions);
+    if(!mailRes.success) {
+      throw new Error(`Failed to email user ${email}. Error: ${mailRes.error.toString()}`);
+    }
+    
+    // remove the ID from the configuration since the email was successful
+    query = `
+      UPDATE climate_report.climate_report_configuration
+      SET ids = array_remove(ids, $1)
+      WHERE month_code = $2;
+    `;
+    
+    let modified = await hcdpGeneralAdmin.queryNoRes(query, [id, monthCode]);
+
+    if(modified < 1) {
+      throw new Error(`Failed to remove client ID from configuration array.`);
+    }
+
+    reqData.code = 200;
+    return res.status(200)
+    .json({ email });
   });
 });
