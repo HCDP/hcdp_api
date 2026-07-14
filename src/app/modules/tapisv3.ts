@@ -89,7 +89,15 @@ class TapisV3AuthManager {
         let data = await TapisV3Manager.handleTapisResponse(response);
         let tokenData = data.result.access_token;
         let { access_token, expires_in } = tokenData;
-        let reauthTime = expires_in < 60 ? expires_in * 5 * 1000 : (expires_in - (5 * 60)) * 1000;
+
+        // reauth 5-30 minutes before expiration
+        const reauthSecondsMin = 5 * 60;
+        const reauthSecondsMax = 30 * 60;
+        // random int between min and max seconds
+        const reauthSeconds = Math.floor(Math.random() * (reauthSecondsMax - reauthSecondsMin + 1)) + reauthSecondsMin;
+        // get time until reauth buffer in ms
+        const reauthTime = (expires_in - reauthSeconds) * 1000;
+
         this.reauthTimer = setTimeout(() => {
             this.token = this.auth();
         }, reauthTime).unref();
