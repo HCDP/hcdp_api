@@ -1,8 +1,10 @@
 import { DataPortalLocation } from './util/config.js';
 import { deepEqual, TwoWayMap } from './util/util.js';
 import fetchRetry from 'fetch-retry';
+
+// retry on 403, receiving periodic 403s, potentially if token retreived during reauth?
 const rfetch = fetchRetry(fetch, {
-    retryOn: [500, 502, 503, 504] 
+    retryOn: [403, 500, 502, 503, 504] 
 });
 
 const TAPIS_MAX_PAGE_SIZE = 1000;
@@ -90,9 +92,9 @@ class TapisV3AuthManager {
         let tokenData = data.result.access_token;
         let { access_token, expires_in } = tokenData;
 
-        // reauth 5-30 minutes before expiration
+        // reauth 5-10 minutes before expiration
         const reauthSecondsMin = 5 * 60;
-        const reauthSecondsMax = 30 * 60;
+        const reauthSecondsMax = 10 * 60;
         // random int between min and max seconds
         const reauthSeconds = Math.floor(Math.random() * (reauthSecondsMax - reauthSecondsMin + 1)) + reauthSecondsMin;
         // get time until reauth buffer in ms
