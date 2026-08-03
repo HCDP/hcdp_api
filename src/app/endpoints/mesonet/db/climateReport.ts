@@ -461,7 +461,43 @@ router.get("/mesonet/climate_report/configuration", async (req, res) => {
   });
 });
 
+router.delete("/mesonet/climate_report/configuration/:id", async (req, res) => {
+  const permission = "meso_admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    const { id } = req.params;
 
+    if(!isValidUUID(id)) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Invalid UUID provided in url`
+      );
+    }
+
+    const monthCode = getClimateReportMonthCode();
+
+    let query = `
+      UPDATE climate_report.climate_report_configuration
+      SET ids = array_remove(ids, $1)
+      WHERE month_code = $2 AND $1 = ANY(ids);
+    `;
+    
+    let modified = await hcdpGeneralAdmin.queryNoRes(query, [id, monthCode]);
+
+    if(modified < 1) {
+      reqData.success = false;
+      reqData.code = 404;
+
+      return res.status(404)
+      .send("Month not configured or ID not found in configuration. No changes have been made.");
+    }
+
+    reqData.code = 204;
+    return res.status(204).end();
+  });
+});
 
 
 
