@@ -21,6 +21,13 @@ const STAT_TABLE_DATA = {
 };
 
 
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////// Helper Functions //////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 function getClimateReportMonthCode(): string {
   // assume hawaii for now, may have to expand this
   let tz = getTimezone("hawaii");
@@ -113,6 +120,26 @@ async function getUserID(email: string): Promise<string> {
 
 
 
+
+async function addUIDToConfig(id: string, monthCode: string) {
+  let query = `
+    UPDATE climate_report.climate_report_configuration
+    SET ids = array_append(ids, $1)
+    WHERE month_code = $2 AND NOT ($1 = ANY(ids));
+  `;
+  
+  let modified = await hcdpGeneralAdmin.queryNoRes(query, [id, monthCode]);
+  return modified > 0;
+}
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////// Subscription Endpoints ///////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 router.post("/mesonet/climate_report/subscribe", async (req, res) => {
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
@@ -173,8 +200,15 @@ router.post("/mesonet/climate_report/subscribe", async (req, res) => {
 
     id = await getUserID(email);
     reqData.code = 200;
-    return res.status(200)
+    res.status(200)
     .json({userID: id});
+
+    
+    // update climate report config with new user ID so they are emailed next run
+    const monthCode = getClimateReportMonthCode();
+    addUIDToConfig(id, monthCode).catch((err) => {
+      console.error(`Background task failed: Failed to add ${id} to climate report config. An error occured during the update query`, err);
+    });
   });
 });
 
@@ -383,6 +417,11 @@ router.get("/mesonet/climate_report/subscriptions", async (req, res) => {
 
 
 
+//////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////// Configuration Endpoints ///////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+
 
 
 router.get("/mesonet/climate_report/configure", async (req, res) => {
@@ -498,6 +537,65 @@ router.delete("/mesonet/climate_report/configuration/:id", async (req, res) => {
     return res.status(204).end();
   });
 });
+
+
+router.put("/mesonet/climate_report/configuration/:id", async (req, res) => {
+  const permission = "meso_admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    const { id } = req.params;
+
+    if(!isValidUUID(id)) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Invalid UUID provided in url`
+      );
+    }
+
+    const monthCode = getClimateReportMonthCode();
+    let updated = await addUIDToConfig(id, monthCode);
+    if(!updated) {
+      // if no mods made check if the config exists for last month, return a 404 if it does not
+      let checkQuery = `
+        SELECT EXISTS(
+          SELECT 1 
+          FROM climate_report.climate_report_configuration
+          WHERE month_code = $1
+        );
+      `;
+      
+      let checkData = await hcdpGeneralAdmin.query(checkQuery, [monthCode], async (cursor: Cursor) => {
+        return await cursor.read(1);
+      });
+
+      // check if exists
+      if(!checkData[0].exists) {
+        reqData.success = false;
+        reqData.code = 404;
+
+        return res.status(404)
+        .send("Month not configured. No changes have been made.");
+      }
+    }
+
+    reqData.code = 204;
+    return res.status(204).end();
+  });
+});
+
+
+
+
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////// Email Endpoint ///////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+
 
 
 
@@ -635,13 +733,10 @@ router.post("/mesonet/climate_report/subscription/:id/email", async (req, res) =
 
 
 
-
-
-
-/////////////////////////////////////////////////////
-///////////////// Must be at bottom /////////////////
-/////////////////////////////////////////////////////
-
+//////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// Data Table Endpoints ////////////////////////////////////
+///////////////// Must be Below All Other /mesonet/climate_report Endpoints //////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////
 
 
 
