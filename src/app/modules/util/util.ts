@@ -148,8 +148,8 @@ function parseEscapedListString(value: string): string[] {
         escape = false;
       }
     }
-    parsedValues.push(parsedValue);
   }
+  parsedValues.push(parsedValue);
   return parsedValues;
 }
 
