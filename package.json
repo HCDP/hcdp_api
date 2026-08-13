@@ -36,11 +36,11 @@
     "moment-timezone": "^0.5.45",
     "mongo-sanitize": "^1.1.0",
     "mongodb": "^3.7.3",
-    "nodemailer": "^6.6.1",
+    "nodemailer": "^9.0.5",
     "pg-cursor": "^2.12.1",
     "pg-promise": "^11.10.1",
     "safe-compare": "^1.1.4",
-    "uuid": "^9.0.1"
+    "uuid": "^14.0.1"
   },
   "devDependencies": {
     "@types/connect-timeout": "^1.9.0",
