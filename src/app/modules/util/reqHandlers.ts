@@ -56,7 +56,7 @@ async function checkSendErrorMessage(errorMsg: string) {
   }
 }
 
-export async function handleReqNoAuth(req: Request, res: Response, handler: (reqData: RequestData) => void) {
+export async function handleReqNoAuth(req: Request, res: Response, handler: (reqData: RequestData) => Promise<any>) {
   //note include success since 202 status might not indicate success in generating download package
   //note sizeB will be 0 for everything but download packages
   let reqData: RequestData = {
@@ -92,7 +92,7 @@ export async function handleReqNoAuth(req: Request, res: Response, handler: (req
   logReq(reqData);
 }
 
-export async function handleReq(req: Request, res: Response, permission: string, handler: (reqData: RequestData) => void) {
+export async function handleReq(req: Request, res: Response, permission: string, handler: (reqData: RequestData) => Promise<any>) {
   //note include success since 202 status might not indicate success in generating download package
   //note sizeB will be 0 for everything but download packages
   let reqData = {
@@ -116,13 +116,13 @@ export async function handleReq(req: Request, res: Response, permission: string,
     if(valid && allowed) {
       await handler(reqData);
     }
-    //token was not provided or not in whitelist, return 401
+    //token was not provided or not valid, return 401
     else if(!valid) {
       reqData.code = 401;
       res.status(401)
-      .send("User not authorized. Please provide a valid API token in the request header. If you do not have an API token one can be requested from the administrators.");
+      .send("User not authorized. Please provide a valid API token in the request header. If you do not have an API token one can be requested by filling out the form at https://www.hawaii.edu/climate-data-portal/hcdp-hawaii-mesonet-api/.");
     }
-    //token was valid in whitelist but does not have permission to access this endpoint, return 403
+    //token was valid, but does not have permission to access this endpoint, return 403
     else {
       reqData.code = 403;
       res.status(403)
