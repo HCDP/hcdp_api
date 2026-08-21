@@ -16,6 +16,7 @@ import { router as r10 } from "./endpoints/util/health.js";
 import { router as r11 } from "./endpoints/mesonet/db/climateReport.js";
 import { router as r12 } from "./endpoints/hcdp/data/raster.js";
 import { router as r13 } from "./endpoints/hcdp/data/stations.js";
+import { router as r14 } from "./endpoints/admin/jetstream/jetstream.js";
 
 import { tapisV3Manager } from "./modules/util/resourceManagers/tapis.js";
 
@@ -23,7 +24,7 @@ import { tapisV3Manager } from "./modules/util/resourceManagers/tapis.js";
 import consoleStamp from 'console-stamp';
 consoleStamp(console);
 
-const routers = [r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13];
+const routers = [r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14];
 
 //process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
 process.env["NODE_ENV"] = "production";

@@ -16,6 +16,7 @@ services:
     volumes:
       - /mnt/lustre/annotated/HCDP:/data
       - /home/hcdp/hcdp-api/logs:/logs
+      - /etc/openstack/clouds.yaml:/etc/openstack/clouds.yaml:ro
     environment:
       - NODE_OPTIONS=--no-deprecation
     profiles: [ prod ]
