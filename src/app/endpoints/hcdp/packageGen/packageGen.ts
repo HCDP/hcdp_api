@@ -157,7 +157,7 @@ router.post("/genzip/email", async (req, res) => {
           //set size of package for logging
           reqData.sizeB = fsizeB;
           let fsizeMB = fsizeB / (1024 * 1024);
-
+          console.log(fsizeMB);
           let attachFile = fsizeMB < ATTACHMENT_MAX_MB;
 
           console.log(attachFile);
@@ -175,7 +175,7 @@ router.post("/genzip/email", async (req, res) => {
               text: "Your HCDP data package is attached.",
               html: "<p>Your HCDP data package is attached.</p>"
             };
-            
+            console.log("send email");
             mailRes = await sendEmail(mailOptions);
             //if an error occured fall back to link and try one more time
             if(!mailRes.success) {

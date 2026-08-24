@@ -27,5 +27,6 @@ export type DataPortalLocation = typeof dataPortalLocations[number];
 
 export const apiURL = "https://api.hcdp.ikewai.org";
 
-//gmail attachment limit
-export const ATTACHMENT_MAX_MB = 25;
+// gmail attachment limit
+// temporarily disabled
+export const ATTACHMENT_MAX_MB = 0;
