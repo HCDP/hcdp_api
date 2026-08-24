@@ -75,6 +75,7 @@ export async function sendEmail(mailOptions: MailOptions): Promise<MailRes> {
   //have to be on uh netork
   return transporter.sendMail(combinedMailOptions)
   .then((info: SMTPTransport.SentMessageInfo) => {
+    console.log(info);
     const success = info.response.startsWith("250");
     return {
       success: success,
@@ -83,6 +84,7 @@ export async function sendEmail(mailOptions: MailOptions): Promise<MailRes> {
     };
   })
   .catch((error) => {
+    console.log(error);
     return {
       success: false,
       result: null,

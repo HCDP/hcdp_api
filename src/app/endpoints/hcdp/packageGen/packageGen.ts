@@ -1,7 +1,7 @@
 import express from "express";
 import * as fs from "fs";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
-import { sendEmail, handleSubprocess } from "../../../modules/util/util.js";
+import { sendEmail, handleSubprocess, MailRes } from "../../../modules/util/util.js";
 import { ATTACHMENT_MAX_MB, defaultZipName, downloadRoot, apiURL, licenseFile } from "../../../modules/util/config.js";
 import { getPaths } from "../../../modules/fileIndexer.js";
 import * as child_process from "child_process";
@@ -160,7 +160,9 @@ router.post("/genzip/email", async (req, res) => {
 
           let attachFile = fsizeMB < ATTACHMENT_MAX_MB;
 
-          let mailRes;
+          console.log(attachFile);
+
+          let mailRes: MailRes;
 
           if(attachFile) {
             let attachments = [{
@@ -192,6 +194,7 @@ router.post("/genzip/email", async (req, res) => {
               text: "Your HCDP download package is ready. Please go to " + downloadLink + " to download it. This link will expire in three days, please download your data in that time.",
               html: "<p>Your HCDP download package is ready. Please click <a href=\"" + downloadLink + "\">here</a> to download it. This link will expire in three days, please download your data in that time.</p>"
             };
+            console.log("send email");
             mailRes = await sendEmail(mailOptions);
           }
           //cleanup file if attached
