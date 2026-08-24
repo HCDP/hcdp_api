@@ -130,14 +130,16 @@ router.post("/genzip/email", async (req, res) => {
           return path.relative(root, file);
         });
 
+        console.log(paths);
+
         reqData.sizeF = numFiles;
         let zipPath = "";
-        let zipProc;
-        zipProc = child_process.spawn("sh", ["../assets/scripts/zipgen.sh", downloadRoot, root, zipName, ...paths]);
+        let zipProc = child_process.spawn("sh", ["../assets/scripts/zipgen.sh", downloadRoot, root, zipName, ...paths]);
 
         let code = await handleSubprocess(zipProc, (data) => {
           zipPath += data.toString();
         });
+        console.log(zipPath);
 
         if(code !== 0) {
           let serverError = `Failed to generate download package for user ${email}. Zip process failed with code ${code}.`
