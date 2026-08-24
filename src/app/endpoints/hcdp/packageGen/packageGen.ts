@@ -2,7 +2,7 @@ import express from "express";
 import * as fs from "fs";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
 import { sendEmail, handleSubprocess, MailRes } from "../../../modules/util/util.js";
-import { ATTACHMENT_MAX_MB, defaultZipName, downloadRoot, apiURL, licenseFile } from "../../../modules/util/config.js";
+import { defaultZipName, downloadRoot, apiURL, licenseFile } from "../../../modules/util/config.js";
 import { getPaths } from "../../../modules/fileIndexer.js";
 import * as child_process from "child_process";
 import * as path from "path";
@@ -130,8 +130,6 @@ router.post("/genzip/email", async (req, res) => {
           return path.relative(root, file);
         });
 
-        console.log(paths);
-
         reqData.sizeF = numFiles;
         let zipPath = "";
         let zipProc = child_process.spawn("sh", ["../assets/scripts/zipgen.sh", downloadRoot, root, zipName, ...paths]);
@@ -139,7 +137,6 @@ router.post("/genzip/email", async (req, res) => {
         let code = await handleSubprocess(zipProc, (data) => {
           zipPath += data.toString();
         });
-        console.log(zipPath);
 
         if(code !== 0) {
           let serverError = `Failed to generate download package for user ${email}. Zip process failed with code ${code}.`
@@ -148,7 +145,6 @@ router.post("/genzip/email", async (req, res) => {
         }
         else {
           let zipDec = zipPath.split("/");
-          let zipRoot = zipDec.slice(0, -1).join("/");
           let [ packageID, fname ] = zipDec.slice(-2);
 
           //get package size
@@ -156,53 +152,17 @@ router.post("/genzip/email", async (req, res) => {
           let fsizeB = fstat.size;
           //set size of package for logging
           reqData.sizeB = fsizeB;
-          let fsizeMB = fsizeB / (1024 * 1024);
-          console.log(fsizeMB);
-          let attachFile = fsizeMB < ATTACHMENT_MAX_MB;
 
-          console.log(attachFile);
-
-          let mailRes: MailRes;
-
-          if(attachFile) {
-            let attachments = [{
-              filename: zipName,
-              content: fs.createReadStream(zipPath)
-            }];
-            let mailOptions = {
-              to: email,
-              attachments: attachments,
-              text: "Your HCDP data package is attached.",
-              html: "<p>Your HCDP data package is attached.</p>"
-            };
-            console.log("send email");
-            mailRes = await sendEmail(mailOptions);
-            //if an error occured fall back to link and try one more time
-            if(!mailRes.success) {
-              attachFile = false;
-            }
-          }
-
-          //recheck, state may change if fallback on error
-          if(!attachFile) {
-            let ep = `${apiURL}/download/package`;
-            let params = `packageID=${packageID}&file=${fname}`;
-            //create download link and send in message body
-            let downloadLink = `${ep}?${params}`;
-            let mailOptions = {
-              to: email,
-              text: "Your HCDP download package is ready. Please go to " + downloadLink + " to download it. This link will expire in three days, please download your data in that time.",
-              html: "<p>Your HCDP download package is ready. Please click <a href=\"" + downloadLink + "\">here</a> to download it. This link will expire in three days, please download your data in that time.</p>"
-            };
-            console.log("send email");
-            mailRes = await sendEmail(mailOptions);
-          }
-          //cleanup file if attached
-          //otherwise should be cleaned by chron task
-          //no need error handling, if error chron should handle later
-          else {
-            child_process.exec("rm -r " + zipRoot);
-          }
+          let ep = `${apiURL}/download/package`;
+          let params = `packageID=${packageID}&file=${fname}`;
+          //create download link and send in message body
+          let downloadLink = `${ep}?${params}`;
+          let mailOptions = {
+            to: email,
+            text: "Your HCDP download package is ready. Please go to " + downloadLink + " to download it. This link will expire in three days, please download your data in that time.",
+            html: "<p>Your HCDP download package is ready. Please click <a href=\"" + downloadLink + "\">here</a> to download it. This link will expire in three days, please download your data in that time.</p>"
+          };
+          let mailRes: MailRes = await sendEmail(mailOptions);
 
           //if unsuccessful attempt to send error email
           if(!mailRes.success) {
