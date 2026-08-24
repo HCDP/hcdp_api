@@ -64,6 +64,9 @@ export async function handleSubprocess(subprocess, dataHandler, errHandler?) {
     subprocess.on("exit", (code) => {
       resolve(code);
     });
+    subprocess.on("error", (err) => {
+      reject(err);
+    });
   });
 }
 
