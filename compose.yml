@@ -3,6 +3,8 @@ name: hcdp-api
 networks:
   hcdp-net:
     driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1450
 
 services:
   api:
