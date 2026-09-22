@@ -42,6 +42,9 @@ async function executeOpenstack(args: string[]) {
     stdout = e.stdout || "";
   }
 
+  stdout = stdout.trim();
+  stderr = stderr.trim();
+
   return {
     success,
     stdout,
