@@ -271,12 +271,6 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
     join_metadata = parseBoolParam(join_metadata);
     local_tz = parseBoolParam(local_tz);
 
-    // reqData.success = false;
-    // reqData.code = 503;
-
-    // return res.status(503)
-    // .send("This resource is temporarily unavailable.");
-
     let varIDs = parseListParam(var_ids);
     let stationIDs = parseListParam(station_ids);
     let flagArr = parseListParam(flags);
