@@ -3,7 +3,7 @@ import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js
 import { stationMetadataHelper } from "../../../modules/util/resourceManagers/tapis.js";
 import { processTapisError, validateArray, validateType } from "../../../modules/util/util.js";
 import { githubWebhookSecret, dataPortalLocations } from "../../../modules/util/config.js";
-import { HCDPTapisMetadataType } from "src/app/modules/tapisv3.js";
+import { HCDPTapisMetadataType } from "../../../modules/tapisv3.js";
 import CsvReadableStream from "csv-reader";
 import detectDecodeStream from "autodetect-decoder-stream";
 import safeCompare from "safe-compare";

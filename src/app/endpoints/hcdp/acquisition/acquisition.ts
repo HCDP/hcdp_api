@@ -1,11 +1,11 @@
 import express from "express";
 import { handleReq } from "../../../modules/util/reqHandlers.js";
-import { parseBoolParam, parseListParam, validateArray } from "src/app/modules/util/util.js";
-import { getTimezone } from "src/app/modules/util/dates.js";
+import { parseBoolParam, parseListParam, validateArray } from "../../../modules/util/util.js";
+import { getTimezone } from "../../../modules/util/dates.js";
 import moment from "moment-timezone";
-import { parseParams } from "src/app/modules/util/dbUtil.js";
+import { parseParams } from "../../../modules/util/dbUtil.js";
 import Cursor from "pg-cursor";
-import { hcdpGeneralAdmin, hcdpGeneralUser } from "src/app/modules/util/resourceManagers/db.js";
+import { hcdpGeneralAdmin, hcdpGeneralUser } from "../../../modules/util/resourceManagers/db.js";
 
 export const router = express.Router();
 
