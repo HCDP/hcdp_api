@@ -346,7 +346,160 @@ async function sanitizeExpandVarIDs(varIDs: string[]) {
 }
 
 
+
+
+
+
+
 router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) => {
+  const permission = "basic";
+  await handleReq(req, res, permission, async (reqData) => {
+    let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, row_mode }: any = req.query;
+    reverse = parseBoolParam(reverse);
+    join_metadata = parseBoolParam(join_metadata);
+    local_tz = parseBoolParam(local_tz);
+
+    let varIDs = parseListParam(var_ids);
+    let stationIDs = parseListParam(station_ids);
+    let flagArr = parseListParam(flags);
+    let intervalArr = parseListParam(intervals);
+
+    const MAX_QUERY = 1000000;
+
+    //validate location, can use direct in query
+    //default to hawaii
+    if(!mesonetLocations.includes(location)) {
+      location = "hawaii";
+    }
+
+    //check if should crosstab the query (wide mode) and if query should return results as array or JSON
+    let crosstabQuery = false;
+    switch(row_mode) {
+      case "wide_array": {
+        row_mode = "array";
+        crosstabQuery = true;
+        break;
+      }
+      case "array": {
+        break;
+      }
+      case "wide_json": {
+        row_mode = undefined;
+        crosstabQuery = true;
+        break;
+      }
+      default: {
+        row_mode = undefined;
+      }
+    }
+
+    if(offset) {
+      offset = parseInt(offset, 10);
+      if(isNaN(offset)) {
+        offset = undefined;
+      }
+    }
+    if(typeof limit === "string") {
+      limit = parseInt(limit, 10)
+      if(isNaN(limit)) {
+        limit = 10000;
+      }
+    }
+    //limit must be less than max, translate 0 or negative numbers as max
+    if(limit < 1 || limit > MAX_QUERY) {
+      limit = MAX_QUERY;
+    }
+
+    if(start_date) {
+      try {
+        let date = new Date(start_date);
+        start_date = date.toISOString();
+      }
+      catch(e) {
+        reqData.success = false;
+        reqData.code = 400;
+  
+        return res.status(400)
+        .send("Invalid start date format. Dates must be ISO 8601 compliant.");
+      }
+    }
+  
+    if(end_date) {
+      try {
+        let date = new Date(end_date);
+        end_date = date.toISOString();
+      }
+      catch(e) {
+        reqData.success = false;
+        reqData.code = 400;
+  
+        return res.status(400)
+        .send("Invalid end date format. Dates must be ISO 8601 compliant.");
+      }
+    }
+
+
+    let data: any[] | { index: string[], data: any[] } = [];
+    let { query, params, index } = await constructMeasurementsQuery(crosstabQuery, stationIDs, start_date, end_date, varIDs, intervalArr, flagArr, location, limit, offset, reverse, join_metadata);
+    if(query) {
+      try {
+        data = await mesonetDBUser.query(query, params, async (cursor: Cursor) => {
+          let rows = [];
+          const chunkSize = 10000;
+          let chunk: any[];
+          do {
+            chunk = await cursor.read(chunkSize);
+            for(let row of chunk) {
+              rows.push(row);
+            }
+          }
+          while(chunk.length > 0)
+          return rows;
+        }, {rowMode: row_mode});
+      }
+      catch(e) {
+        reqData.success = false;
+        reqData.code = 400;
+  
+        return res.status(400)
+        .send(`An error occured while handling your query. Please validate the parameters used. Error: ${e}`);
+      }
+    }
+
+    if(data.length > 0 && local_tz) {
+      let timezone = await getLocationTimezone(location);
+
+      if(row_mode === "array") {
+        let tsIndex = index.indexOf("timestamp");
+        for(let row of data) {
+          let converted = moment(row[tsIndex]).tz(timezone);
+          row[tsIndex] = converted.format();
+        }
+      }
+      else {
+        for(let row of data) {
+          let converted = moment(row.timestamp).tz(timezone);
+          row.timestamp = converted.format();
+        }
+      }
+    }
+    //if array form wrap with index
+    if(row_mode === "array" || row_mode == "wide_array") {
+      data = {
+        index,
+        data
+      };
+    }
+
+    reqData.code = 200;
+    return res.status(200)
+    .json(data);
+  });
+});
+
+
+
+router.get("/mesonet/db/measurements/timing", mesonetMeasurementSlow, async (req, res) => {
   const startTime = performance.now();
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
@@ -444,17 +597,14 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
 
       // Wrap query in CTEs to compute database execution time inside PostgreSQL
       const wrappedQuery = `
-        WITH _start AS (
-          SELECT clock_timestamp() AS t_start
-        ),
-        _data AS MATERIALIZED (
-          ${safeQuery}
-        )
-        SELECT _data.*, 
-               (EXTRACT(EPOCH FROM (clock_timestamp() - (SELECT t_start FROM _start))) * 1000)::float AS db_query_time_ms
-        FROM (SELECT 1) _force_row
-        LEFT JOIN _data ON TRUE;
-      `;
+      WITH _data AS MATERIALIZED (
+        ${safeQuery}
+      )
+      SELECT _data.*, 
+            (EXTRACT(EPOCH FROM (clock_timestamp() - statement_timestamp())) * 1000)::float AS db_query_time_ms
+      FROM (SELECT 1) _force_row
+      LEFT JOIN _data ON TRUE;
+    `;
 
       try {
         data = await mesonetDBUser.query(wrappedQuery, params, async (cursor: Cursor) => {
@@ -536,6 +686,9 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
     });
   });
 });
+
+
+
 
 
 
