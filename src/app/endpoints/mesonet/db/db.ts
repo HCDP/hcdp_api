@@ -1,4 +1,4 @@
-import express from "express";
+import express, { NextFunction } from "express";
 import { rateLimit } from "express-rate-limit";
 import moment, { DurationInputArg1, DurationInputArg2, Moment } from "moment-timezone";
 import { mesonetDBAdmin, mesonetDBUser, pgStoreMesonetEmail, pgStoreSlowMesonetMeasurements } from "../../../modules/util/resourceManagers/db.js";
@@ -21,30 +21,92 @@ interface QueryData {
   index: string[]
 }
 
+
+
+
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
+
+
 const mesonetMeasurementSlow = slowDown({
   windowMs: 60 * 1000, // 1 minute window
   delayAfter: 50, // Delay after 50 requests
   delayMs: (used, req, res) => {
-    if (used <= 50) return 0;
-    
-    const delay = 1000 * (used - 50);
-    
-    // Inject your custom header so your diagnostic script can see it
+    const delayAfter = 50;
+    const remaining = delayAfter - used;
+    const delay = used <= delayAfter ? 0 : 1000 * (used - delayAfter);
+    console.log(req.ip, req.ips);
     res.setHeader('X-Slowdown-Delay', `${delay}ms`);
-    
+
+    if(req.slowDown && req.slowDown.resetTime) {
+      const msUntilReset = Math.max(0, req.slowDown.resetTime.getTime() - Date.now());
+      res.setHeader('X-Slowdown-Reset-After', `${msUntilReset}ms`);
+    }
+
+    res.setHeader('X-Slowdown-Remaining', `${remaining}`);
+
     return delay;
   },
   store: pgStoreSlowMesonetMeasurements
 });
 
-const mesonetEmailLimiter = rateLimit({
-	windowMs: 15 * 60 * 1000, // 15 minute window
-	limit: 5, // Limit each IP to 5 requests per `window` (here, per 15 minutes).
-	standardHeaders: "draft-8", // draft-6: `RateLimit-*` headers; draft-7 & draft-8: combined `RateLimit` header
-	legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
+const MESONET_EMAIL_MAX_P15 = 5
+
+const baseMesonetEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minute window
+  limit: MESONET_EMAIL_MAX_P15, // Limit each IP to 5 requests per window
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
   message: "Too many requests from this IP. Requests for this endpoint are limited to 5 per 15 minutes.",
-  store: pgStoreMesonetEmail
+  store: pgStoreMesonetEmail,
+  handler: (req, res, next, options) => {
+    // Inject headers even when blocked
+    setRateLimitMetricsHeaders(req, res);
+    res.status(options.statusCode).send(options.message);
+  }
 });
+
+// Calculate and attach custom metric headers
+function setRateLimitMetricsHeaders(req: any, res: any) {
+  if (req.rateLimit) {
+    // Subtract current hits from max limit
+    const remaining = MESONET_EMAIL_MAX_P15 - req.rateLimit.current;
+    
+    // Calculate exact milliseconds remaining until window resets
+    const msUntilReset = req.rateLimit.resetTime 
+      ? Math.max(0, req.rateLimit.resetTime.getTime() - Date.now()) 
+      : 0;
+
+    res.setHeader('X-RateLimit-Remaining', `${remaining}`);
+    res.setHeader('X-RateLimit-Reset-After', `${msUntilReset}ms`);
+  }
+}
+
+// email limiter metrics middleware
+export const mesonetEmailLimiter = (req: any, res: any, next: NextFunction) => {
+  baseMesonetEmailLimiter(req, res, (err?: any) => {
+    if(err) {
+      return next(err);
+    }
+    setRateLimitMetricsHeaders(req, res);
+    next();
+  });
+};
+
+
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 
 function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string, endDate: string, varIDs: string[], intervals: string[], flags: string[], location: string, limit: number, offset: number, reverse: boolean, joinMetadata: boolean, selectFlag: boolean = true): QueryData {
   let measurementsTable = `${location}_measurements_tsdb`;

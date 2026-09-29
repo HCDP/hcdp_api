@@ -37,7 +37,7 @@ process.env["NODE_ENV"] = "production";
 const app = express();
 
 app.options('*', cors());
-app.set("trust proxy", 1);
+app.set("trust proxy", ["loopback", "linklocal", "uniquelocal", "128.171.121.6"]);
 
 //compress all HTTP responses
 app.use(compression());
