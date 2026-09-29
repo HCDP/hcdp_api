@@ -263,7 +263,7 @@ async function sanitizeExpandVarIDs(varIDs: string[]) {
 }
 
 
-router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) => {
+router.get("/mesonet/db/measurements", async (req, res) => {
   const startTime = performance.now();
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
