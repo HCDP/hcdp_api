@@ -1417,6 +1417,30 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
       return res.status(400).send(`Invalid location provided.`);
     }
 
+    // transpose the 2D rows into 1D columns
+    let station_ids: string[] = [];
+    let timestamps: string[] = [];
+    let variables: string[] = [];
+    let versions: string[] = [];
+    let value_ds: number[] = [];
+    let values: number[] = [];
+    let flags: string[] = [];
+
+    for(let row of data) {
+      if(!Array.isArray(row) || row.length != 7) {
+        reqData.success = false;
+        reqData.code = 400;
+        return res.status(400).send(`Invalid data provided. Data must be a 2D array with 7 element rows.`);
+      }
+      station_ids.push(row[0]);
+      timestamps.push(row[1]);
+      variables.push(row[2]);
+      versions.push(row[3]);
+      value_ds.push(row[4]);
+      values.push(row[5]);
+      flags.push(row[6]);
+    }
+
     let onConflict = overwrite ? `
       DO UPDATE SET
         version = EXCLUDED.version,
@@ -1427,65 +1451,26 @@ router.put("/mesonet/db/measurements/insert", async (req, res) => {
     let query = `
       INSERT INTO ${location}_measurements_tsdb (timestamp, station_id, variable, version, value_d, value, flag)
       SELECT * FROM UNNEST(
-        $1::timestamptz[],            
-        $2::character(4)[],           
-        $3::character varying(255)[], 
-        $4::character varying(255)[], 
-        $5::double precision[],       
-        $6::character varying(255)[], 
-        $7::integer[]                 
+        $1::timestamptz[],            -- timestamp: timestamp with time zone
+        $2::character(4)[],           -- station_id: character(4)
+        $3::character varying(255)[], -- variable: varchar(255)
+        $4::character varying(255)[], -- version: varchar(255)
+        $5::double precision[],       -- value_d: double precision
+        $6::character varying(255)[], -- value: varchar(255)
+        $7::integer[]                 -- flag: integer
       ) AS t(timestamp, station_id, variable, version, value_d, value, flag)
       ORDER BY timestamp ASC
       ON CONFLICT (timestamp, station_id, variable)
       ${onConflict}
     `;
 
-    let totalModified = 0;
-    // Chunk size to prevent locking the database
-    const CHUNK_SIZE = 2500;
+    // Pass value arrays as single parameters
+    let params = [timestamps, station_ids, variables, versions, value_ds, values, flags];
 
     try {
-      for (let i = 0; i < data.length; i += CHUNK_SIZE) {
-        let chunk = data.slice(i, i + CHUNK_SIZE);
-        
-        // transpose the 2D rows into 1D columns for the chunk
-        let station_ids: string[] = [];
-        let timestamps: string[] = [];
-        let variables: string[] = [];
-        let versions: string[] = [];
-        let value_ds: number[] = [];
-        let values: number[] = [];
-        let flags: string[] = [];
-
-        for(let row of chunk) {
-          if(!Array.isArray(row) || row.length != 7) {
-            reqData.success = false;
-            reqData.code = 400;
-            return res.status(400).send(`Invalid data provided. Data must be a 2D array with 7 element rows.`);
-          }
-          station_ids.push(row[0]);  
-          timestamps.push(row[1]);   
-          variables.push(row[2]);    
-          versions.push(row[3]);     
-          value_ds.push(row[4]);     
-          values.push(row[5]);       
-          flags.push(row[6]);
-        }
-
-        // Pass value arrays as single parameters
-        let params = [timestamps, station_ids, variables, versions, value_ds, values, flags];
-
-        let modified = await mesonetDBAdmin.queryNoRes(query, params);
-        totalModified += modified;
-
-        // Pause
-        if (i + CHUNK_SIZE < data.length) {
-          await new Promise(resolve => setTimeout(resolve, 50)); 
-        }
-      }
-
+      let modified = await mesonetDBAdmin.queryNoRes(query, params);
       reqData.code = 200;
-      return res.status(200).json({ modified: totalModified });
+      return res.status(200).json({ modified });
     }
     catch(e: any) {
       if(e.code && e.code.startsWith("42")) {
