@@ -21,12 +21,12 @@ interface QueryData {
   index: string[]
 }
 
-const mesonetMeasurementSlow = slowDown({
-	windowMs: 60 * 1000, // 1 minute window
-	delayAfter: 50, // Dalay after 50 requests.
-  delayMs: (hits) => 1000 * (hits - 50), // delay by 1 second * number of hits over 50
-  store: pgStoreSlowMesonetMeasurements
-});
+// const mesonetMeasurementSlow = slowDown({
+// 	windowMs: 60 * 1000, // 1 minute window
+// 	delayAfter: 50, // Dalay after 50 requests.
+//   delayMs: (hits) => 1000 * (hits - 50), // delay by 1 second * number of hits over 50
+//   store: pgStoreSlowMesonetMeasurements
+// });
 
 const mesonetEmailLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000, // 15 minute window
@@ -361,18 +361,15 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
 
       // Wrap query in CTEs to compute database execution time inside PostgreSQL
       const wrappedQuery = `
-        WITH _start AS MATERIALIZED (
+        WITH _start AS (
           SELECT clock_timestamp() AS t_start
         ),
         _data AS MATERIALIZED (
           ${safeQuery}
-        ),
-        _meta AS MATERIALIZED (
-          SELECT (EXTRACT(EPOCH FROM (clock_timestamp() - _start.t_start)) * 1000)::float AS db_query_time_ms
-          FROM _start
         )
-        SELECT _data.*, _meta.db_query_time_ms
-        FROM _meta
+        SELECT _data.*, 
+               (EXTRACT(EPOCH FROM (clock_timestamp() - (SELECT t_start FROM _start))) * 1000)::float AS db_query_time_ms
+        FROM (SELECT 1) _force_row
         LEFT JOIN _data ON TRUE;
       `;
 
