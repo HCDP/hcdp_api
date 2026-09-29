@@ -21,12 +21,21 @@ interface QueryData {
   index: string[]
 }
 
-// const mesonetMeasurementSlow = slowDown({
-// 	windowMs: 60 * 1000, // 1 minute window
-// 	delayAfter: 50, // Dalay after 50 requests.
-//   delayMs: (hits) => 1000 * (hits - 50), // delay by 1 second * number of hits over 50
-//   store: pgStoreSlowMesonetMeasurements
-// });
+const mesonetMeasurementSlow = slowDown({
+  windowMs: 60 * 1000, // 1 minute window
+  delayAfter: 50, // Delay after 50 requests
+  delayMs: (used, req, res) => {
+    if (used <= 50) return 0;
+    
+    const delay = 1000 * (used - 50);
+    
+    // Inject your custom header so your diagnostic script can see it
+    res.setHeader('X-Slowdown-Delay', `${delay}ms`);
+    
+    return delay;
+  },
+  store: pgStoreSlowMesonetMeasurements
+});
 
 const mesonetEmailLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000, // 15 minute window
@@ -263,7 +272,7 @@ async function sanitizeExpandVarIDs(varIDs: string[]) {
 }
 
 
-router.get("/mesonet/db/measurements", async (req, res) => {
+router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) => {
   const startTime = performance.now();
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
