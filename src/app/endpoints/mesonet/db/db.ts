@@ -356,13 +356,16 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
 
     let { query, params, index } = await constructMeasurementsQuery(crosstabQuery, stationIDs, start_date, end_date, varIDs, intervalArr, flagArr, location, limit, offset, reverse, join_metadata);
     if(query) {
+      // Strip trailing semicolon and whitespace so it doesn't break the CTE
+      const safeQuery = query.trim().replace(/;$/, '');
+
       // Wrap query in CTEs to compute database execution time inside PostgreSQL
       const wrappedQuery = `
         WITH _start AS MATERIALIZED (
           SELECT clock_timestamp() AS t_start
         ),
         _data AS MATERIALIZED (
-          ${query}
+          ${safeQuery}
         ),
         _meta AS MATERIALIZED (
           SELECT (EXTRACT(EPOCH FROM (clock_timestamp() - _start.t_start)) * 1000)::float AS db_query_time_ms
