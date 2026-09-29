@@ -32,29 +32,43 @@ interface QueryData {
 /////////////////////////////////////////////////////////////////////////////////////////
 
 
-const mesonetMeasurementSlow = slowDown({
-  windowMs: 60 * 1000, // 1 minute window
-  delayAfter: 50, // Delay after 50 requests
-  delayMs: (used, req, res) => {
-    const delayAfter = 50;
-    const remaining = delayAfter - used;
-    const delay = used <= delayAfter ? 0 : 1000 * (used - delayAfter);
-    console.log(req.ip, req.ips);
-    res.setHeader('X-Slowdown-Delay', `${delay}ms`);
+const MESONET_EMAIL_MAX_P15 = 5
+const MESONET_MEASURMENTS_MAX_P1 = 50;
 
-    if(req.slowDown && req.slowDown.resetTime) {
-      const msUntilReset = Math.max(0, req.slowDown.resetTime.getTime() - Date.now());
-      res.setHeader('X-Slowdown-Reset-After', `${msUntilReset}ms`);
-    }
-
-    res.setHeader('X-Slowdown-Remaining', `${remaining}`);
-
-    return delay;
+const baseMesonetMeasurementSlow = slowDown({
+  windowMs: 60 * 1000,
+  delayAfter: MESONET_MEASURMENTS_MAX_P1,
+  delayMs: (used) => {
+    return 1000 * (used - MESONET_MEASURMENTS_MAX_P1);
   },
   store: pgStoreSlowMesonetMeasurements
 });
 
-const MESONET_EMAIL_MAX_P15 = 5
+export const mesonetMeasurementSlow = (req: any, res: any, next: NextFunction): void => {
+  baseMesonetMeasurementSlow(req, res, (err?: any) => {
+    if(err) {
+      return next(err);
+    }
+
+    if(req.slowDown) {
+      const used = req.slowDown.current;
+      const remaining = MESONET_MEASURMENTS_MAX_P1 - used;
+      const delay = used <= MESONET_MEASURMENTS_MAX_P1 ? 0 : 1000 * (used - MESONET_MEASURMENTS_MAX_P1);
+
+      res.setHeader('X-Slowdown-Delay', `${delay}ms`);
+      res.setHeader('X-Slowdown-Remaining', remaining.toString());
+
+      if (req.slowDown.resetTime) {
+        const msUntilReset = Math.max(0, req.slowDown.resetTime.getTime() - Date.now());
+        res.setHeader('X-Slowdown-Reset-After', `${msUntilReset}ms`);
+      }
+    }
+
+    next();
+  });
+};
+
+
 
 const baseMesonetEmailLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minute window
