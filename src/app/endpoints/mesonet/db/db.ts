@@ -32,19 +32,19 @@ interface QueryData {
 /////////////////////////////////////////////////////////////////////////////////////////
 
 
-const MESONET_EMAIL_MAX_P15 = 5
-const MESONET_MEASURMENTS_MAX_P1 = 50;
+const MESONET_EMAIL_MAX = 5
+const MESONET_MEASURMENTS_MAX = 50;
 
 const baseMesonetMeasurementSlow = slowDown({
   windowMs: 60 * 1000,
-  delayAfter: MESONET_MEASURMENTS_MAX_P1,
-  delayMs: (used) => {
-    return 1000 * (used - MESONET_MEASURMENTS_MAX_P1);
+  delayAfter: MESONET_MEASURMENTS_MAX,
+  delayMs: (used: number) => {
+    return 1000 * (used - MESONET_MEASURMENTS_MAX);
   },
   store: pgStoreSlowMesonetMeasurements
 });
 
-export const mesonetMeasurementSlow = (req: any, res: any, next: NextFunction): void => {
+function mesonetMeasurementSlow(req: any, res: any, next: NextFunction): void {
   baseMesonetMeasurementSlow(req, res, (err?: any) => {
     if(err) {
       return next(err);
@@ -52,13 +52,13 @@ export const mesonetMeasurementSlow = (req: any, res: any, next: NextFunction): 
 
     if(req.slowDown) {
       const used = req.slowDown.current;
-      const remaining = MESONET_MEASURMENTS_MAX_P1 - used;
-      const delay = used <= MESONET_MEASURMENTS_MAX_P1 ? 0 : 1000 * (used - MESONET_MEASURMENTS_MAX_P1);
+      const remaining = MESONET_MEASURMENTS_MAX - used;
+      const delay = used <= MESONET_MEASURMENTS_MAX ? 0 : 1000 * (used - MESONET_MEASURMENTS_MAX);
 
       res.setHeader('X-Slowdown-Delay', `${delay}ms`);
       res.setHeader('X-Slowdown-Remaining', remaining.toString());
 
-      if (req.slowDown.resetTime) {
+      if(req.slowDown.resetTime) {
         const msUntilReset = Math.max(0, req.slowDown.resetTime.getTime() - Date.now());
         res.setHeader('X-Slowdown-Reset-After', `${msUntilReset}ms`);
       }
@@ -72,7 +72,7 @@ export const mesonetMeasurementSlow = (req: any, res: any, next: NextFunction): 
 
 const baseMesonetEmailLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minute window
-  limit: MESONET_EMAIL_MAX_P15, // Limit each IP to 5 requests per window
+  limit: MESONET_EMAIL_MAX, // Limit each IP to 5 requests per window
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: "Too many requests from this IP. Requests for this endpoint are limited to 5 per 15 minutes.",
@@ -88,12 +88,10 @@ const baseMesonetEmailLimiter = rateLimit({
 function setRateLimitMetricsHeaders(req: any, res: any) {
   if (req.rateLimit) {
     // Subtract current hits from max limit
-    const remaining = MESONET_EMAIL_MAX_P15 - req.rateLimit.current;
+    const remaining = MESONET_EMAIL_MAX - req.rateLimit.current;
     
     // Calculate exact milliseconds remaining until window resets
-    const msUntilReset = req.rateLimit.resetTime 
-      ? Math.max(0, req.rateLimit.resetTime.getTime() - Date.now()) 
-      : 0;
+    const msUntilReset = req.rateLimit.resetTime ? Math.max(0, req.rateLimit.resetTime.getTime() - Date.now()) : 0;
 
     res.setHeader('X-RateLimit-Remaining', `${remaining}`);
     res.setHeader('X-RateLimit-Reset-After', `${msUntilReset}ms`);
@@ -101,7 +99,7 @@ function setRateLimitMetricsHeaders(req: any, res: any) {
 }
 
 // email limiter metrics middleware
-export const mesonetEmailLimiter = (req: any, res: any, next: NextFunction) => {
+function mesonetEmailLimiter(req: any, res: any, next: NextFunction) {
   baseMesonetEmailLimiter(req, res, (err?: any) => {
     if(err) {
       return next(err);
