@@ -264,6 +264,7 @@ async function sanitizeExpandVarIDs(varIDs: string[]) {
 
 
 router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) => {
+  const startTime = performance.now();
   const permission = "basic";
   await handleReq(req, res, permission, async (reqData) => {
     let { station_ids, start_date, end_date, var_ids, intervals, flags, location, limit = 10000, offset, reverse, join_metadata, local_tz, row_mode }: any = req.query;
@@ -330,12 +331,12 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
       catch(e) {
         reqData.success = false;
         reqData.code = 400;
-  
+
         return res.status(400)
         .send("Invalid start date format. Dates must be ISO 8601 compliant.");
       }
     }
-  
+
     if(end_date) {
       try {
         let date = new Date(end_date);
@@ -344,41 +345,79 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
       catch(e) {
         reqData.success = false;
         reqData.code = 400;
-  
+
         return res.status(400)
         .send("Invalid end date format. Dates must be ISO 8601 compliant.");
       }
     }
 
-
     let data: any[] | { index: string[], data: any[] } = [];
+    let db_query_time_ms = 0;
+
     let { query, params, index } = await constructMeasurementsQuery(crosstabQuery, stationIDs, start_date, end_date, varIDs, intervalArr, flagArr, location, limit, offset, reverse, join_metadata);
     if(query) {
+      // Wrap query in CTEs to compute database execution time inside PostgreSQL
+      const wrappedQuery = `
+        WITH _start AS MATERIALIZED (
+          SELECT clock_timestamp() AS t_start
+        ),
+        _data AS MATERIALIZED (
+          ${query}
+        ),
+        _meta AS MATERIALIZED (
+          SELECT (EXTRACT(EPOCH FROM (clock_timestamp() - _start.t_start)) * 1000)::float AS db_query_time_ms
+          FROM _start
+        )
+        SELECT _data.*, _meta.db_query_time_ms
+        FROM _meta
+        LEFT JOIN _data ON TRUE;
+      `;
+
       try {
-        data = await mesonetDBUser.query(query, params, async (cursor: Cursor) => {
+        data = await mesonetDBUser.query(wrappedQuery, params, async (cursor: Cursor) => {
           let rows = [];
           const chunkSize = 10000;
           let chunk: any[];
           do {
             chunk = await cursor.read(chunkSize);
             for(let row of chunk) {
-              rows.push(row);
+              if(row_mode === "array") {
+                let queryTimeVal = row.pop();
+                if(queryTimeVal !== undefined && queryTimeVal !== null) {
+                  db_query_time_ms = parseFloat(Number(queryTimeVal).toFixed(2));
+                }
+                // Omit dummy row if _data returned 0 rows
+                if(!row.every((val: any) => val === null)) {
+                  rows.push(row);
+                }
+              }
+              else {
+                let queryTimeVal = row.db_query_time_ms;
+                delete row.db_query_time_ms;
+                if(queryTimeVal !== undefined && queryTimeVal !== null) {
+                  db_query_time_ms = parseFloat(Number(queryTimeVal).toFixed(2));
+                }
+                // Omit dummy row if _data returned 0 rows
+                if(!Object.values(row).every((val: any) => val === null)) {
+                  rows.push(row);
+                }
+              }
             }
           }
-          while(chunk.length > 0)
+          while(chunk.length > 0);
           return rows;
         }, {rowMode: row_mode});
       }
       catch(e) {
         reqData.success = false;
         reqData.code = 400;
-  
+
         return res.status(400)
         .send(`An error occured while handling your query. Please validate the parameters used. Error: ${e}`);
       }
     }
 
-    if(data.length > 0 && local_tz) {
+    if(Array.isArray(data) && data.length > 0 && local_tz) {
       let timezone = await getLocationTimezone(location);
 
       if(row_mode === "array") {
@@ -395,17 +434,23 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
         }
       }
     }
-    //if array form wrap with index
-    if(row_mode === "array" || row_mode == "wide_array") {
+
+    // If array form wrap with index
+    if(row_mode === "array" || row_mode === "wide_array") {
       data = {
         index,
-        data
+        data: data as any[]
       };
     }
 
+    const endpoint_time_ms = parseFloat((performance.now() - startTime).toFixed(2));
+
     reqData.code = 200;
-    return res.status(200)
-    .json(data);
+    return res.status(200).json({
+      endpoint_time_ms,
+      db_query_time_ms,
+      data
+    });
   });
 });
 
