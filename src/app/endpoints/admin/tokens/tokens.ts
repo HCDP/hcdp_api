@@ -325,3 +325,43 @@ router.patch("/deprecateToken", async (req, res) => {
     .send(`Token has been replaced with ${newToken} and the user has been emailed the new token.`);
   });
 });
+
+
+
+router.get("/getTokenData", async (req, res) => {
+  const permission = "admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    const { token }: any = req.query;
+
+    if(!token) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Request must include the following parameter:
+        token: The token to retrieve data for.`
+      );
+    }
+
+    let query = `
+      SELECT token, created, permissions, user_label, requestid
+      FROM auth_token_store
+      WHERE token = $1;
+    `;
+
+    let tokenData = await apiDB.query(query, [token], async (cursor: Cursor) => {
+      return await cursor.read(1);
+    });
+
+    if(tokenData.length > 0) {
+      reqData.code = 200;
+      return res.status(200).json(tokenData[0]);
+    }
+    else {
+      reqData.success = false;
+      reqData.code = 404;
+      return res.status(404).send("Token not found.");
+    }
+  });
+});
