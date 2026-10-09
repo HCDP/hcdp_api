@@ -7,23 +7,20 @@ async function validateTokenAccess(token, permission) {
   let user = "";
 
   let query = `
-    SELECT user_label, permissions
+    SELECT user_label, ($2 = ANY(permissions)) as allowed
     FROM auth_token_store
     WHERE token = $1;
   `;
 
-  let queryRes = await apiDB.query(query, [token], async (cursor: Cursor) => {
+  let queryRes = await apiDB.query(query, [token, permission], async (cursor: Cursor) => {
     return await cursor.read(1);
   });
   
   if(queryRes.length > 0) {
-    let { user_label, permissions } = queryRes[0];
+    let { user_label, allowed: dbAllowed } = queryRes[0];
     valid = true;
     user = user_label;
-    const authorized = permissions.split(",");
-    if(authorized.includes(permission)) {
-      allowed = true;
-    }
+    allowed = dbAllowed;
   }
   return {
     valid,

@@ -1,7 +1,7 @@
 import express from "express";
 import { handleReq, handleReqNoAuth } from "../../../modules/util/reqHandlers.js";
 import { apiDB } from "../../../modules/util/resourceManagers/db.js";
-import { sendEmail } from "../../../modules/util/util.js";
+import { sendEmail, validateArray, validateType } from "../../../modules/util/util.js";
 import * as crypto from "crypto";
 import Cursor from "pg-cursor";
 
@@ -99,7 +99,7 @@ router.get("/respondTokenRequest", async (req, res) => {
         query = `
           INSERT INTO auth_token_store VALUES ($1, $2, $3, $4, $5);
         `;
-        await apiDB.queryNoRes(query, [apiToken, timestamp, "basic", userLabel, requestID]);
+        await apiDB.queryNoRes(query, [apiToken, timestamp, ["basic"], userLabel, requestID]);
         const emailContent = `Dear ${name},
   
           Thank you for your interest in using the HCDP API! Here is your HCDP API token:
@@ -166,7 +166,9 @@ router.patch("/updateTokenPermissions", async (req, res) => {
   await handleReq(req, res, permission, async (reqData) => {
     const { token, permissions } = req.body;
 
-    if(!token || !permissions) {
+    const validPerms = validateArray(permission, (value: any) => validateType(value, ["string"]))
+
+    if(!token || !validPerms) {
       //set failure and code in status
       reqData.success = false;
       reqData.code = 400;
@@ -179,17 +181,91 @@ router.patch("/updateTokenPermissions", async (req, res) => {
       );
     }
 
-    let permString = permissions.join(",");
     let query = `
       UPDATE auth_token_store
       SET permissions = $1 
       WHERE token = $2;
     `;
-    await apiDB.queryNoRes(query, [permString, token]);
+    await apiDB.queryNoRes(query, [permissions, token]);
     reqData.code = 204;
     return res.status(204).end();
   });
 });
+
+
+router.patch("/addTokenPermissions", async (req, res) => {
+  const permission = "admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    const { token, permissions } = req.body;
+
+    const validPerms = validateArray(permissions, (value: any) => validateType(value, ["string"]));
+
+    if(!token || !validPerms) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Request body should be JSON with the fields:
+        token: The token to update the permissions for.
+        permissions: An array of strings representing the permissions to add.`
+      );
+    }
+
+    let query = `
+      UPDATE auth_token_store
+      SET permissions = ARRAY(
+        SELECT DISTINCT UNNEST(permissions || $1::text[])
+      )
+      WHERE token = $2;
+    `;
+    
+    await apiDB.queryNoRes(query, [permissions, token]);
+    
+    reqData.code = 204;
+    return res.status(204).end();
+  });
+});
+
+
+router.patch("/removeTokenPermissions", async (req, res) => {
+  const permission = "admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    const { token, permissions } = req.body;
+
+    const validPerms = validateArray(permissions, (value: any) => validateType(value, ["string"]));
+
+    if(!token || !validPerms) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(
+        `Request body should be JSON with the fields:
+        token: The token to update the permissions for.
+        permissions: An array of strings representing the permissions to remove.`
+      );
+    }
+
+    let query = `
+      UPDATE auth_token_store
+      SET permissions = ARRAY(
+        SELECT UNNEST(permissions)
+        EXCEPT 
+        SELECT UNNEST($1::text[])
+      )
+      WHERE token = $2;
+    `;
+    
+    await apiDB.queryNoRes(query, [permissions, token]);
+    
+    reqData.code = 204;
+    return res.status(204).end();
+  });
+});
+
+
+
 
 
 router.patch("/deprecateToken", async (req, res) => {
