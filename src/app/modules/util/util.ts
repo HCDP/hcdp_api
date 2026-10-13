@@ -3,7 +3,6 @@ import * as path from "path";
 import * as nodemailer from "nodemailer";
 import moment from "moment-timezone";
 import { logDir, emailConfig, smtp, smtpPort } from "./config.js";
-import SMTPTransport from "nodemailer/lib/smtp-transport";
 
 const transporterOptions = {
   host: smtp,
@@ -70,26 +69,30 @@ export async function handleSubprocess(subprocess, dataHandler, errHandler?) {
   });
 }
 
-export async function sendEmail(mailOptions: MailOptions): Promise<MailRes> {
+export async function sendEmail(mailOptions: MailOptions, retries = 3): Promise<MailRes> {
   let combinedMailOptions = Object.assign({}, emailConfig, mailOptions);
-  //have to be on uh netork
-  return transporter.sendMail(combinedMailOptions)
-  .then((info: SMTPTransport.SentMessageInfo) => {
+  try {
+    let info = await transporter.sendMail(combinedMailOptions);
     const success = info.response.startsWith("250");
     return {
       success: success,
       result: info, 
       error: null
     };
-  })
-  .catch((error) => {
+  }
+  catch(error: any) {
+    if(retries > 0 && (error.code === "ECONNRESET" || error.code === "ETIMEDOUT" || error.code === "EPIPE")) {
+      console.warn(`SMTP connection error (${error.code}). Retrying...`);
+      return sendEmail(mailOptions, retries - 1);
+    }
     return {
       success: false,
       result: null,
       error: error
     };
-  });
+  }
 }
+
 
 export async function logReq(data) {
   const { user, code, success, sizeF, method, endpoint, token, sizeB, tokenUser } = data;
