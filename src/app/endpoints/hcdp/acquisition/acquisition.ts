@@ -18,7 +18,7 @@ const DATA_SCHEMAS = {
       cols: ["station_id", "station_name", "nesdis_id", "skn", "lat", "lng"],
       key: ["station_id"]
     },
-    varMetadata: {
+    variableMetadata: {
       cols: ["variable", "unit"],
       key: ["variable"]
     },
@@ -32,7 +32,7 @@ const DATA_SCHEMAS = {
       cols: ["station_id", "station_name", "data_provider", "skn", "lat", "lng", "source"],
       key: ["station_id"]
     },
-    varMetadata: {
+    variableMetadata: {
       cols: ["variable", "unit"],
       key: ["variable"]
     },
@@ -46,7 +46,7 @@ const DATA_SCHEMAS = {
       cols: ["station_id", "station_name", "data_provider", "skn", "lat", "lng"],
       key: ["station_id"]
     },
-    varMetadata: {
+    variableMetadata: {
       cols: ["variable", "unit"],
       key: ["variable"]
     },
@@ -60,7 +60,7 @@ const DATA_SCHEMAS = {
       cols: ["station_id", "station_name", "skn", "lat", "lng"],
       key: ["station_id"]
     },
-    varMetadata: {
+    variableMetadata: {
       cols: ["variable", "unit"],
       key: ["variable"]
     },
@@ -78,7 +78,7 @@ function getTableName(source: string, table: string, location?: string, version?
       tableName = getStationMetaTable(source);
       break;
     }
-    case "varMetadata": {
+    case "variableMetadata": {
       tableName = getVarMetaTable(source);
       break;
     }
@@ -221,7 +221,7 @@ router.get("/acquisition/:source(hads|madis|nws_api|nws_rr5)/data", async (req, 
       SELECT ${schema.join(", ")}
       FROM ${table}
       ${whereClause}
-      ORDER BY station_id, timestamp ${reverse ? "" : "DESC"}, variable
+      ORDER BY timestamp ${reverse ? "" : "DESC"}, station_id, variable
       ${limitOffsetClause};
     `
 
@@ -338,7 +338,7 @@ router.get("/acquisition/:source(hads|madis|nws_api|nws_rr5)/variableMetadata", 
     }
 
     const table = getVarMetaTable(source);
-    const schema: string[] = DATA_SCHEMAS[source].varMetadata.cols;
+    const schema: string[] = DATA_SCHEMAS[source].variableMetadata.cols;
 
     let params: string[] = [];
     let whereClauses = [];
@@ -523,7 +523,7 @@ router.get("/acquisition/:source(hads|madis|nws_api|nws_rr5)/stationMetadata", a
 
 
 
-router.post("/acquisition/:source(hads|madis|nws_api|nws_rr5)/:table(stationMetadata|varMetadata|data)", async (req, res) => {
+router.post("/acquisition/:source(hads|madis|nws_api|nws_rr5)/:table(stationMetadata|variableMetadata|data)", async (req, res) => {
   const permission = "meso_admin";
   await handleReq(req, res, permission, async (reqData) => {
     const { source, table } = req.params;
@@ -556,7 +556,7 @@ router.post("/acquisition/:source(hads|madis|nws_api|nws_rr5)/:table(stationMeta
     const keyCols: string[] = DATA_SCHEMAS[source][table].key;
 
     let isValid = validateArray(data, (row) => {
-    if(typeof row !== "object" || row === null) return false;
+      if(typeof row !== "object" || row === null) return false;
       // Ensure every column defined in the schema exists in the row
       return schema.every((col: string) => row[col] !== undefined);
     });
