@@ -213,6 +213,30 @@ export function validateArray(param: any, elementValidator?: (value: any, index?
   return valid;
 }
 
+export function validateDateString(value: any): boolean {
+  return validateType(value, ['string']) && !isNaN(Date.parse(value));
+}
+
+export function validateRangedTimestamp(timestamp: any): boolean {
+  // Handle the primitive string case
+  if(validateType(timestamp, ['string'])) {
+    return validateDateString(timestamp);
+  }
+  if(validateType(timestamp, ["object"]) && timestamp !== null) {
+    if(!validateDateString(timestamp.start)) {
+      return false;
+    }
+    // end is optional, but if provided must be a valid date string
+    if(timestamp.end !== undefined && !validateDateString(timestamp.end)) {
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+
+
 export function validateJSON(value: string) {
   try {
     JSON.parse(value);

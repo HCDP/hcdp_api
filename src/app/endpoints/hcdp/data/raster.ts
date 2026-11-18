@@ -33,30 +33,30 @@ router.get("/raster/timeseries", async (req, res) => {
 
       res.status(400)
       .send(
-          `Request must include the following parameters:
-          start: An ISO 8601 formatted date string representing the start date of the timeseries.
-          end: An ISO 8601 formatted date string representing the end date of the timeseries.
-          {index: The 1D index of the data in the file.
-          OR
-          row AND col: The row and column of the data.
-          OR
-          lat AND lng: The geographic coordinates of the data}`
+        `Request must include the following parameters:
+        start: An ISO 8601 formatted date string representing the start date of the timeseries.
+        end: An ISO 8601 formatted date string representing the end date of the timeseries.
+        {index: The 1D index of the data in the file.
+        OR
+        row AND col: The row and column of the data.
+        OR
+        lat AND lng: The geographic coordinates of the data}`
       );
     }
     else {
     let dataset = [{
-        files: ["data_map"],
-        range: {
-        start,
-        end
-        },
-        ...properties
+      files: ["data_map"],
+      range: {
+      start,
+      end
+      },
+      ...properties
     }];
     //need files directly, don't collapse
     let { numFiles, paths } = await getPaths(dataset, false);
     reqData.sizeF = numFiles;
 
-    let proc;
+    let proc: child_process.ChildProcessWithoutNullStreams;
     //error if paths empty
     let timeseries = {};
     //if no paths just return empty timeseries

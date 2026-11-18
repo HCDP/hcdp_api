@@ -4,7 +4,7 @@ import cors from "cors";
 import timeout from "connect-timeout";
 import { port } from "./modules/util/config.js";
 import { router as r1 } from "./endpoints/admin/misc/notify.js";
-import { router as r2 } from "./endpoints/mesonet/db/db.js";
+import { router as r2 } from "./endpoints/mesonet/db/db.old.js";
 import { router as r3 } from "./endpoints/higre/higre.js";
 import { router as r4 } from "./endpoints/admin/tokens/tokens.js";
 import { router as r5 } from "./endpoints/admin/misc/misc.js";
