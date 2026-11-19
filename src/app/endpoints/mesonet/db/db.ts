@@ -543,6 +543,17 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
           do {
             chunk = await cursor.read(chunkSize);
             for(let row of chunk) {
+
+              // TEMP
+              if(row_mode === "array") {
+                row.push(0);
+              }
+              else {
+                row.flag = 0;
+              }
+
+
+
               if(join_flags) {
                 if(row_mode === "array") {
                   if(flagsIdx !== -1 && row[flagsIdx] != null) {
