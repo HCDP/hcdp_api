@@ -223,7 +223,7 @@ router.get("/acquisition/:source(hads|madis|nws_api|nws_rr5)/data", async (req, 
       ${whereClause}
       ORDER BY timestamp ${reverse ? "" : "DESC"}, station_id, variable
       ${limitOffsetClause};
-    `
+    `;
 
     let data: any[];
     try {

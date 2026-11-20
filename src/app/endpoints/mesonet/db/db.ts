@@ -29,6 +29,8 @@ interface QueryData {
 /////////////////////////////////////////////////////////////////////////////////////////
 
 
+const MAX_QUERY = 1000000;
+
 const MESONET_EMAIL_MAX = 5
 const MESONET_MEASURMENTS_MAX = 50;
 
@@ -121,6 +123,10 @@ function getMeasurementsTable(location: string) {
 
 function getFlagTable(location: string) {
   return `${location}_measurement_flags`;
+}
+
+function getAggregationTable(location: string, timescale: string) {
+  return `${location}_measurements_${timescale}`;
 }
 
 
@@ -450,8 +456,6 @@ router.get("/mesonet/db/measurements", mesonetMeasurementSlow, async (req, res) 
         }
       }
     }
-
-    const MAX_QUERY = 1000000;
 
     if(!mesonetLocations.includes(location)) {
       location = "hawaii";
@@ -2672,6 +2676,269 @@ router.patch("/mesonet/db/setFlags", async (req, res) => {
       reqData.success = false;
       reqData.code = 500;
       return res.status(500).send(`Database error during batch update`);
+    }
+  });
+});
+
+
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////// Aggregate Tables /////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+router.get("/mesonet/db/aggregates/:timescale(hourly|daily|monthly|annual|diurnal)", async (req, res) => {
+  const permission = "basic";
+  await handleReq(req, res, permission, async (reqData) => {
+    const { timescale } = req.params;
+    let {
+      reverse = false,
+      local_tz = false,
+      location = "hawaii",
+      station_ids = [],
+      var_ids = [],
+      start_date,
+      end_date,
+      row_mode,
+      limit = 10000,
+      offset
+    }: any = req.query
+
+    const e400 = (msg: string) => {
+      reqData.success = false;
+      reqData.code = 400;
+      return res.status(400).send(msg);
+    };
+
+    if(!mesonetLocations.includes(location)) {
+      return e400(`Invalid location provided.`);
+    }
+
+    let rowMode: "array" | undefined = row_mode == "array" ? "array" : undefined;
+
+    reverse = parseBoolParam(reverse);
+    let localTz = parseBoolParam(local_tz);
+
+    let stationIDs = parseListParam(station_ids);
+    let varIDs = parseListParam(var_ids);
+
+    let parsedLimit = parseInt(limit, 10);
+    // default to max
+    if(isNaN(parsedLimit)) {
+      return e400("Invalid limit parameter. Limit must be an integer.");
+    }
+    else if(parsedLimit < 1 || parsedLimit > MAX_QUERY) {
+      limit = MAX_QUERY;
+    }
+    else {
+      limit = parsedLimit;
+    }
+
+    let parsedOffset: number | undefined;
+    if(offset !== undefined) {
+      parsedOffset = parseInt(offset, 10);
+      if(isNaN(parsedOffset) || parsedOffset < 0) {
+        return e400("Invalid offset parameter. Offset must be a non-negative integer.");
+      }
+      offset = parsedOffset;
+    }
+
+    let tableName: string = getAggregationTable(location, timescale);
+
+    let params: string[] = [];
+    let whereClauses = [];
+
+    if(stationIDs.length > 0) {
+      parseParams(stationIDs, params, whereClauses, "station_id");
+    }
+
+    if(varIDs.length > 0) {
+      parseParams(varIDs, params, whereClauses, "variable");
+    }
+
+    if(start_date) {
+      let date = new Date(start_date);
+      // ensure valid date produced by input
+      if(isNaN(date.getTime())) {
+        return e400("Invalid start date format. Dates must be ISO 8601 compliant.");
+      }
+      params.push(date.toISOString());
+      whereClauses.push(`timestamp >= $${params.length}`);
+    }
+  
+    if(end_date) {
+      let date = new Date(end_date);
+      // ensure valid date produced by input
+      if(isNaN(date.getTime())) {
+        return e400("Invalid end date format. Dates must be ISO 8601 compliant.");
+      }
+      params.push(date.toISOString());
+      whereClauses.push(`timestamp <= $${params.length}`);
+    }
+
+    let whereClause = "";
+    if(whereClauses.length > 0) {
+      whereClause = `WHERE ${whereClauses.join(" AND ")}`;
+    }
+
+    let limitOffsetClause = "";
+    params.push(limit.toString());
+    limitOffsetClause += `LIMIT $${params.length}`;
+    if(offset) {
+      params.push(offset.toString());
+      limitOffsetClause += ` OFFSET $${params.length}`;
+    }
+
+    let query = `
+      SELECT timestamp, station_id, variable, value
+      FROM ${tableName}
+      ${whereClause}
+      ORDER BY timestamp ${reverse ? "" : "DESC"}, station_id, variable
+      ${limitOffsetClause};
+    `;
+
+    let data: any[];
+    try {
+      data = await mesonetDBUser.query(query, params, async (cursor: Cursor) => {
+        let rows = [];
+        const chunkSize = 10000;
+        let chunk: any[];
+        do {
+          chunk = await cursor.read(chunkSize);
+          for(let row of chunk) {
+            rows.push(row);
+          }
+        }
+        while(chunk.length > 0)
+        return rows;
+      }, { rowMode: rowMode });
+    }
+    catch(e) {
+      reqData.success = false;
+      reqData.code = 400;
+
+      return res.status(400)
+      .send(`An error occured while handling your query. Please validate the parameters used. Error: ${e}`);
+    }
+
+    // convert timestamps to localTz if requested
+    if(data.length > 0 && localTz) {
+      let timezone = await getLocationTimezone(location);
+
+      if(rowMode === "array") {
+        let tsIndex = 0;
+        for(let row of data) {
+          let converted = moment(row[tsIndex]).tz(timezone);
+          row[tsIndex] = converted.format();
+        }
+      }
+      else {
+        for(let row of data) {
+          let converted = moment(row.timestamp).tz(timezone);
+          row.timestamp = converted.format();
+        }
+      }
+    }
+
+    reqData.code = 200;
+    return res.status(200)
+    .json(data);
+  });
+});
+
+
+
+
+
+
+
+router.post("/mesonet/db/aggregates/:timescale(hourly|daily|monthly|annual|diurnal)", async (req, res) => {
+  const permission = "meso_admin";
+  await handleReq(req, res, permission, async (reqData) => {
+    const { timescale } = req.params;
+    let { 
+      overwrite = true,
+      location,
+      data
+    } = req.body;
+
+    overwrite = parseBoolParam(overwrite, true);
+
+    if(!mesonetLocations.includes(location)) {
+      reqData.success = false;
+      reqData.code = 400;
+      return res.status(400).send(`Invalid location provided.`);
+    }
+
+    const e400 = (msg: string) => {
+      reqData.success = false;
+      reqData.code = 400;
+      return res.status(400).send(msg);
+    };
+
+
+
+    let tableName: string = getAggregationTable(location, timescale);
+
+    const schema = ["station_id", "timestamp", "variable", "value"];
+
+    overwrite = parseBoolParam(overwrite);
+
+    let isValid = validateArray(data, (row) => {
+      if(typeof row !== "object" || row === null) return false;
+      // Ensure every column defined in the schema exists in the row
+      return schema.every((col: string) => row[col] !== undefined);
+    });
+
+    if(!isValid) {
+      return e400(`Invalid payload. 'data' must be an array of objects; each object must contain the following properties: ${schema.join(", ")}`);
+    }
+
+    if(data.length === 0) {
+      reqData.code = 200;
+      reqData.success = true;
+      return res.status(200).json({ modified: 0 });
+    }
+
+    const CHUNK_SIZE = 10000; // 10k rows = 40k parameters (safe)
+    let totalModified = 0;
+
+    try {
+      for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+        let chunk = data.slice(i, i + CHUNK_SIZE);
+        
+        let params = [];
+        let valuesLines = [];
+        let paramIndex = 1;
+
+        for(let row of chunk) {
+          let rowArr = [];
+          for(let col of schema) {
+            params.push(row[col]);
+            rowArr.push(`$${paramIndex++}`);
+          }
+          valuesLines.push(`(${rowArr.join(", ")})`);
+        }
+
+        let conflictAction = overwrite ? `DO UPDATE SET value = EXCLUDED.value` : "DO NOTHING";
+        let query = `
+          INSERT INTO ${tableName} (${schema.join(", ")})
+          VALUES ${valuesLines.join(",")}
+          ON CONFLICT (station_id, "timestamp", variable)
+          ${conflictAction};
+        `;
+
+        // Assuming queryNoRes returns rowCount. Adjust if it returns something else.
+        let modified = await mesonetDBAdmin.queryNoRes(query, params);
+        totalModified += modified || chunk.length;
+      }
+      
+      reqData.code = 200;
+      reqData.success = true;
+      return res.status(200).json({ modified: totalModified });
+    }
+    catch(e) {
+      return e400(`An error occurred while inserting data. Error: ${e}`);
     }
   });
 });
