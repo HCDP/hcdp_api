@@ -188,22 +188,23 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
     
     let dqParams: string[] = [];
     for(let val of dataQuality) {
-        params.push(val.toString());
-        dqParams.push(`$${params.length}`);
+      params.push(val.toString());
+      dqParams.push(`$${params.length}`);
     }
     
-    if (dqIncludeNulls) {
-        mainWhereClauses.push(`(${flagTable}.data_quality IN (${dqParams.join(", ")}) OR ${flagTable}.data_quality IS NULL)`);
-    } else {
-        mainWhereClauses.push(`${flagTable}.data_quality IN (${dqParams.join(", ")})`);
+    if(dqIncludeNulls) {
+      mainWhereClauses.push(`(${flagTable}.data_quality IN (${dqParams.join(", ")}) OR ${flagTable}.data_quality IS NULL)`);
+    }
+    else {
+      mainWhereClauses.push(`${flagTable}.data_quality IN (${dqParams.join(", ")})`);
     }
   }
   
   if(screeningMethod.length > 0) {
     let smParams: string[] = [];
     for(let val of screeningMethod) {
-        params.push(val.toString());
-        smParams.push(`$${params.length}`);
+      params.push(val.toString());
+      smParams.push(`$${params.length}`);
     }
     mainWhereClauses.push(`${flagTable}.screening_method IN (${smParams.join(", ")})`);
   }
@@ -273,7 +274,7 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
     ${flagJoinClause}
     JOIN station_metadata ON station_metadata.station_id = ${measurementsTable}.station_id JOIN variable_metadata_combined ON variable_metadata_combined.standard_name = variable_data.standard_name
     ${mainWhereClause}
-    ORDER BY timestamp ${reverse ? "" : "DESC"}, variable_data.standard_name
+    ORDER BY timestamp ${reverse ? "" : "DESC"}, station_id, variable_data.standard_name
     ${limitOffsetClause}
   ` : `
     SELECT
@@ -286,7 +287,7 @@ function constructBaseMeasurementsQuery(stationIDs: string[], startDate: string,
     ) as variable_data ON variable_data.program = ${measurementsTable}.version AND variable_data.alias = ${measurementsTable}.variable
     ${flagJoinClause}
     ${mainWhereClause}
-    ORDER BY timestamp ${reverse ? "" : "DESC"}, variable_data.standard_name
+    ORDER BY timestamp ${reverse ? "" : "DESC"}, station_id, variable_data.standard_name
     ${limitOffsetClause}
   `;
 
@@ -998,7 +999,7 @@ function constructMeasurementsQueryEmail(stationIDs: string[], startDate: string
     ${flagJoinClause}
     JOIN station_metadata ON station_metadata.station_id = ${measurementsTable}.station_id JOIN variable_metadata_combined ON variable_metadata_combined.standard_name = variable_data.standard_name
     ${mainWhereClause}
-    ORDER BY timestamp ${reverse ? "" : "DESC"}, variable_data.standard_name
+    ORDER BY timestamp ${reverse ? "" : "DESC"}, station_id, variable_data.standard_name
     ${limitOffsetClause}
   ` : `
     SELECT
@@ -1011,7 +1012,7 @@ function constructMeasurementsQueryEmail(stationIDs: string[], startDate: string
     ) as variable_data ON variable_data.program = ${measurementsTable}.version AND variable_data.alias = ${measurementsTable}.variable
     ${flagJoinClause}
     ${mainWhereClause}
-    ORDER BY timestamp ${reverse ? "" : "DESC"}, variable_data.standard_name
+    ORDER BY timestamp ${reverse ? "" : "DESC"}, station_id, variable_data.standard_name
     ${limitOffsetClause}
   `;
 
