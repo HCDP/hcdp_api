@@ -28,5 +28,8 @@ EXPOSE 8080
 RUN npm run build
 RUN g++ ./tiffextract/driver.cpp -o dist/assets/tiffextract.out -fopenmp
 
+ARG API_VERSION=unknown
+ENV API_VERSION=$API_VERSION
+
 WORKDIR /api/dist/app
 CMD [ "node", "cluster.js" ]

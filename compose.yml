@@ -11,6 +11,8 @@ services:
     init: true
     build:
       context: .
+      args:
+        API_VERSION: ${API_VERSION:-unknown}
     restart: on-failure
     container_name: api
     ports:
@@ -36,6 +38,8 @@ services:
     init: true
     build:
       context: .
+      args:
+        API_VERSION: ${API_VERSION:-unknown}
     restart: on-failure
     container_name: api-dev
     ports:
@@ -58,9 +62,12 @@ services:
       - hcdp-net
   postgres:
     init: true
-    image: postgres:17
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
     container_name: api-db
     env_file: db.env
+    command: ["postgres", "-c", "shared_preload_libraries=timescaledb"]
     volumes:
       - /media/volume/HCDP-API-ManagementDB/postgres/data:/var/lib/postgresql/data
     healthcheck:
