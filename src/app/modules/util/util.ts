@@ -1,27 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import * as nodemailer from "nodemailer";
-import moment from "moment-timezone";
-import { logDir, emailConfig, smtp, smtpPort } from "./config.js";
 
-const transporterOptions = {
-  host: smtp,
-  port: smtpPort,
-  secure: false,
-  ignoreTLS: true,
-  pool: true,
-  maxConnections: 1,
-  maxMessages: 100
-};
-const transporter = nodemailer.createTransport(transporterOptions);
-transporter.verify((error: Error | null) => {
-  if(error) {
-    console.error("SMTP Startup Error: Failed to connect to UH SMTP server", error.message);
-  }
-  else {
-    console.log("SMTP Pool initialized and ready to send emails.");
-  }
-});
 
 export class TwoWayMap<T, U> {
     private map: Map<T, U>;
@@ -69,49 +48,14 @@ export async function handleSubprocess(subprocess, dataHandler, errHandler?) {
   });
 }
 
-export async function sendEmail(mailOptions: MailOptions, retries = 3): Promise<MailRes> {
-  let combinedMailOptions = Object.assign({}, emailConfig, mailOptions);
-  try {
-    let info = await transporter.sendMail(combinedMailOptions);
-    const success = info.response.startsWith("250");
-    return {
-      success: success,
-      result: info, 
-      error: null
-    };
-  }
-  catch(error: any) {
-    if(retries > 0 && (error.code === "ECONNRESET" || error.code === "ETIMEDOUT" || error.code === "EPIPE")) {
-      console.warn(`SMTP connection error (${error.code}). Retrying...`);
-      return sendEmail(mailOptions, retries - 1);
-    }
-    return {
-      success: false,
-      result: null,
-      error: error
-    };
-  }
-}
 
 
-export async function logReq(data) {
-  const { user, code, success, sizeF, method, endpoint, token, sizeB, tokenUser } = data;
-  const currentTime = moment().tz("Pacific/Honolulu");
-  const timestamp = currentTime.format("YYYY-MM-DD HH:mm:ss");
-  const fname = "requests.log";
-  const logDateDir = path.join(logDir, "data", currentTime.format("YYYY/MM/DD"));
-  const logFile = path.join(logDateDir, fname);
-  let dataString = `[${timestamp}] ${method}:${endpoint}:${user}:${tokenUser}:${token}:${code}:${success}:${sizeB}:${sizeF}\n`;
-  try {
-    await fs.promises.mkdir(logDateDir, { recursive: true });
-    await fs.promises.appendFile(logFile, dataString);
-  }
-  catch(err) {
-    console.error(`Failed to write userlog.\nError: ${err}`);
-  }
-}
 
-export function processTapisError(res, reqData, e) {
+
+
+
+
+export function processTapisError(res, e) {
   let status = e["http status code"];
   let reason = e["message"];
   if(status === undefined) {
@@ -121,7 +65,6 @@ export function processTapisError(res, reqData, e) {
     reason = "An error occured while processing the request.";
     console.error(`An unexpected error occurred during a Tapis operation. Error: ${e}`);
   }
-  reqData.code = status;
   res.status(status)
   .send(reason);
 }
@@ -190,11 +133,7 @@ export function parseBoolParam(param: any, defaultValue: boolean = false): boole
   return value;
 }
 
-export function checkEmail(email: string) {
-  const emailRegex = /(?:[a-z0-9!#$%&'*+\x2f=?^_`\x7b-\x7d~\x2d]+(?:\.[a-z0-9!#$%&'*+\x2f=?^_`\x7b-\x7d~\x2d]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[a-z0-9](?:[a-z0-9\x2d]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9\x2d]*[a-z0-9])?|\[(?:(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9]))\.){3}(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9])|[a-z0-9\x2d]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])/;
-  let valid = emailRegex.test(email);
-  return valid;
-}
+
 
 export function validateType(value: any, types: string[]) {
   return types.includes(typeof value);
@@ -262,20 +201,28 @@ export function deepEqual(obj1: any, obj2: any): boolean {
   return match;
 }
 
-export interface MailRes {
-  success: boolean,
-  result: any,
-  error: Error
-}
 
-export interface MailOptions {
-  to: string | string[],
-  text: string,
-  html: string,
-  from?: string,
-  subject?: string,
-  attachments?: {
-    filename: string,
-    content: fs.ReadStream
-  }[]
+
+export function sanitizeFilename(input: unknown, requireExt: string | null = null, fallback = "data.csv"): string {
+  if(typeof input !== "string") {
+    return fallback;
+  }
+
+  // Normalize Windows backslashes, strip directory paths, and replace spaces/unsafe characters with "_"
+  let cleaned = path.basename(input.trim().replace(/\\/g, "/"))
+    .replace(/[^\w.\-]/g, "_")
+    .replace(/^\.+/, ""); // Prevent ".", "..", and hidden dotfiles
+
+  if(!cleaned || cleaned.length > 200) {
+    return fallback;
+  }
+
+  if(requireExt) {
+    const ext = requireExt.replace(/^\.+/, "").toLowerCase();
+    if(!cleaned.toLowerCase().endsWith(`.${ext}`)) {
+      cleaned += `.${ext}`;
+    }
+  }
+
+  return cleaned;
 }

@@ -1,5 +1,6 @@
 import Cursor from "pg-cursor";
 import { apiDB } from "./resourceManagers/db.js";
+import { Request, Response, NextFunction } from "express";
 
 async function validateTokenAccess(token, permission) {
   let valid = false;
@@ -30,7 +31,7 @@ async function validateTokenAccess(token, permission) {
   };
 }
 
-export async function validateToken(req, permission) {
+async function validateToken(req, permission) {
   let tokenData = {
     valid: false,
     allowed: false,
@@ -48,4 +49,28 @@ export async function validateToken(req, permission) {
     }
   }
   return tokenData;
+}
+
+
+
+export function requireAuth(permission: string) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { valid, allowed, token, user } = await validateToken(req, permission);
+      res.locals.setAuthUser(token, user)
+
+      if (!valid) {
+        return res.status(401)
+        .send("User not authorized. Please provide a valid API token in the request header. If you do not have an API token one can be requested by filling out the form at https://www.hawaii.edu/climate-data-portal/hcdp-hawaii-mesonet-api/.");
+      }
+      if (!allowed) {
+        return res.status(403)
+        .send("User does not have permission to perform this action.");
+      }
+      next();
+    }
+    catch(e) {
+      next(e);
+    }
+  };
 }

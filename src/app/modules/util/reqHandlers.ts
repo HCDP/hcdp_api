@@ -1,150 +1,196 @@
-import { logReq, sendEmail } from "./util.js";
-import { administrators } from "./config.js";
-import { validateToken } from "./auth.js";
-import { apiDB } from "./resourceManagers/db.js";
-import { Request, Response } from "express";
-import QueryString from "qs";
+import { emailAdminError } from "./email.js";
+import { logReq, RequestLogData } from "./logging.js";
+import { Request, Response, NextFunction } from "express";
+import { API_VERSION } from "./version.js";
+import { randomUUID } from "crypto";
 
-export type RequestData = {
-    user: string,
-    code: number,
-    success: boolean,
-    sizeF: number,
-    method: string,
-    endpoint: string,
-    token: string,
-    sizeB: number,
-    tokenUser: string
-  }
 
-async function sendErrorMessage(errorMsg: string) {
-  let htmlErrorMsg = errorMsg.replace(/\n/g, "<br>");
-  
-  //send the administrators an email logging the error
-  if(administrators.length > 0) {
-    let mailOptions = {
-      to: administrators,
-      subject: "HCDP API error",
-      text: `An unexpected error occured in the HCDP API:\n${errorMsg}`,
-      html: `<p>An error occured in the HCDP API:<br>${htmlErrorMsg}</p>`
-    };
-    try {
-      //attempt to send email to the administrators
-      let emailStatus = await sendEmail(mailOptions);
-      //if email send failed throw error for logging
-      if(!emailStatus.success) {
-        throw emailStatus.error;
+
+export function initAndLog(req: Request, res: Response, next: NextFunction) {
+  const startTime = new Date();
+  const requestId = randomUUID();
+  res.setHeader("X-Request-Id", requestId);
+
+  const qIndex = req.originalUrl.indexOf("?");
+  const query = qIndex !== -1 ? req.originalUrl.slice(qIndex + 1) : null;
+
+  let resFinished = false;
+  const backgroundTasks: (() => Promise<boolean>)[] = [];
+
+  // register background tasks prior to sending response and prevent premature unhandled rejections
+  res.locals.addBackgroundTask = (task: () => Promise<boolean>) => {
+    backgroundTasks.push(task);
+  };
+
+  let reqData: RequestLogData = {
+    apiVersion: API_VERSION,
+
+    userIp: req.ip || null,
+    userAgent: req.get("user-agent") || null,
+    requestId,
+
+    method: req.method,
+    endpoint: req.path,
+    template: null,
+    query: query,
+
+    startTime,
+    returnTime: null,
+    endTime: null,
+    returnDurationMs: null,
+    durationMs: null,
+
+    token: null,
+    tokenUser: null,
+    email: null,
+
+    sizeF: null,
+    sizeB: null,
+
+    code: null,
+    success: null,
+    errorHandled: null,
+    error: null,
+    adminEmailed: null
+  };
+
+  res.locals.setAuthUser = (token: string, tokenUser: string) => {
+    reqData.token = token;
+    reqData.tokenUser = tokenUser;
+  };
+  res.locals.setEmail = (email: string) => {
+    reqData.email = email;
+  };
+  res.locals.setSizeF = (sizeF: number) => {
+    reqData.sizeF = sizeF;
+  };
+  res.locals.setSizeB = (sizeB: number) => {
+    reqData.sizeB = sizeB;
+  };
+  res.locals.setErrorMsg = (message: string) => {
+    reqData.error = message;
+  };
+  res.locals.setSuccess = (success: boolean) => {
+    reqData.success = success;
+  };
+
+  const handleUnhandledError = async (err: any) => {
+    const errorTraceMsg = `error: ${err}\ntrace: ${err?.stack}`;
+    reqData.error = errorTraceMsg;
+    const adminErrorMsg = `method: ${reqData.method}\nendpoint: ${reqData.endpoint}\n${errorTraceMsg}`;
+    console.error(`An unexpected error occurred:\n${adminErrorMsg}`);
+    const adminEmailed = await emailAdminError(adminErrorMsg);
+    reqData.adminEmailed = adminEmailed;
+  };
+
+  res.locals.recordUnhandledError = async (err: any) => {
+    reqData.success = false;
+    reqData.errorHandled = false;
+
+    // defer handling to finish listener if response has not completed yet
+    if(!resFinished) {
+      res.locals.unhandledError = err;
+    }
+    // if response already finished, handle error and update log immediately
+    else {
+      const endTime = new Date();
+      reqData.endTime = endTime;
+      reqData.durationMs = endTime.getTime() - reqData.startTime.getTime();
+      await handleUnhandledError(err);
+      logReq(reqData);
+    }
+  };
+
+  res.on("finish", async () => {
+    resFinished = true;
+    const returnTime = new Date();
+    const durationMs = returnTime.getTime() - reqData.startTime.getTime();
+
+    reqData.returnTime = returnTime;
+    reqData.returnDurationMs = durationMs;
+    let status = res.statusCode;
+    reqData.code = status;
+
+    if(req.route) {
+      reqData.template = `${req.baseUrl}${req.route.path}`;
+    }
+
+    let code2xx = Math.floor(status / 100) === 2;
+    let runBackground = backgroundTasks.length > 0 && code2xx;
+
+
+    // if background tasks have not been registered, set completion info
+    if(!runBackground) {
+      reqData.endTime = returnTime;
+      reqData.durationMs = durationMs;
+      let success = code2xx;
+      // if success was not manually set then use status to determine
+      if(reqData.success === null) {
+        reqData.success = success;
+      }
+      // an error was encountered and properly handled
+      if(!reqData.success && reqData.errorHandled === null) {
+        reqData.errorHandled = true;
       }
     }
-    //if error while sending admin email write to stderr
-    catch(e) {
-      console.error(`Failed to send administrator notification email: ${e}`);
+    // if the error handler set an unhandledError, handle it
+    if(res.locals.unhandledError) {
+      await handleUnhandledError(res.locals.unhandledError);
     }
-  }
+    // log the request at this point
+    logReq(reqData);
+
+    // if there were background tasks registered, wait for those to complete and update logs accordingly
+    if(runBackground) {
+      const tasks: Promise<boolean>[] = [];
+      try {
+        for(let task of backgroundTasks) {
+          tasks.push((async () => task())());
+        }
+        let backgroundResults = await Promise.all(tasks);
+        // if success status was not already set, check if all background tasks were successful (should return success bool)
+        if(reqData.success === null) {
+          reqData.success = backgroundResults.every((value: boolean) => value);
+        }
+        // an error was encountered in background tasks and properly handled
+        if(!reqData.success && reqData.errorHandled === null) {
+          reqData.errorHandled = true;
+        }
+      }
+      // unhandled error
+      catch(err: any) {
+        reqData.success = false;
+        reqData.errorHandled = false;
+        // handle the unhandled error
+        await handleUnhandledError(err);
+      }
+      // set task end timing
+      const endTime = new Date();
+      const endDurationMs = endTime.getTime() - reqData.startTime.getTime();
+      reqData.endTime = endTime;
+      reqData.durationMs = endDurationMs;
+      // update the request data
+      logReq(reqData);
+    }
+  });
+
+  next();
 }
 
-async function checkSendErrorMessage(errorMsg: string) {
-  let query = `
-    UPDATE error_throttle
-    SET count = count - 1
-    WHERE count > 0;
-  `;
 
-  let updated = await apiDB.queryNoRes(query, []);
-  if(updated) {
-    sendErrorMessage(errorMsg);
-  }
-}
 
-export async function handleReqNoAuth(req: Request, res: Response, handler: (reqData: RequestData) => Promise<any>) {
-  //note include success since 202 status might not indicate success in generating download package
-  //note sizeB will be 0 for everything but download packages
-  let reqData: RequestData = {
-    user: "",
-    code: 0,
-    success: true,
-    sizeF: 0,
-    method: req.method,
-    endpoint: req.path,
-    token: "",
-    sizeB: 0,
-    tokenUser: ""
-  };
-  try {
-    await handler(reqData);
+export function errorHandler(err: any, req: Request, res: Response, next: NextFunction) {
+  if(res.locals.recordUnhandledError) {
+    void res.locals.recordUnhandledError(err);
   }
-  catch(e) {
-    //set failure occured in request
-    reqData.success = false;
-    let errorMsg = `method: ${reqData.method}\n\
-      endpoint: ${reqData.endpoint}\n\
-      error: ${e}`;
-      
-    checkSendErrorMessage(errorMsg);
-    console.error(`An unexpected error occured:\n${errorMsg}`);
-    //if request code not set by handler set to 500 and send response (otherwise response already sent and error was in post-processing)
-    if(reqData.code == 0) {
-      reqData.code = 500;
-      res.status(500)
-      .send("An unexpected error occurred");
-    }
+  else {
+    console.error("Unhandled error before initAndLog:", err);
   }
-  logReq(reqData);
-}
 
-export async function handleReq(req: Request, res: Response, permission: string, handler: (reqData: RequestData) => Promise<any>) {
-  //note include success since 202 status might not indicate success in generating download package
-  //note sizeB will be 0 for everything but download packages
-  let reqData = {
-    user: "",
-    code: 0,
-    success: true,
-    sizeF: 0,
-    method: req.method,
-    endpoint: req.path,
-    token: "",
-    sizeB: 0,
-    tokenUser: ""
-  };
-  try {
-    const tokenData = await validateToken(req, permission);
-    const { valid, allowed, token, user } = tokenData;
-
-    reqData.token = token;
-    reqData.tokenUser = user;
-    //token was valid and user is allowed to perform this action, send to handler
-    if(valid && allowed) {
-      await handler(reqData);
-    }
-    //token was not provided or not valid, return 401
-    else if(!valid) {
-      reqData.code = 401;
-      res.status(401)
-      .send("User not authorized. Please provide a valid API token in the request header. If you do not have an API token one can be requested by filling out the form at https://www.hawaii.edu/climate-data-portal/hcdp-hawaii-mesonet-api/.");
-    }
-    //token was valid, but does not have permission to access this endpoint, return 403
-    else {
-      reqData.code = 403;
-      res.status(403)
-      .send("User does not have permission to perform this action.");
-    }
+  if(!res.headersSent) {
+    res.status(500).send("An unexpected error occurred.");
   }
-  catch(e: any) {
-    //set failure occured in request
-    reqData.success = false;
-    let errorMsg = `method: ${reqData.method}\n\
-      endpoint: ${reqData.endpoint}\n\
-      error: ${e}\n\
-      trace: ${e.stack}`;
-
-    checkSendErrorMessage(errorMsg);
-    console.error(`An unexpected error occured:\n${errorMsg}`);
-    //if request code not set by handler set to 500 and send response (otherwise response already sent and error was in post-processing)
-    if(reqData.code == 0) {
-      reqData.code = 500;
-      res.status(500)
-      .send("An unexpected error occurred");
-    }
+  else if(!res.writableEnded) {
+    res.end();
   }
-  logReq(reqData);
 }

@@ -1,7 +1,10 @@
 import express from "express";
+import "express-async-errors";
 import compression from "compression";
 import cors from "cors";
 import timeout from "connect-timeout";
+import { initAndLog, errorHandler } from "./modules/util/reqHandlers.js";
+import { flushLogs } from "./modules/util/logging.js";
 import { port } from "./modules/util/config.js";
 import { router as r1 } from "./endpoints/admin/misc/notify.js";
 import { router as r2 } from "./endpoints/mesonet/db/db.js";
@@ -48,6 +51,7 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST");
   res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range, Content-Range, Cache-Control");
+  res.setHeader("Access-Control-Expose-Headers", "X-Request-Id");
   //pass to next layer
   next();
 });
@@ -70,11 +74,17 @@ app.use((req, res, next) => {
 //   store: pgStoreLimitAll
 // });
 
-
+app.use(initAndLog);
 
 app.use("/mesonet/db/measurements/insert", express.json({ limit: '50mb' }));
 app.use(express.json());
 
+
+for(let router of routers) {
+  app.use("/", router);
+}
+
+app.use(errorHandler);
 
 const server = app.listen(port, () => {
   console.log("Server running on port " + port);
@@ -98,10 +108,12 @@ const signals = {
 
 function shutdown(code) {
   //stops new connections and completes existing ones before closing
-  server.close(() => {
+  server.close(async () => {
     console.log(`Server shutdown.`);
     // stop tapis manager
     tapisV3Manager.close();
+    // flush logs to database
+    await flushLogs();
     process.exit(code);
   });
 }
@@ -114,6 +126,3 @@ for(let signal in signals) {
   });
 }
 
-for(let router of routers) {
-  app.use("/", router);
-}
