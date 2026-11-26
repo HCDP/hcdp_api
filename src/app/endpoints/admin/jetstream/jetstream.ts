@@ -2,7 +2,7 @@ import express from "express";
 import { execFile } from 'child_process';
 import util from 'util';
 import { validate as validateUUID } from 'uuid';
-import { requireAuth } from "../../../modules/util/auth";
+import { requireAuth } from "../../../modules/util/auth.js";
 
 const execFilePromise = util.promisify(execFile);
 export const router = express.Router();
