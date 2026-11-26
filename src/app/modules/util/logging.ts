@@ -83,7 +83,7 @@ async function flushBatch(batch: RequestLogData[]) {
       size_b
     )
     VALUES ${valuesSql.join(",\n")}
-    ON CONFLICT (request_id) DO UPDATE SET
+    ON CONFLICT (request_id, start_time) DO UPDATE SET
       return_time = EXCLUDED.return_time,
       end_time = EXCLUDED.end_time,
       return_duration_ms = EXCLUDED.return_duration_ms,
